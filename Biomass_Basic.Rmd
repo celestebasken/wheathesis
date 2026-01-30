@@ -9,12 +9,67 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Berries
+```{r, echo=FALSE}
+
+library(tidyverse)
+
+```
+
+
+## Berries 
+
+Clustering without regard to PPT:
 
 ```{r pressure, echo=FALSE}
+# Without sorting by ppt at all
 
+berries <- read.csv("Biomass/Berry_Weights.csv")
+
+berries <- berries %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+ggplot(berries, aes(x = Group, y = Biomass_g, fill = Group)) + 
+  geom_col()
 
 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r pressure, echo=FALSE}
+# With each bar individual; as you can see there is a lot of variation, hopefully due to ppt
+
+berries <- read.csv("Biomass/Berry_Weights.csv")
+
+berries <- berries %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_"),
+    Rep = factor(row_number())
+  )
+
+ggplot(berries, aes(x = Group, y = Biomass_g, fill = Group)) +
+  geom_col(aes(group = Rep), position = position_dodge(width = 0.8))
+
+```
+
+```{r pressure, echo=FALSE}
+# With each bar individual and ppt
+
+berries <- read.csv("Biomass/Berry_Weights.csv")
+
+berries <- berries %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+ggplot(berries, aes(x = Group, y = Biomass_g, fill = Water)) +
+  geom_col(position = "dodge")
+
+```
