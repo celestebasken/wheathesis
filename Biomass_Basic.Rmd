@@ -38,7 +38,10 @@ ggplot(berries, aes(x = Group, y = Biomass_g, fill = Group)) +
 
 ```
 
-```{r pressure, echo=FALSE}
+# With every replicate individually
+This shows the variation by ppt if you just look at inoc and inter status
+
+```{r, echo=FALSE}
 # With each bar individual; as you can see there is a lot of variation, hopefully due to ppt
 
 berries <- read.csv("Biomass/Berry_Weights.csv")
@@ -55,8 +58,10 @@ ggplot(berries, aes(x = Group, y = Biomass_g, fill = Group)) +
   geom_col(aes(group = Rep), position = position_dodge(width = 0.8))
 
 ```
+# Clustered with ppt included
+There appears to be different behavior in the water status between inter and mono.
 
-```{r pressure, echo=FALSE}
+```{r, echo=FALSE}
 # With each bar individual and ppt
 
 berries <- read.csv("Biomass/Berry_Weights.csv")
@@ -73,3 +78,22 @@ ggplot(berries, aes(x = Group, y = Biomass_g, fill = Water)) +
   geom_col(position = "dodge")
 
 ```
+
+The just water graph is a little concerning because there appears to be no difference between control and moderate...
+
+```{r, echo=FALSE}
+# Just water
+
+water_means <- berries %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  ) %>%
+  group_by(Water) %>%
+  summarise(mean_biomass = mean(Biomass_g, na.rm = TRUE),
+            .groups = "drop")
+
+ggplot(water_means, aes(x = Water, y = mean_biomass)) +
+  geom_col()
+
+```
+
