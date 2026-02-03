@@ -1,5 +1,5 @@
 ---
-title: "Biomass_Basic"
+title: "ANPP_Wheat_Basic"
 author: "Celeste Basken"
 date: "2026-01-27"
 output: html_document
@@ -15,13 +15,14 @@ library(tidyverse)
 library(broom)
 library(knitr)
 ```
-# Berries 
+
+# ANPP Wheat Biomass
 
 ```{r}
 # Loading in data to explore
-berries <- read.csv("Biomass/Berry_Weights.csv")
+ANPP <- read.csv("Biomass/ANPP_Wheat_Weights.csv")
 
-berries <- berries %>%
+ANPP <- ANPP %>%
   mutate(
     Inoculation = factor(Inoculation),
     Polyculture = factor(Polyculture),
@@ -34,26 +35,29 @@ berries <- berries %>%
 
 Clustering without regard to PPT:
 
-* Just a note here: I'm using Biomass_g_pp, which is grams per plant of wheat berries. THIS IS IMPORTANT because I forgot to do it at first which meant half the treatments were doubled since this should be considered per capita. Alas.
+* Just a note here: I'm using Biomass_g_pp, which is grams per plant of wheat ANPP.
 
 ```{r pressure, echo=FALSE}
 # Without sorting by ppt at all
 
-ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Group)) + 
-  geom_col()
+ggplot(ANPP, aes(x = Group, y = Biomass_g_pp, fill = Group)) + 
+  geom_col() +
+  ggtitle("Wheat ANPP biomass broadly by treatment (not accounting for PPT)")
 
 ```
 
-* In the most basic analysis, the monoculture was about half as productive
+Takeaways
+
+* Strl mono is still the smallest, like with the berries
 
 The same data is below, but with each pot plotted so you can see the variation within the treatments:
 
 ```{r, echo=FALSE}
 # With each bar individual; as you can see there is a lot of variation, hopefully due to ppt
 
-berries <- read.csv("Biomass/Berry_Weights.csv")
+ANPP <- read.csv("Biomass/ANPP_Wheat_Weights.csv")
 
-berries <- berries %>%
+ANPP <- ANPP %>%
   mutate(
     Inoculation = factor(Inoculation),
     Polyculture = factor(Polyculture),
@@ -61,27 +65,29 @@ berries <- berries %>%
     Rep = factor(row_number())
   )
 
-ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Group)) +
-  geom_col(aes(group = Rep), position = position_dodge(width = 0.8)) +
-  ggtitle("Berry weights by treatment group")
+ggplot(ANPP, aes(x = Group, y = Biomass_g_pp, fill = Group)) +
+  geom_col(aes(group = Rep), position = position_dodge(width = 0.8))
 
 ```
+
+Takeaways
+* There is a large outlier potentially in the inoc_inter treatment
 
 ## Part 2: Looking at PPT and what the general behavior is
 
 To begin, here's what I would EXPECT the graph to look like:
 
 ```{r}
-knitr::include_graphics("Biomass/Berries/expected.png")
+knitr::include_graphics("Biomass/ANPP/expected.png")
 ```
 Here's the actual figure with the data:
 
 ```{r, echo=FALSE}
 # With each bar individual and ppt
 
-berries <- read.csv("Biomass/Berry_Weights.csv")
+ANPP <- read.csv("Biomass/ANPP_Wheat_Weights.csv")
 
-berries <- berries %>%
+ANPP <- ANPP %>%
   mutate(
     Inoculation = factor(Inoculation),
     Polyculture = factor(Polyculture),
@@ -89,29 +95,29 @@ berries <- berries %>%
     Group = interaction(Inoculation, Polyculture, sep = "_")
   )
 
-ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Water)) +
+ggplot(ANPP, aes(x = Group, y = Biomass_g_pp, fill = Water)) +
   geom_col(position = "dodge") +
-  ggtitle("Berry biomass by PPT and treatments")
+  ggtitle("Wheat ANPP biomass by PPT and treatments")
 
 ```
 Takeaways
 
-* The Inoc_inter and strl_inter groups are behaving as expected, but the inoc_mono and strl_mono are not (especially strl_mono, which is interesting since it is to an extreme of our treatments)
-* This may be explained by intercropping vs monocropping, potentially
-* Inoculation seems less significant than intercropping at first pass.
-* This kind of makes sense, since that factor is less straightforward. Plus, intercropped plants probably had more room, since the faba didn't do so well.
+* Kind of all over the place
+* Only strl_inter really makes sense?
+* Curious if there is a large outlier in the inoc_inter group
+* As compared to the berries, the drought seems to have affected ANPP much less for the wheat.
 
-## Analyzing these berry biomass trends more in depth
+## Analyzing these ANPP biomass trends more in depth
 
 All of the treatments together looking at water: both as a bar graph and boxplot
 
 ```{r}
 
 # Bar graph looking at water with the individual points plotted on trop
-ggplot(berries, aes(x = Water, y = Biomass_g_pp)) +
+ggplot(ANPP, aes(x = Water, y = Biomass_g_pp)) +
   stat_summary(fun = mean, geom = "col", width = 0.6) +
   geom_jitter(width = 0.15, alpha = 0.6) +
-  ggtitle("Berry biomass by PPT, all treatments")
+  ggtitle("ANPP biomass by PPT, all treatments")
 
 
 ```
@@ -120,46 +126,43 @@ ggplot(berries, aes(x = Water, y = Biomass_g_pp)) +
 # The same thing (kind of) but as a boxplot with the scattered points
 
 #This code is redundant but good for copy paste later?
-berries <- berries %>%
+ANPP <- ANPP %>%
   mutate(
     Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
   )
 
 # The plot
-ggplot(berries, aes(x = Water, y = Biomass_g_pp)) +
+ggplot(ANPP, aes(x = Water, y = Biomass_g_pp)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.15, alpha = 0.6) +
-  ggtitle("Berry biomass by PPT, all treatments")
+  ggtitle("ANPP biomass by PPT, all treatments")
 ```
 
 Takeaways
 
-* There is a difference between severe compared to control and moderate, but not really within control and moderate
-* Can I average the control and moderate somehow? Should I? Or should I just remove moderate and have 2 levels of PPT.
+* There definitely seems to be some outlier activity going on
+* Nothing really interesting oof
 
 ## Focusing on crop diversity: inter vs mono
 
-Since the main difference in expectation vs data for the berry biomass was in the monocropped treatments, I decided to break down these boxplots by cropping diversity. Here are the individual boxplots, and then side by side:
-
-These first figures combine inoc and strl. First, just monocropped:
 
 ```{r}
 # Looking at just monocropped
 
-berries <- berries %>%
+ANPP <- ANPP %>%
   mutate(
     Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
     Inoculation = factor(Inoculation),
     Polyculture = factor(Polyculture)
   )
 
-berries_inter <- berries %>%
+ANPP_inter <- ANPP %>%
   filter(Polyculture == "Mono")
 
-ggplot(berries_inter, aes(x = Water, y = Biomass_g_pp)) +
+ggplot(ANPP_inter, aes(x = Water, y = Biomass_g_pp)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.15, alpha = 0.6) +
-  ggtitle("Berry biomass by PPT, Monocropped treatments only")
+  ggtitle("ANPP biomass by PPT, Monocropped treatments only")
 
 ```
 
@@ -168,20 +171,20 @@ And looking at intercropped
 ```{r}
 # Looking at just intercropped
 
-berries <- berries %>%
+ANPP <- ANPP %>%
   mutate(
     Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
     Inoculation = factor(Inoculation),
     Polyculture = factor(Polyculture)
   )
 
-berries_inter <- berries %>%
+ANPP_inter <- ANPP %>%
   filter(Polyculture == "Inter")
 
-ggplot(berries_inter, aes(x = Water, y = Biomass_g_pp)) +
+ggplot(ANPP_inter, aes(x = Water, y = Biomass_g_pp)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.15, alpha = 0.6) + 
-  ggtitle("Berry biomass by PPT, Intercropped treatments only")
+  ggtitle("ANPP biomass by PPT, Intercropped treatments only")
 ```
 
 Let's see that side by side and broken down by inoculation status as well
@@ -189,14 +192,14 @@ Let's see that side by side and broken down by inoculation status as well
 ```{r}
 # Splitting it by crop treatment
 
-berries <- berries %>%
+ANPP <- ANPP %>%
   mutate(
     Water       = factor(Water, levels = c("Control", "Moderate", "Severe")),
     Inoculation = factor(Inoculation, levels = c("Strl", "Inoc")),
     Polyculture = factor(Polyculture, levels = c("Inter", "Mono"))
   )
 
-ggplot(berries, aes(x = Water, y = Biomass_g_pp, fill = Inoculation)) +
+ggplot(ANPP, aes(x = Water, y = Biomass_g_pp, fill = Inoculation)) +
   geom_boxplot(
     outlier.shape = NA,
     position = position_dodge(width = 0.8)
@@ -213,38 +216,36 @@ ggplot(berries, aes(x = Water, y = Biomass_g_pp, fill = Inoculation)) +
     x = "Water treatment",
     y = "Biomass (g)"
   ) +
-  ggtitle("Both Intercropped and Monoculture Berry biomass by PPT")
+  ggtitle("Both Intercropped and Monoculture ANPP biomass by PPT")
 
 
 ```
 
 Takeaways
 
-* The intercropped treatments behave more like I expected (confirming first graph)
-* In no treatment is there a real difference between control and moderate PPT. It may have to be dropped, if that’s allowed? Unless there is another solution.
-* On the bright side, the severe drought worked!
+* These data seem totally all over the place
+* Crazy tail activity
+* Yeah
 
-## Berry statistics
+## ANPP statistics
 
-To conclude my berry work, let's generate some statistics
+To conclude my ANPP work, let's generate some statistics
 
-Before I begin I want to check some assumptions of a t-test!!
+Before I begin I want to check some assumptions of a t-test
 
-The boxes shouldn't have overly long tails or outliers. The residuals should be straight. These assumptions seem to be met (??). 
-
-* I worry that that the residuals look too S-shaped
+The boxes shouldn't have overly long tails or outliers. The residuals should be straight.
 
 ```{r}
 # Check of distributions
-ggplot(berries, aes(x = Inoculation, y = Biomass_g_pp)) +
+ggplot(ANPP, aes(x = Inoculation, y = Biomass_g_pp)) +
   geom_boxplot() +
   geom_jitter(width = 0.15, alpha = 0.6) +
   facet_wrap(~ Water) +
   theme_bw() +
-  ggtitle("Berry biomass by inoculation status")
+  ggtitle("ANPP biomass by inoculation status")
 
 # Q–Q plots of residuals
-ggplot(berries, aes(sample = Biomass_g_pp)) +
+ggplot(ANPP, aes(sample = Biomass_g_pp)) +
   stat_qq() +
   stat_qq_line() +
   facet_wrap(~ Inoculation + Water) +
@@ -253,12 +254,14 @@ ggplot(berries, aes(sample = Biomass_g_pp)) +
 
 ```
 
+* The lines of residuals seem to have several significant outliers, especially the inoculated treatments
+
 This next section is generating a variety of summary statistics about the data, and then saving them as CSVs. 
 
 ```{r}
 
 # Load + clean
-berries <- berries %>%
+ANPP <- ANPP %>%
   mutate(
     Inoculation = factor(Inoculation, levels = c("Strl", "Inoc")),
     Polyculture = factor(Polyculture, levels = c("Mono", "Inter")),
@@ -283,30 +286,30 @@ desc_stats <- function(x) {
 }
 
 # Each of the 4 treatments within each Water level
-summary_4treat_by_water <- berries %>%
+summary_4treat_by_water <- ANPP %>%
   group_by(Water, Inoculation, Polyculture) %>%
   summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
 # Inoculation only (fold inter/mono together), within each Water
-summary_inoc_by_water <- berries %>%
+summary_inoc_by_water <- ANPP %>%
   group_by(Water, Inoculation) %>%
   summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
 # Polyculture only (fold inoc/strl together), within each Water
-summary_poly_by_water <- berries %>%
+summary_poly_by_water <- ANPP %>%
   group_by(Water, Polyculture) %>%
   summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
 # Oerall summaries across Water (all data)
-summary_4treat_overall <- berries %>%
+summary_4treat_overall <- ANPP %>%
   group_by(Inoculation, Polyculture) %>%
   summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
-summary_inoc_overall <- berries %>%
+summary_inoc_overall <- ANPP %>%
   group_by(Inoculation) %>%
   summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
-summary_poly_overall <- berries %>%
+summary_poly_overall <- ANPP %>%
   group_by(Polyculture) %>%
   summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
@@ -319,33 +322,33 @@ summary_poly_by_water
 # Saving these as csvs
 
 write.csv(summary_4treat_by_water,
-          file.path(("Biomass/Berries"), "summary_4treat_by_water.csv"),
+          file.path(("Biomass/ANPP"), "summary_4treat_by_water.csv"),
           row.names = FALSE)
 
 write.csv(summary_inoc_by_water,
-          file.path(("Biomass/Berries"), "summary_inoc_by_water.csv"),
+          file.path(("Biomass/ANPP"), "summary_inoc_by_water.csv"),
           row.names = FALSE)
 
 write.csv(summary_poly_by_water,
-          file.path(("Biomass/Berries"), "summary_poly_by_water.csv"),
+          file.path(("Biomass/ANPP"), "summary_poly_by_water.csv"),
           row.names = FALSE)
 
 write.csv(summary_4treat_overall,
-          file.path(("Biomass/Berries"), "summary_4treat_overall.csv"),
+          file.path(("Biomass/ANPP"), "summary_4treat_overall.csv"),
           row.names = FALSE)
 
 write.csv(summary_inoc_overall,
-          file.path(("Biomass/Berries"), "summary_inoc_overall.csv"),
+          file.path(("Biomass/ANPP"), "summary_inoc_overall.csv"),
           row.names = FALSE)
 
 write.csv(summary_poly_overall,
-          file.path(("Biomass/Berries"), "summary_poly_overall.csv"),
+          file.path(("Biomass/ANPP"), "summary_poly_overall.csv"),
           row.names = FALSE)
 
 
 ```
 
-## Berry statistical analysis
+## ANPP statistical analysis
 
 I used AI to generate stats. This should be verified for sure!! Especially to make sure I meet the assumptions to even be using these stats.
 
@@ -356,14 +359,14 @@ I used AI to generate stats. This should be verified for sure!! Especially to ma
 # Welch t-tests are robust to unequal variances (default in t.test)
 
 # a) Inoculation effect within each Water (folding Polyculture)
-ttest_inoc_within_water <- berries %>%
+ttest_inoc_within_water <- ANPP %>%
   group_by(Water) %>%
   do(tidy(t.test(Biomass_g_pp ~ Inoculation, data = .))) %>%
   ungroup() %>%
   select(Water, estimate1, estimate2, statistic, p.value, conf.low, conf.high, method)
 
 # b) Polyculture effect within each Water (folding Inoculation)
-ttest_poly_within_water <- berries %>%
+ttest_poly_within_water <- ANPP %>%
   group_by(Water) %>%
   do(tidy(t.test(Biomass_g_pp ~ Polyculture, data = .))) %>%
   ungroup() %>%
@@ -371,18 +374,18 @@ ttest_poly_within_water <- berries %>%
 
 # ---- 3-way factorial model (lets you test interactions) ----
 # If your data are fairly normal-ish, this is a strong default.
-fit_aov <- aov(Biomass_g_pp ~ Inoculation * Polyculture * Water, data = berries)
+fit_aov <- aov(Biomass_g_pp ~ Inoculation * Polyculture * Water, data = ANPP)
 aov_table <- broom::tidy(fit_aov)
 
 # ---- Optional: Nonparametric alternatives (in case assumptions are shaky) ----
 # Wilcoxon rank-sum within each Water for Inoculation / Polyculture
-wilcox_inoc_within_water <- berries %>%
+wilcox_inoc_within_water <- ANPP %>%
   group_by(Water) %>%
   do(tidy(wilcox.test(Biomass_g_pp ~ Inoculation, data = ., exact = FALSE))) %>%
   ungroup() %>%
   select(Water, statistic, p.value, method)
 
-wilcox_poly_within_water <- berries %>%
+wilcox_poly_within_water <- ANPP %>%
   group_by(Water) %>%
   do(tidy(wilcox.test(Biomass_g_pp ~ Polyculture, data = ., exact = FALSE))) %>%
   ungroup() %>%
@@ -398,23 +401,23 @@ aov_table
 # Saving as CSV
 
 write.csv(ttest_inoc_within_water,
-          file.path(("Biomass/Berries/Stats"), "ttest_inoc_within_water.csv"),
+          file.path(("Biomass/ANPP/Stats"), "ttest_inoc_within_water.csv"),
           row.names = FALSE)
 
 write.csv(ttest_poly_within_water,
-          file.path(("Biomass/Berries/Stats"), "ttest_poly_within_water.csv"),
+          file.path(("Biomass/ANPP/Stats"), "ttest_poly_within_water.csv"),
           row.names = FALSE)
 
 write.csv(aov_table,
-          file.path(("Biomass/Berries/Stats"), "anova_3way_table.csv"),
+          file.path(("Biomass/ANPP/Stats"), "anova_3way_table.csv"),
           row.names = FALSE)
 
 write.csv(wilcox_inoc_within_water,
-          file.path(("Biomass/Berries/Stats"), "wilcox_inoc_within_water.csv"),
+          file.path(("Biomass/ANPP/Stats"), "wilcox_inoc_within_water.csv"),
           row.names = FALSE)
 
 write.csv(wilcox_poly_within_water,
-          file.path(("Biomass/Berries/Stats"), "wilcox_poly_within_water.csv"),
+          file.path(("Biomass/ANPP/Stats"), "wilcox_poly_within_water.csv"),
           row.names = FALSE)
 
 
