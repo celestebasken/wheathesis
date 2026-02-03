@@ -34,6 +34,8 @@ berries <- berries %>%
 
 Clustering without regard to PPT:
 
+* Just a note here: I'm using Biomass_g_pp, which is grams per plant of wheat berries. THIS IS IMPORTANT because I forgot to do it at first which meant half the treatments were doubled since this should be considered per capita. Alas.
+
 ```{r pressure, echo=FALSE}
 # Without sorting by ppt at all
 
@@ -42,9 +44,9 @@ ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Group)) +
 
 ```
 
-With every replicate individually
+* In the most basic analysis, the monoculture was about half as productive
 
-This shows the variation by ppt if you just look at inoc and inter status. This is not that informative bc it lumps ppt.
+The same data is below, but with each pot plotted so you can see the variation within the treatments:
 
 ```{r, echo=FALSE}
 # With each bar individual; as you can see there is a lot of variation, hopefully due to ppt
@@ -71,7 +73,7 @@ To begin, here's what I would EXPECT the graph to look like:
 ```{r}
 knitr::include_graphics("Biomass/Berries/expected.png")
 ```
-Actual graph
+Here's the actual figure with the data:
 
 ```{r, echo=FALSE}
 # With each bar individual and ppt
@@ -94,9 +96,9 @@ ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Water)) +
 Takeaways
 
 * The Inoc_inter and strl_inter groups are behaving as expected, but the inoc_mono and strl_mono are not (especially strl_mono, which is interesting since it is to an extreme of our treatments)
-* The common factor is intercropping vs monocropping, potentially
-* Inoculation is less significant potentially in the same direction.
-* This kind of makes sense, since that factor is less straightforward
+* This may be explained by intercropping vs monocropping, potentially
+* Inoculation seems less significant than intercropping at first pass.
+* This kind of makes sense, since that factor is less straightforward. Plus, intercropped plants probably had more room, since the faba didn't do so well.
 
 ## Analyzing these berry biomass trends more in depth
 
@@ -131,8 +133,10 @@ ggplot(berries, aes(x = Water, y = Biomass_g_pp)) +
 
 Takeaways
 
-* There was a difference between severe compared to control and moderate, but not really within control and moderate…
+* There is a difference between severe compared to control and moderate, but not really within control and moderate
 * Can I average the control and moderate somehow? Should I? Or should I just remove moderate and have 2 levels of PPT.
+
+## Focusing on crop diversity: inter vs mono
 
 Since the main difference in expectation vs data for the berry biomass was in the monocropped treatments, I decided to break down these boxplots by cropping diversity. Here are the individual boxplots, and then side by side:
 
@@ -212,16 +216,22 @@ ggplot(berries, aes(x = Water, y = Biomass_g_pp, fill = Inoculation)) +
 
 
 ```
+
 Takeaways
 
-* The intercropped treatments behave more like we would expect (confirming first graph)
-* In no treatment is there a real difference between control and moderate PPT
-* There is a slight decrease only between control and moderate, so it may have to be dropped, if that’s allowed?
+* The intercropped treatments behave more like I expected (confirming first graph)
+* In no treatment is there a real difference between control and moderate PPT. It may have to be dropped, if that’s allowed? Unless there is another solution.
 * On the bright side, the severe drought worked!
 
-To conclude our berry work, let's generate some statistics
+## Berry statistics
+
+To conclude my berry work, let's generate some statistics
 
 Before I begin I want to check some assumptions of a t-test!!
+
+The boxes shouldn't have overly long tails or outliers. The residuals should be straight. These assumptions seem to be met (??). 
+
+* I worry that that the residuals look too S-shaped
 
 ```{r}
 # Check of distributions
@@ -240,14 +250,9 @@ ggplot(berries, aes(sample = Biomass_g_pp)) +
   theme_bw() +
   ggtitle("QQ plot of residuals for inoc status")
 
-ggplot(berries, aes(x = Inoculation, y = Biomass_g_pp)) +
-  geom_boxplot() +
-  facet_wrap(~ Water) +
-  theme_bw()
-
-
 ```
 
+This next section is generating a variety of summary statistics about the data, and then saving them as CSVs. 
 
 ```{r}
 
@@ -338,7 +343,10 @@ write.csv(summary_poly_overall,
 
 
 ```
-Using AI to generate stats:
+
+## Berry statistical analysis
+
+I used AI to generate stats. This should be verified for sure!! Especially to make sure I meet the assumptions to even be using these stats.
 
 ```{r}
 # These statistics were Chat GPT and should be verified
