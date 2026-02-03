@@ -30,14 +30,14 @@ berries <- berries %>%
 
 ```
 
-## Part 1: Pretty useless graphs
+## Part 1: Pretty basic figures
 
 Clustering without regard to PPT:
 
 ```{r pressure, echo=FALSE}
 # Without sorting by ppt at all
 
-ggplot(berries, aes(x = Group, y = Biomass_g, fill = Group)) + 
+ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Group)) + 
   geom_col()
 
 ```
@@ -59,7 +59,7 @@ berries <- berries %>%
     Rep = factor(row_number())
   )
 
-ggplot(berries, aes(x = Group, y = Biomass_g, fill = Group)) +
+ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Group)) +
   geom_col(aes(group = Rep), position = position_dodge(width = 0.8))
 
 ```
@@ -86,7 +86,7 @@ berries <- berries %>%
     Group = interaction(Inoculation, Polyculture, sep = "_")
   )
 
-ggplot(berries, aes(x = Group, y = Biomass_g, fill = Water)) +
+ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Water)) +
   geom_col(position = "dodge") +
   ggtitle("Berry biomass by PPT and treatments")
 
@@ -105,7 +105,7 @@ All of the treatments together looking at water: both as a bar graph and boxplot
 ```{r}
 
 # Bar graph looking at water with the individual points plotted on trop
-ggplot(berries, aes(x = Water, y = Biomass_g)) +
+ggplot(berries, aes(x = Water, y = Biomass_g_pp)) +
   stat_summary(fun = mean, geom = "col", width = 0.6) +
   geom_jitter(width = 0.15, alpha = 0.6) +
   ggtitle("Berry biomass by PPT, all treatments")
@@ -123,7 +123,7 @@ berries <- berries %>%
   )
 
 # The plot
-ggplot(berries, aes(x = Water, y = Biomass_g)) +
+ggplot(berries, aes(x = Water, y = Biomass_g_pp)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.15, alpha = 0.6) +
   ggtitle("Berry biomass by PPT, all treatments")
@@ -132,7 +132,7 @@ ggplot(berries, aes(x = Water, y = Biomass_g)) +
 Takeaways
 
 * There was a difference between severe compared to control and moderate, but not really within control and moderate…
-* Can I average the control and moderate somehow? Should I?
+* Can I average the control and moderate somehow? Should I? Or should I just remove moderate and have 2 levels of PPT.
 
 Since the main difference in expectation vs data for the berry biomass was in the monocropped treatments, I decided to break down these boxplots by cropping diversity. Here are the individual boxplots, and then side by side:
 
@@ -151,7 +151,7 @@ berries <- berries %>%
 berries_inter <- berries %>%
   filter(Polyculture == "Mono")
 
-ggplot(berries_inter, aes(x = Water, y = Biomass_g)) +
+ggplot(berries_inter, aes(x = Water, y = Biomass_g_pp)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.15, alpha = 0.6) +
   ggtitle("Berry biomass by PPT, Monocropped treatments only")
@@ -173,7 +173,7 @@ berries <- berries %>%
 berries_inter <- berries %>%
   filter(Polyculture == "Inter")
 
-ggplot(berries_inter, aes(x = Water, y = Biomass_g)) +
+ggplot(berries_inter, aes(x = Water, y = Biomass_g_pp)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.15, alpha = 0.6) + 
   ggtitle("Berry biomass by PPT, Intercropped treatments only")
@@ -191,7 +191,7 @@ berries <- berries %>%
     Polyculture = factor(Polyculture, levels = c("Inter", "Mono"))
   )
 
-ggplot(berries, aes(x = Water, y = Biomass_g, fill = Inoculation)) +
+ggplot(berries, aes(x = Water, y = Biomass_g_pp, fill = Inoculation)) +
   geom_boxplot(
     outlier.shape = NA,
     position = position_dodge(width = 0.8)
@@ -225,7 +225,7 @@ Before I begin I want to check some assumptions of a t-test!!
 
 ```{r}
 # Check of distributions
-ggplot(berries, aes(x = Inoculation, y = Biomass_g)) +
+ggplot(berries, aes(x = Inoculation, y = Biomass_g_pp)) +
   geom_boxplot() +
   geom_jitter(width = 0.15, alpha = 0.6) +
   facet_wrap(~ Water) +
@@ -233,14 +233,14 @@ ggplot(berries, aes(x = Inoculation, y = Biomass_g)) +
   ggtitle("Berry biomass by inoculation status")
 
 # Q–Q plots of residuals
-ggplot(berries, aes(sample = Biomass_g)) +
+ggplot(berries, aes(sample = Biomass_g_pp)) +
   stat_qq() +
   stat_qq_line() +
   facet_wrap(~ Inoculation + Water) +
   theme_bw() +
   ggtitle("QQ plot of residuals for inoc status")
 
-ggplot(berries, aes(x = Inoculation, y = Biomass_g)) +
+ggplot(berries, aes(x = Inoculation, y = Biomass_g_pp)) +
   geom_boxplot() +
   facet_wrap(~ Water) +
   theme_bw()
@@ -258,7 +258,7 @@ berries <- berries %>%
     Polyculture = factor(Polyculture, levels = c("Mono", "Inter")),
     Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
   ) %>%
-  filter(!is.na(Biomass_g))
+  filter(!is.na(Biomass_g_pp))
 
 # Descriptive statistics
 desc_stats <- function(x) {
@@ -279,30 +279,30 @@ desc_stats <- function(x) {
 # Each of the 4 treatments within each Water level
 summary_4treat_by_water <- berries %>%
   group_by(Water, Inoculation, Polyculture) %>%
-  summarise(desc_stats(Biomass_g), .groups = "drop")
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
 # Inoculation only (fold inter/mono together), within each Water
 summary_inoc_by_water <- berries %>%
   group_by(Water, Inoculation) %>%
-  summarise(desc_stats(Biomass_g), .groups = "drop")
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
 # Polyculture only (fold inoc/strl together), within each Water
 summary_poly_by_water <- berries %>%
   group_by(Water, Polyculture) %>%
-  summarise(desc_stats(Biomass_g), .groups = "drop")
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
 # Oerall summaries across Water (all data)
 summary_4treat_overall <- berries %>%
   group_by(Inoculation, Polyculture) %>%
-  summarise(desc_stats(Biomass_g), .groups = "drop")
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
 summary_inoc_overall <- berries %>%
   group_by(Inoculation) %>%
-  summarise(desc_stats(Biomass_g), .groups = "drop")
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
 summary_poly_overall <- berries %>%
   group_by(Polyculture) %>%
-  summarise(desc_stats(Biomass_g), .groups = "drop")
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
 
 
 # Looking at them as tables
@@ -349,33 +349,33 @@ Using AI to generate stats:
 # a) Inoculation effect within each Water (folding Polyculture)
 ttest_inoc_within_water <- berries %>%
   group_by(Water) %>%
-  do(tidy(t.test(Biomass_g ~ Inoculation, data = .))) %>%
+  do(tidy(t.test(Biomass_g_pp ~ Inoculation, data = .))) %>%
   ungroup() %>%
   select(Water, estimate1, estimate2, statistic, p.value, conf.low, conf.high, method)
 
 # b) Polyculture effect within each Water (folding Inoculation)
 ttest_poly_within_water <- berries %>%
   group_by(Water) %>%
-  do(tidy(t.test(Biomass_g ~ Polyculture, data = .))) %>%
+  do(tidy(t.test(Biomass_g_pp ~ Polyculture, data = .))) %>%
   ungroup() %>%
   select(Water, estimate1, estimate2, statistic, p.value, conf.low, conf.high, method)
 
 # ---- 3-way factorial model (lets you test interactions) ----
 # If your data are fairly normal-ish, this is a strong default.
-fit_aov <- aov(Biomass_g ~ Inoculation * Polyculture * Water, data = berries)
+fit_aov <- aov(Biomass_g_pp ~ Inoculation * Polyculture * Water, data = berries)
 aov_table <- broom::tidy(fit_aov)
 
 # ---- Optional: Nonparametric alternatives (in case assumptions are shaky) ----
 # Wilcoxon rank-sum within each Water for Inoculation / Polyculture
 wilcox_inoc_within_water <- berries %>%
   group_by(Water) %>%
-  do(tidy(wilcox.test(Biomass_g ~ Inoculation, data = ., exact = FALSE))) %>%
+  do(tidy(wilcox.test(Biomass_g_pp ~ Inoculation, data = ., exact = FALSE))) %>%
   ungroup() %>%
   select(Water, statistic, p.value, method)
 
 wilcox_poly_within_water <- berries %>%
   group_by(Water) %>%
-  do(tidy(wilcox.test(Biomass_g ~ Polyculture, data = ., exact = FALSE))) %>%
+  do(tidy(wilcox.test(Biomass_g_pp ~ Polyculture, data = ., exact = FALSE))) %>%
   ungroup() %>%
   select(Water, statistic, p.value, method)
 
