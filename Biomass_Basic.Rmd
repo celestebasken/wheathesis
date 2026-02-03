@@ -71,8 +71,6 @@ To begin, here's what I would EXPECT the graph to look like:
 ```{r}
 knitr::include_graphics("Biomass/Berries/expected.png")
 ```
-
-
 Actual graph
 
 ```{r, echo=FALSE}
@@ -93,9 +91,6 @@ ggplot(berries, aes(x = Group, y = Biomass_g, fill = Water)) +
   ggtitle("Berry biomass by PPT and treatments")
 
 ```
-
-The just water graph is a little concerning because there appears to be no difference between control and moderate...
-
 Takeaways
 
 * The Inoc_inter and strl_inter groups are behaving as expected, but the inoc_mono and strl_mono are not (especially strl_mono, which is interesting since it is to an extreme of our treatments)
@@ -135,12 +130,13 @@ ggplot(berries, aes(x = Water, y = Biomass_g)) +
 ```
 
 Takeaways
+
 * There was a difference between severe compared to control and moderate, but not really within control and moderate…
 * Can I average the control and moderate somehow? Should I?
 
 Since the main difference in expectation vs data for the berry biomass was in the monocropped treatments, I decided to break down these boxplots by cropping diversity. Here are the individual boxplots, and then side by side:
 
-First, just monocropped
+These first figures combine inoc and strl. First, just monocropped:
 
 ```{r}
 # Looking at just monocropped
@@ -217,6 +213,7 @@ ggplot(berries, aes(x = Water, y = Biomass_g, fill = Inoculation)) +
 
 ```
 Takeaways
+
 * The intercropped treatments behave more like we would expect (confirming first graph)
 * In no treatment is there a real difference between control and moderate PPT
 * There is a slight decrease only between control and moderate, so it may have to be dropped, if that’s allowed?
