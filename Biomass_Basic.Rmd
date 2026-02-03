@@ -241,7 +241,7 @@ ggplot(berries, aes(x = Inoculation, y = Biomass_g)) +
 
 ```{r}
 
-# ---- Load + clean ----
+# Load + clean
 berries <- berries %>%
   mutate(
     Inoculation = factor(Inoculation, levels = c("Strl", "Inoc")),
@@ -294,6 +294,45 @@ summary_poly_overall <- berries %>%
   group_by(Polyculture) %>%
   summarise(desc_stats(Biomass_g), .groups = "drop")
 
+
+# Looking at them as tables
+summary_4treat_by_water
+summary_inoc_by_water
+summary_poly_by_water
+
+# Saving these as csvs
+
+write.csv(summary_4treat_by_water,
+          file.path(("Biomass/Berries"), "summary_4treat_by_water.csv"),
+          row.names = FALSE)
+
+write.csv(summary_inoc_by_water,
+          file.path(("Biomass/Berries"), "summary_inoc_by_water.csv"),
+          row.names = FALSE)
+
+write.csv(summary_poly_by_water,
+          file.path(("Biomass/Berries"), "summary_poly_by_water.csv"),
+          row.names = FALSE)
+
+write.csv(summary_4treat_overall,
+          file.path(("Biomass/Berries"), "summary_4treat_overall.csv"),
+          row.names = FALSE)
+
+write.csv(summary_inoc_overall,
+          file.path(("Biomass/Berries"), "summary_inoc_overall.csv"),
+          row.names = FALSE)
+
+write.csv(summary_poly_overall,
+          file.path(("Biomass/Berries"), "summary_poly_overall.csv"),
+          row.names = FALSE)
+
+
+```
+Using AI to generate stats:
+
+```{r}
+# These statistics were Chat GPT and should be verified
+
 # P-VALUES: Simple comparisons within each Water ----
 # Welch t-tests are robust to unequal variances (default in t.test)
 
@@ -330,15 +369,35 @@ wilcox_poly_within_water <- berries %>%
   ungroup() %>%
   select(Water, statistic, p.value, method)
 
-# ---- Print key tables ----
-summary_4treat_by_water
-summary_inoc_by_water
-summary_poly_by_water
+# Print these
 
 ttest_inoc_within_water
 ttest_poly_within_water
 
 aov_table
+
+# Saving as CSV
+
+write.csv(ttest_inoc_within_water,
+          file.path(("Biomass/Berries/Stats"), "ttest_inoc_within_water.csv"),
+          row.names = FALSE)
+
+write.csv(ttest_poly_within_water,
+          file.path(("Biomass/Berries/Stats"), "ttest_poly_within_water.csv"),
+          row.names = FALSE)
+
+write.csv(aov_table,
+          file.path(("Biomass/Berries/Stats"), "anova_3way_table.csv"),
+          row.names = FALSE)
+
+write.csv(wilcox_inoc_within_water,
+          file.path(("Biomass/Berries/Stats"), "wilcox_inoc_within_water.csv"),
+          row.names = FALSE)
+
+write.csv(wilcox_poly_within_water,
+          file.path(("Biomass/Berries/Stats"), "wilcox_poly_within_water.csv"),
+          row.names = FALSE)
+
 
 ```
 
