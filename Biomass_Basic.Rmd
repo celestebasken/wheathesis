@@ -2,7 +2,9 @@
 title: "Biomass_Basic_Berries"
 author: "Celeste Basken"
 date: "2026-01-27"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
