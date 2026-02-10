@@ -288,7 +288,9 @@ ggplot(ANPP,
 ```
 Takeaways:
 
-* 
+* There seems to be a significant difference within the inoculated group between the inter and mono
+
+This is the same thing but with a regression line
 
 ```{r}
 # Basic with a smoothed regression line connecting treatment means
@@ -327,7 +329,8 @@ ggplot(ANPP,
 
 Takeaways
 
-* 
+* Once again, within inoculated there seems to be a difference
+* Smoothing out the regression line may not be helpful since there is so much similarity between moderate and control
 
 ## Part 6: Ppt adjusted by planting density
 
@@ -381,7 +384,7 @@ ggplot(ANPP,
 ```
 Takeaways
 
-* 
+* Notable difference between 
 
 Because I'm still confused if I should be making these figures with the y axis adjusted per plant? So here it is like that
 
@@ -406,7 +409,7 @@ ggplot(
   geom_point() +
   ggtitle("ANPP biomass by PPT (gallons per week) of all treatment types", subtitle = "With precipitation adjusted to per-plant density") +
   xlab("Gallons of water per week, density-adjusted") +
-  ylab("Mean ANPP biomass (g)")
+  ylab("Mean ANPP biomass (g) per plant")
 
 # Slightly less basic, line connecting treatment means but split by polyculture status
 ggplot(ANPP,

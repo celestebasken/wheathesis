@@ -14,19 +14,39 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(broom)
 library(knitr)
+library(dplyr)
 ```
 
-# BNPP Wheat Biomass
+## Part 0: Loading data for BNPP Wheat Biomass
 
 ```{r}
 # Loading in data to explore
-BNPP <- read.csv("../Biomass/BNPP_Wheat_Weights.csv")
+BNPP <- read.csv("Biomass/BNPP_Wheat_Weights.csv")
 
 BNPP <- BNPP %>%
   mutate(
     Inoculation = factor(Inoculation),
     Polyculture = factor(Polyculture),
     Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+# Adding a column for continuous water volumes: based on the assumption that the emitters are 2 gal/hr 
+
+BNPP <- BNPP %>%
+  mutate(
+    Water_gal_per_wk = case_when(
+      Water == "Control"  ~ 48,
+      Water == "Moderate" ~ 32,
+      Water == "Severe"   ~ 16,
+      TRUE ~ NA_real_
+    )
+  )
+
+# Adding a column which is ppt per plant (continuous)
+
+BNPP <- BNPP %>%
+  mutate(
+    Water_gal_per_plant_wk = Water_gal_per_wk / Num_wheat_pot
   )
 
 ```
@@ -48,14 +68,12 @@ ggplot(BNPP, aes(x = Group, y = Biomass_g_pp, fill = Group)) +
 
 Takeaways
 
-* 
+* Not super interesting before looking at PPT
 
 The same data is below, but with each pot plotted so you can see the variation within the treatments:
 
 ```{r, echo=FALSE}
 # With each bar individual; as you can see there is a lot of variation, hopefully due to ppt
-
-BNPP <- read.csv("Biomass/BNPP_Wheat_Weights.csv")
 
 BNPP <- BNPP %>%
   mutate(
@@ -71,7 +89,8 @@ ggplot(BNPP, aes(x = Group, y = Biomass_g_pp, fill = Group)) +
 ```
 
 Takeaways
-* 
+
+* Broad overview
 
 ## Part 2: Looking at PPT and what the general behavior is
 
@@ -81,11 +100,10 @@ To begin, here's what I would EXPECT the graph to look like:
 knitr::include_graphics("Biomass/BNPP/expected.png")
 ```
 Here's the actual figure with the data:
+Note that this is g wheat berries density adjusted
 
 ```{r, echo=FALSE}
 # With each bar individual and ppt
-
-BNPP <- read.csv("Biomass/BNPP_Wheat_Weights.csv")
 
 BNPP <- BNPP %>%
   mutate(
@@ -102,9 +120,10 @@ ggplot(BNPP, aes(x = Group, y = Biomass_g_pp, fill = Water)) +
 ```
 Takeaways
 
-* 
+* Lau said he might expect it to be backwards if plants are investing more in BNPP (which is true of inoc_mono)
+* The rest of them are kind of inconclusive it seems
 
-## Analyzing these BNPP biomass trends more in depth
+## Part 3: Water = categorical, boxplots & bar chart scatters
 
 All of the treatments together looking at water: both as a bar graph and boxplot
 
@@ -137,9 +156,9 @@ ggplot(BNPP, aes(x = Water, y = Biomass_g_pp)) +
 
 Takeaways
 
-* 
+* Not very interesting
 
-## Focusing on crop diversity: inter vs mono
+## Part 4: Categorical ppt, zoomed into treatments, box plots
 
 
 ```{r}
@@ -219,5 +238,286 @@ ggplot(BNPP, aes(x = Water, y = Biomass_g_pp, fill = Inoculation)) +
 
 Takeaways
 
-* 
+* Lot of outliers doing work here
 
+
+## Part 5 (new day): Water = continuous, line charts
+
+This is generating figures based on total weekly ppt per pot
+
+```{r}
+
+BNPP_sum <- BNPP %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_wk) %>%
+  summarise(mean_biomass = mean(Biomass_g, na.rm = TRUE), .groups = "drop")
+
+# Really basic with a line connecting treatment means
+ggplot(
+  BNPP_sum,
+  aes(
+    x = Water_gal_per_wk,
+    y = mean_biomass,
+    color = interaction(Inoculation, Polyculture),
+    group = interaction(Inoculation, Polyculture)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("BNPP biomass by PPT (gallons per week) of all treatment types")
+
+# Slightly less basic, line connecting treatment means but split by polyculture status
+ggplot(BNPP,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Polyculture) +
+  ggtitle("BNPP biomass by PPT (gallons per week), by polyculture status")
+
+# Slightly less basic, line connecting treatment means but split by AMF status
+ggplot(BNPP,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Polyculture, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Inoculation) +
+  ggtitle("BNPP biomass by PPT (gallons per week), by AMF status")
+
+```
+Takeaways:
+
+* Somewhat of a negative slope for the highest amounts of PPT-- will be interesting to see the regression line (next figure)
+
+This is the same thing but with a regression line
+
+```{r}
+# Basic with a smoothed regression line connecting treatment means
+ggplot(BNPP,
+       aes(x = Water_gal_per_wk, y = Biomass_g,
+           color = interaction(Inoculation, Polyculture))) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle("BNPP biomass by PPT (gallons per week) of all treatment types") +
+  xlab("Gallons of water per week") +
+  ylab("Mean BNPP biomass (g)")
+
+# Basic with a smoothed regression line connecting treatment means, separated by intercropping status
+
+ggplot(BNPP,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Inoculation)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ Polyculture) +
+  ggtitle("BNPP biomass by PPT (gallons per week), by intercropping status") +
+  xlab("Gallons of water per week") +
+  ylab("Mean BNPP biomass (g)")
+
+# Basic with a smoothed regression line connecting treatment means, separated by AMF status
+
+ggplot(BNPP,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Polyculture)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ Inoculation) +
+  ggtitle("BNPP biomass by PPT (gallons per week), by AMF status") +
+  xlab("Gallons of water per week") +
+  ylab("Mean BNPP biomass (g)")
+
+```
+
+Takeaways
+
+* Inoculated pots have a negative regression and sterile have positive-- if this is statistically significant it could be interesting
+* Maybe this is because there is more investment in BNPP under drought when there are AMF associations?
+
+Let's pause for a second to see if this is statistically significant
+
+```{r}
+
+bnpp_sum <- BNPP %>%
+  group_by(Water_gal_per_wk, Inoculation, Polyculture) %>%
+  summarise(
+    mean_bnpp = mean(Biomass_g, na.rm = TRUE),
+    se_bnpp   = sd(Biomass_g, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+ggplot(bnpp_sum,
+       aes(x = Water_gal_per_wk,
+           y = mean_bnpp,
+           color = Inoculation,
+           group = Inoculation)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  geom_errorbar(
+    aes(ymin = mean_bnpp - se_bnpp,
+        ymax = mean_bnpp + se_bnpp),
+    width = 0.05
+  ) +
+  facet_wrap(~ Polyculture) +
+  labs(
+    title = "Belowground NPP response to water availability",
+    x = "Gallons of water per week",
+    y = "Mean BNPP biomass (g)",
+    color = "Inoculation"
+  )
+
+```
+
+* It's looking like no...
+
+## Part 6: Ppt adjusted by planting density
+
+This section is the same as #5 BUT...
+
+The plan now is to adjust the PPT continuous variable (gallons per minute) to also be per plant. This was done at the top of this doc by adding a new column, which I will now use.
+
+### 6A: Generating with BNPP weights combined
+
+```{r}
+BNPP_sum <- BNPP %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_plant_wk) %>%
+  summarise(mean_biomass = mean(Biomass_g, na.rm = TRUE), .groups = "drop")
+
+# Really basic with a line connecting treatment means
+ggplot(
+  BNPP_sum,
+  aes(
+    x = Water_gal_per_plant_wk,
+    y = mean_biomass,
+    color = interaction(Inoculation, Polyculture),
+    group = interaction(Inoculation, Polyculture)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("BNPP biomass by PPT (gallons per week) of all treatment types", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean BNPP biomass (g)")
+
+# Slightly less basic, line connecting treatment means but split by polyculture status
+ggplot(BNPP,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Polyculture) +
+  ggtitle("BNPP biomass by PPT (gallons per week), by polyculture status", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean BNPP biomass (g)")
+
+# Slightly less basic, line connecting treatment means but split by AMF status
+ggplot(BNPP,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g, color = Polyculture, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Inoculation) +
+  ggtitle("BNPP biomass by PPT (gallons per week), by AMF status", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean BNPP biomass (g)")
+
+```
+Takeaways
+
+* Notable difference within inoculated between inter and mono
+* Within mono also interesting perhaps
+
+I'm still confused if I should be making these figures with the y axis adjusted per plant? So here it is like that:
+
+### 6B: Generating with BNPP weights per plant
+
+```{r}
+BNPP_sum <- BNPP %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_plant_wk) %>%
+  summarise(mean_biomass = mean(Biomass_g_pp, na.rm = TRUE), .groups = "drop")
+
+# Really basic with a line connecting treatment means
+ggplot(
+  BNPP_sum,
+  aes(
+    x = Water_gal_per_plant_wk,
+    y = mean_biomass,
+    color = interaction(Inoculation, Polyculture),
+    group = interaction(Inoculation, Polyculture)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("BNPP biomass by PPT (gallons per week) of all treatment types", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean BNPP biomass (g) per plant")
+
+# Slightly less basic, line connecting treatment means but split by polyculture status
+ggplot(BNPP,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Polyculture) +
+  ggtitle("BNPP biomass by PPT (gallons per week), by polyculture status", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean BNPP biomass per plant(g)")
+
+# Slightly less basic, line connecting treatment means but split by AMF status
+ggplot(BNPP,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g_pp, color = Polyculture, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Inoculation) +
+  ggtitle("BNPP biomass by PPT (gallons per week), by AMF status", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean BNPP biomass per plant (g)")
+
+# Also testing this
+# Basic with a smoothed regression line connecting treatment means
+ggplot(BNPP,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g_pp,
+           color = interaction(Inoculation, Polyculture))) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle("BNPP biomass by PPT (gallons per week) of all treatment types", 
+          subtitle = "Density adjusted for PPT and biomass") +
+  xlab("Gallons of water per week, density adjusted per plant") +
+  ylab("Mean BNPP biomass per plant (g)")
+
+```
+Takeaways
+
+* Still seeing this increasing-decreasing slope behavior but not sure if it's statistically significant
+
+```{r}
+
+bnpp_sum <- BNPP %>%
+  group_by(Water_gal_per_plant_wk, Inoculation, Polyculture) %>%
+  summarise(
+    mean_bnpp = mean(Biomass_g_pp, na.rm = TRUE),
+    se_bnpp   = sd(Biomass_g_pp, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    treatment = interaction(Inoculation, Polyculture)
+  )
+
+ggplot(BNPP,
+       aes(x = Water_gal_per_plant_wk,
+           y = Biomass_g_pp,
+           color = interaction(Inoculation, Polyculture))) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", se = FALSE) +
+  
+  ## error bars
+  geom_errorbar(
+    data = bnpp_sum,
+    inherit.aes = FALSE,
+    aes(x = Water_gal_per_plant_wk,
+        ymin = mean_bnpp - se_bnpp,
+        ymax = mean_bnpp + se_bnpp,
+        color = treatment),
+    width = 0.05
+  ) +
+  
+  ggtitle(
+    "BNPP biomass by PPT (gallons per week) of all treatment types",
+    subtitle = "Density adjusted for PPT and biomass"
+  ) +
+  xlab("Gallons of water per week, density adjusted per plant") +
+  ylab("Mean BNPP biomass per plant (g)")
+
+```
+* So probably not statistically significant
