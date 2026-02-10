@@ -43,7 +43,16 @@ berries <- berries %>%
     )
   )
 
+# Adding a column which is ppt per plant (continuous)
+
+berries <- berries %>%
+  mutate(
+    Ppt_gal_per_plant_wk = Water_gal_per_wk / Num_wheat_pot
+  )
+
 ```
+
+Parts 1-4 were the first pass
 
 ## Part 1: Pretty basic figures
 
@@ -116,7 +125,7 @@ Takeaways
 * Inoculation seems less significant than intercropping at first pass.
 * This kind of makes sense, since that factor is less straightforward. Plus, intercropped plants probably had more room, since the faba didn't do so well.
 
-## Analyzing these berry biomass trends more in depth
+## Part 3: Analysis using boxplots to look for significant behavior
 
 All of the treatments together looking at water: both as a bar graph and boxplot
 
@@ -152,7 +161,7 @@ Takeaways
 * There is a difference between severe compared to control and moderate, but not really within control and moderate
 * Can I average the control and moderate somehow? Should I? Or should I just remove moderate and have 2 levels of PPT.
 
-## Focusing on crop diversity: inter vs mono
+## Part 4: Focusing on crop diversity: inter vs mono
 
 Since the main difference in expectation vs data for the berry biomass was in the monocropped treatments, I decided to break down these boxplots by cropping diversity. Here are the individual boxplots, and then side by side:
 
@@ -238,3 +247,76 @@ Takeaways
 * The intercropped treatments behave more like I expected (confirming first graph)
 * In no treatment is there a real difference between control and moderate PPT. It may have to be dropped, if that’s allowed? Unless there is another solution.
 * On the bright side, the severe drought worked!
+
+## Part 5 (new day): Continuous ppt
+
+This is generating figures based on total weekly ppt per pot
+
+```{r}
+
+berries_sum <- berries %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_wk) %>%
+  summarise(mean_biomass = mean(Biomass_g, na.rm = TRUE), .groups = "drop")
+
+# Really basic with a line connecting treatment means
+ggplot(
+  berries_sum,
+  aes(
+    x = Water_gal_per_wk,
+    y = mean_biomass,
+    color = interaction(Inoculation, Polyculture),
+    group = interaction(Inoculation, Polyculture)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Berry biomass by PPT (gallons per week) of all treatment types")
+
+# Slightly less basic, line connecting treatment means but split by polyculture status
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Polyculture) +
+  ggtitle("Berry biomass by PPT (gallons per week), by polyculture status")
+
+# Slightly less basic, line connecting treatment means but split by AMF status
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Inoculation, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Inoculation) +
+  ggtitle("Berry biomass by PPT (gallons per week), by AMF status")
+
+```
+```{r}
+# Basic with a smoothed regression line connecting treatment means
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g,
+           color = interaction(Inoculation, Polyculture))) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle("Berry biomass by PPT (gallons per week) of all treatment types")
+
+# Basic with a smoothed regression line connecting treatment means, separated by intercropping status
+
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Inoculation)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ Polyculture) +
+  ggtitle("Berry biomass by PPT (gallons per week), by intercropping status")
+
+# Basic with a smoothed regression line connecting treatment means, separated by AMF status
+
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Polyculture)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ Inoculation) +
+  ggtitle("Berry biomass by PPT (gallons per week), by AMF status")
+
+```
+
+
+
