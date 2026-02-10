@@ -75,8 +75,6 @@ The same data is below, but with each pot plotted so you can see the variation w
 ```{r, echo=FALSE}
 # With each bar individual; as you can see there is a lot of variation, hopefully due to ppt
 
-berries <- read.csv("Biomass/Berry_Weights.csv")
-
 berries <- berries %>%
   mutate(
     Inoculation = factor(Inoculation),
@@ -102,8 +100,6 @@ Here's the actual figure with the data:
 
 ```{r, echo=FALSE}
 # With each bar individual and ppt
-
-berries <- read.csv("Biomass/Berry_Weights.csv")
 
 berries <- berries %>%
   mutate(
