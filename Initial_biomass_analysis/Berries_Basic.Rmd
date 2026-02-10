@@ -31,7 +31,7 @@ berries <- berries %>%
     Group = interaction(Inoculation, Polyculture, sep = "_")
   )
 
-# Adding a column for continuous water weights: based on the assumption that the emitters are 2 gal/hr 
+# Adding a column for continuous water volumes: based on the assumption that the emitters are 2 gal/hr 
 
 berries <- berries %>%
   mutate(

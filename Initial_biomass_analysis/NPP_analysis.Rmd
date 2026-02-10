@@ -12,16 +12,18 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r, echo=FALSE}
 
 library(tidyverse)
+library(readr)
 library(broom)
 library(knitr)
 library(dplyr)
+library(ggplot2)
 ```
 
 
 ```{r}
 # Loading in data to explore
 
-# NPP
+# NPP - note that this is missing pot 4 since I am missing BNPP for it (!!!)
 npp <- read.csv("Biomass/NPP_combined_MISSING4.csv")
 
 npp <- npp %>%
@@ -31,5 +33,191 @@ npp <- npp %>%
     Group = interaction(Inoculation, Polyculture, sep = "_")
   )
 
+npp <- npp %>%
+  mutate(across(
+    c(percent_BNPP, percent_ANPP, percent_berries),
+    ~ parse_number(as.character(.))
+  ))
+
+# Adding a column which is ppt per plant (continuous)
+npp <- npp %>%
+  mutate(
+    Water_gal_per_plant_wk = Water_gal / Num_wheat_pot
+  )
 
 ```
+
+## Part 1: Basic views
+
+```{r}
+# Pivoting it long 
+npp_long <- npp %>%
+  pivot_longer(
+    cols = c(percent_BNPP, percent_ANPP, percent_berries),
+    names_to = "component",
+    values_to = "percent"
+  ) %>%
+  mutate(
+    component = recode(component,
+                       percent_BNPP = "BNPP",
+                       percent_ANPP = "ANPP",
+                       percent_berries = "Berries")
+  )
+
+```
+
+
+Before looking at PPT (not super helpful)
+
+```{r}
+# General bar chart
+
+ggplot(npp_long, aes(x = Group, y = percent, fill = component)) +
+  stat_summary(
+    fun = mean,
+    geom = "col",
+    position = position_dodge(width = 0.8)
+  ) +
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    position = position_dodge(width = 0.8),
+    width = 0.2
+  ) +
+  labs(
+    title = "Resource allocation within Wheat NPP by treatment type",
+    x = "Treatment type",
+    y = "% of total NPP",
+    fill = "")
+
+# This is the same thing but split by polyculture status
+
+npp_long <- npp_long %>%
+  mutate(
+    component = recode(component,
+                       percent_BNPP = "BNPP",
+                       percent_ANPP = "ANPP",
+                       percent_berries = "Berries"),
+    component = factor(component, levels = c("BNPP", "ANPP", "Berries")),
+    Inoculation = factor(Inoculation, levels = c("Strl", "Inoc")),
+    Polyculture = factor(Polyculture, levels = c("Mono", "Inter"))
+  )
+
+ggplot(npp_long, aes(x = Inoculation, y = percent, fill = component)) +
+  stat_summary(
+    fun = mean,
+    geom = "col",
+    position = position_dodge(width = 0.8)
+  ) +
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    position = position_dodge(width = 0.8),
+    width = 0.2
+  ) +
+  facet_wrap(~ Polyculture, nrow = 1) +
+  labs(
+    x = "Inoculation",
+    y = "% of total NPP",
+    title = "Resource allocation within Wheat NPP by polyculture status",
+    fill = ""
+  )
+
+# And the raw data as a scatter
+ggplot(npp_long, aes(Inoculation, percent, color = component)) +
+  geom_point(
+    position = position_jitterdodge(
+      jitter.width = 0.15,
+      dodge.width = 0.8
+    ),
+    alpha = 0.7
+  ) +
+  facet_wrap(~ Polyculture, nrow = 1) +
+  labs(
+    x = "Inoculation", 
+    y = "% of total NPP", 
+    title = "Resource allocation within Wheat NPP, individual pots",
+    color = "") 
+
+```
+
+Takeaways
+
+* I'm surprised that the BNPP is lower than berries
+* Doesn't seem to be very statistically significant at all
+
+## Part 2: Resource allocation and PPT
+
+Intro looks at the resource allocation w ppt
+
+```{r, fig.width=12, fig.height=5}
+# Not split yet
+
+ggplot(npp_long, aes(x = Group, y = percent, fill = component)) +
+  stat_summary(
+    fun = mean,
+    geom = "col",
+    position = position_dodge(width = 0.8)
+  ) +
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    position = position_dodge(width = 0.8),
+    width = 0.2
+  ) +
+  facet_wrap(~ Water, nrow = 1) +
+  labs(
+    title = "Resource allocation of Wheat NPP by drought and treatment",
+    x = "Treatment",
+    y = "% of total NPP",
+    fill = ""
+  )
+```
+
+Same thing but more granular
+
+```{r}
+# Split by polyculture/ intercropping status first
+ggplot(npp_long, aes(Inoculation, percent, fill = component)) +
+  stat_summary(fun = mean, geom = "col",
+               position = position_dodge(width = 0.8)) +
+  facet_grid(Water ~ Polyculture) +
+  labs(
+    y = "% of total NPP", 
+    x = "Inoculation", 
+    title = "Resource allocation of Wheat NPP under drought stress",
+    subtitle = "Sorted by intercropping status",
+    fill = "")
+
+# Same thing but split by AMF status first
+ggplot(npp_long, aes(Polyculture, percent, fill = component)) +
+  stat_summary(fun = mean, geom = "col",
+               position = position_dodge(width = 0.8)) +
+  facet_grid(Water ~ Inoculation) +
+  labs(
+    y = "% of total NPP", 
+    x = "Polyculture", 
+    title = "Resource allocation of Wheat NPP under drought stress",
+    subtitle = "Sorted by AMF inoculation status",
+    fill = "")
+
+```
+Takeaways
+
+* Under both systems, especially monoculture, there appear to be losses in % biomass allocated to berries under drought stress. This is especially true for monoculture
+* Inoc doesn't seem to have more resource allocation to BNPP
+
+```{r}
+ggplot(npp_long,
+       aes(Water_gal_per_plant_wk, percent, color = component)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_grid(Polyculture ~ Inoculation) +
+  labs(
+    title = "Resource allocation of Wheat NPP under drought stress, continuous",
+    x = "Water (gal per plant per week)", 
+    y = "% of total NPP", 
+    color = "")
+
+```
+
