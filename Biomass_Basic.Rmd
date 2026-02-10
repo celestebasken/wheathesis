@@ -16,6 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(broom)
 library(knitr)
+library(dplyr)
 ```
 # Berries 
 
@@ -28,6 +29,18 @@ berries <- berries %>%
     Inoculation = factor(Inoculation),
     Polyculture = factor(Polyculture),
     Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+# Adding a column for continuous water weights: based on the assumption that the emitters are 2 gal/hr 
+
+berries <- berries %>%
+  mutate(
+    Water_gal_per_wk = case_when(
+      Water == "Control"  ~ 48,
+      Water == "Moderate" ~ 32,
+      Water == "Severe"   ~ 16,
+      TRUE ~ NA_real_
+    )
   )
 
 ```
