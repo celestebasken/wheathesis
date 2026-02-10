@@ -1,0 +1,223 @@
+---
+title: "BNPP_Wheat_Basic"
+author: "Celeste Basken"
+date: "2026-01-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+```
+
+# BNPP Wheat Biomass
+
+```{r}
+# Loading in data to explore
+BNPP <- read.csv("../Biomass/BNPP_Wheat_Weights.csv")
+
+BNPP <- BNPP %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+```
+
+## Part 1: Pretty basic figures
+
+Clustering without regard to PPT:
+
+* Just a note here: I'm using Biomass_g_pp, which is grams per plant of wheat BNPP.
+
+```{r pressure, echo=FALSE}
+# Without sorting by ppt at all
+
+ggplot(BNPP, aes(x = Group, y = Biomass_g_pp, fill = Group)) + 
+  geom_col() +
+  ggtitle("Wheat BNPP biomass broadly by treatment (not accounting for PPT)")
+
+```
+
+Takeaways
+
+* 
+
+The same data is below, but with each pot plotted so you can see the variation within the treatments:
+
+```{r, echo=FALSE}
+# With each bar individual; as you can see there is a lot of variation, hopefully due to ppt
+
+BNPP <- read.csv("Biomass/BNPP_Wheat_Weights.csv")
+
+BNPP <- BNPP %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_"),
+    Rep = factor(row_number())
+  )
+
+ggplot(BNPP, aes(x = Group, y = Biomass_g_pp, fill = Group)) +
+  geom_col(aes(group = Rep), position = position_dodge(width = 0.8))
+
+```
+
+Takeaways
+* 
+
+## Part 2: Looking at PPT and what the general behavior is
+
+To begin, here's what I would EXPECT the graph to look like:
+
+```{r}
+knitr::include_graphics("Biomass/BNPP/expected.png")
+```
+Here's the actual figure with the data:
+
+```{r, echo=FALSE}
+# With each bar individual and ppt
+
+BNPP <- read.csv("Biomass/BNPP_Wheat_Weights.csv")
+
+BNPP <- BNPP %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+ggplot(BNPP, aes(x = Group, y = Biomass_g_pp, fill = Water)) +
+  geom_col(position = "dodge") +
+  ggtitle("Wheat BNPP biomass by PPT and treatments")
+
+```
+Takeaways
+
+* 
+
+## Analyzing these BNPP biomass trends more in depth
+
+All of the treatments together looking at water: both as a bar graph and boxplot
+
+```{r}
+
+# Bar graph looking at water with the individual points plotted on trop
+ggplot(BNPP, aes(x = Water, y = Biomass_g_pp)) +
+  stat_summary(fun = mean, geom = "col", width = 0.6) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  ggtitle("BNPP biomass by PPT, all treatments")
+
+
+```
+
+```{r}
+# The same thing (kind of) but as a boxplot with the scattered points
+
+#This code is redundant but good for copy paste later?
+BNPP <- BNPP %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  )
+
+# The plot
+ggplot(BNPP, aes(x = Water, y = Biomass_g_pp)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  ggtitle("BNPP biomass by PPT, all treatments")
+```
+
+Takeaways
+
+* 
+
+## Focusing on crop diversity: inter vs mono
+
+
+```{r}
+# Looking at just monocropped
+
+BNPP <- BNPP %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture)
+  )
+
+BNPP_inter <- BNPP %>%
+  filter(Polyculture == "Mono")
+
+ggplot(BNPP_inter, aes(x = Water, y = Biomass_g_pp)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  ggtitle("BNPP biomass by PPT, Monocropped treatments only")
+
+```
+
+And looking at intercropped
+
+```{r}
+# Looking at just intercropped
+
+BNPP <- BNPP %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture)
+  )
+
+BNPP_inter <- BNPP %>%
+  filter(Polyculture == "Inter")
+
+ggplot(BNPP_inter, aes(x = Water, y = Biomass_g_pp)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) + 
+  ggtitle("BNPP biomass by PPT, Intercropped treatments only")
+```
+
+Let's see that side by side and broken down by inoculation status as well
+
+```{r}
+# Splitting it by crop treatment
+
+BNPP <- BNPP %>%
+  mutate(
+    Water       = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation, levels = c("Strl", "Inoc")),
+    Polyculture = factor(Polyculture, levels = c("Inter", "Mono"))
+  )
+
+ggplot(BNPP, aes(x = Water, y = Biomass_g_pp, fill = Inoculation)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_point(
+    aes(color = Inoculation),
+    alpha = 0.6,
+    size = 1.8,
+    position = position_dodge(width = 0.8)
+  ) +
+  facet_wrap(~ Polyculture) +
+  theme_bw() +
+  labs(
+    x = "Water treatment",
+    y = "Biomass (g)"
+  ) +
+  ggtitle("Both Intercropped and Monoculture BNPP biomass by PPT")
+
+
+```
+
+Takeaways
+
+* 
+
