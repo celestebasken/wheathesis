@@ -1,0 +1,207 @@
+---
+title: "AMF_overview"
+author: "Celeste Basken"
+date: "2026-02-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Part 0: Load data
+```{r}
+# Load packages
+
+library(tidyverse)
+
+```
+
+```{r}
+# Load data
+amf <- read.csv("AMF_inoc.csv")
+
+# Convert treatments to factors (important for plotting order)
+amf <- amf %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    PPT = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  )
+```
+
+# Part 1: Basic data exploration
+
+## Intro bar charts (very basic)
+
+### Hyphal colonization
+
+```{r}
+# Create summary means for bar charting
+
+amf_hyphal_summary <- amf %>%
+  group_by(Inoculation, Polyculture, PPT) %>%
+  summarise(
+    mean_hyphal = mean(hyphal_colonization, na.rm = TRUE),
+    se_hyphal = sd(hyphal_colonization, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+
+# Basic bar
+
+ggplot(amf_hyphal_summary,
+       aes(x = interaction(Inoculation, Polyculture),
+           y = mean_hyphal,
+           fill = PPT)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_errorbar(aes(ymin = mean_hyphal - se_hyphal,
+                    ymax = mean_hyphal + se_hyphal),
+                width = 0.2,
+                position = position_dodge(width = 0.8)) +
+  labs(
+    x = "Treatment (Inoculation × Polyculture)",
+    y = "Hyphal Colonization (%)",
+    fill = "PPT Level",
+    title = "Hyphal Colonization"
+  )
+
+```
+
+Just the raw data
+
+For hyphal
+
+```{r}
+
+amf <- amf %>%
+  mutate(Treatment = interaction(Inoculation, Polyculture, sep = " × "))
+
+ggplot(amf, aes(x = Treatment, y = hyphal_colonization, color = Inoculation)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.12, alpha = 0.6) +
+  facet_wrap(~ PPT, nrow = 1) +
+  labs(
+    x = NULL,
+    y = "Hyphal colonization (%)",
+    color = "Inoculation",
+    title = "Hyphal colonization"
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+
+
+
+### Vesicular/ Arsbuscular colonization
+
+```{r}
+# Create summary means for bar charting
+
+amf_vesc_summary <- amf %>%
+  group_by(Inoculation, Polyculture, PPT) %>%
+  summarise(
+    mean_vesc = mean(arb_vesc_colonization, na.rm = TRUE),
+    se_vesc = sd(arb_vesc_colonization, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+
+# Basic bar
+
+ggplot(amf_vesc_summary,
+       aes(x = interaction(Inoculation, Polyculture),
+           y = mean_vesc,
+           fill = PPT)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_errorbar(aes(ymin = mean_vesc - se_vesc,
+                    ymax = mean_vesc + se_vesc),
+                width = 0.2,
+                position = position_dodge(width = 0.8)) +
+  labs(
+    x = "Treatment (Inoculation × Polyculture)",
+    y = "Vesicular & Arbuscular Colonization (%)",
+    fill = "PPT Level",
+    title = "Vesc & Arb Colonization"
+  )
+
+```
+
+* Nothing statistically significant really
+
+For vesc/arb
+
+```{r}
+
+ggplot(amf, aes(x = Treatment, y = arb_vesc_colonization, color = Inoculation)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.12, alpha = 0.6) +
+  facet_wrap(~ PPT, nrow = 1) +
+  labs(
+    x = NULL,
+    y = "Vesc/Arb colonization (%)",
+    color = "Inoculation",
+    title = "Vesicular & Arbuscular colonization"
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+## Faceting figures
+
+### Hyphal colonization
+
+```{r}
+
+amf_summary_hyph <- amf %>%
+  group_by(PPT, Inoculation, Polyculture) %>%
+  summarise(
+    mean_hyphal = mean(hyphal_colonization, na.rm = TRUE),
+    se_hyphal   = sd(hyphal_colonization, na.rm = TRUE) / sqrt(sum(!is.na(hyphal_colonization))),
+    .groups = "drop"
+  ) %>%
+  mutate(Treatment = interaction(Inoculation, Polyculture, sep = " × "))
+
+ggplot(amf_summary_hyph, aes(x = Treatment, y = mean_hyphal, fill = Inoculation)) +
+  geom_col(width = 0.7) +
+  geom_errorbar(aes(ymin = mean_hyphal - se_hyphal, ymax = mean_hyphal + se_hyphal),
+                width = 0.2) +
+  facet_wrap(~ PPT, nrow = 1) +
+  labs(
+    x = NULL,
+    y = "Hyphal colonization (%)",
+    fill = "Inoculation",
+    title = "Hyphal colonization"
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
+* Ughh why is nothing interesting at all
+
+### Vesc/arb colonization
+
+```{r}
+
+amf_summary_vesc <- amf %>%
+  group_by(PPT, Inoculation, Polyculture) %>%
+  summarise(
+    mean_vesc = mean(arb_vesc_colonization, na.rm = TRUE),
+    se_vesc   = sd(arb_vesc_colonization, na.rm = TRUE) / sqrt(sum(!is.na(arb_vesc_colonization))),
+    .groups = "drop"
+  ) %>%
+  mutate(Treatment = interaction(Inoculation, Polyculture, sep = " × "))
+
+ggplot(amf_summary_vesc, aes(x = Treatment, y = mean_vesc, fill = Inoculation)) +
+  geom_col(width = 0.7) +
+  geom_errorbar(aes(ymin = mean_vesc - se_vesc, ymax = mean_vesc + se_vesc),
+                width = 0.2) +
+  facet_wrap(~ PPT, nrow = 1) +
+  labs(
+    x = NULL,
+    y = "Vesc/Arb colonization (%)",
+    fill = "Inoculation",
+    title = "Vesicular & Arbuscular colonization"
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
