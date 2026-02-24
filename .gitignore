@@ -3,3 +3,5 @@
 .RDatagit
 .Ruserdata
 .DS_Store
+*.html
+.RData
