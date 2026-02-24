@@ -243,3 +243,15 @@ write.csv(wilcox_poly_within_water,
 ```
 
 
+```{r}
+an1 <- aov(Biomass_g_pp~Polyculture+Inoculation+Water, data= berries)
+summary(an1)
+
+an2 <- aov(Biomass_g_pp~Polyculture*Inoculation*Water, data= berries)
+summary(an2)
+
+lm2 <- lm(Biomass_g_pp~Polyculture*Inoculation*Water, data= berries)
+summary(lm2)
+```
+
+
