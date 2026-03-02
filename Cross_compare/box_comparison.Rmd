@@ -72,5 +72,33 @@ lm_BNPP2 <- lm(BNPP_g_pp~Polyculture*Inoculation*Water, data= combined)
 summary(lm_BNPP2)
 ```
 
+```{r}
+# stoich stats
 
+# anpp
+an_percent_ANPP1 <- aov(percent_ANPP~Polyculture+Inoculation+Water, data= combined)
+summary(an_percent_ANPP1)
+
+an_percent_ANPP2 <- aov(percent_ANPP~Polyculture*Inoculation*Water, data= combined)
+summary(an_percent_ANPP2)
+
+lm_percent_ANPP2 <- lm(percent_ANPP~Polyculture*Inoculation*Water, data= combined)
+summary(lm_percent_ANPP2)
+
+# % bnpp
+
+an_percent_BNPP1 <- aov(percent_BNPP~Polyculture+Inoculation+Water, data= combined)
+summary(an_percent_BNPP1)
+
+an_percent_BNPP2 <- aov(percent_BNPP~Polyculture*Inoculation*Water, data= combined)
+summary(an_percent_BNPP2)
+
+# % berries
+an_percent_berries1 <- aov(percent_berries~Polyculture+Inoculation+Water, data= combined)
+summary(an_percent_berries1)
+
+an_percent_berries2 <- aov(percent_berries~Polyculture*Inoculation*Water, data= combined)
+summary(an_percent_berries2)
+
+```
 
