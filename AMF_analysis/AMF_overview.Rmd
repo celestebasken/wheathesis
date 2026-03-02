@@ -114,6 +114,14 @@ amf_vesc_summary <- amf %>%
     .groups = "drop"
   )
 
+amf_vesc_summary2 <- amf %>%
+  group_by(Inoculation) %>%
+  summarise(
+    mean_vesc = mean(arb_vesc_colonization, na.rm = TRUE),
+    se_vesc = sd(arb_vesc_colonization, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
 
 # Basic bar
 

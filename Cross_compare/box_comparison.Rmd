@@ -163,3 +163,16 @@ write.csv(an_vesicle2_tidy,
           row.names = FALSE)
 
 ```
+
+```{r}
+
+an_AMF_hyphal <- aov(percent_ANPP~Polyculture*hyphal_colonization*Water, data= combined)
+summary(an_AMF_hyphal)
+
+an_AMF_vesicular <- aov(percent_ANPP~Polyculture*arb_vesc_colonization*Water, data= combined)
+summary(an_AMF_vesicular)
+
+
+
+```
+

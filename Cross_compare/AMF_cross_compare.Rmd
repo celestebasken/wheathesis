@@ -36,6 +36,27 @@ combined <- combined %>%
 ```{r}
 # AMF
 
+combined <- combined %>%
+  mutate(
+    Polyculture = factor(Polyculture),
+    Inoculation = factor(Inoculation)
+  )
+
+ggplot(combined,
+       aes(x = arb_vesc_colonization,
+           y = percent_ANPP,
+           color = Inoculation)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_grid(Polyculture ~ Water_gal_per_plant_wk) +
+  labs(
+    title = "AMF Colonization vs Percent ANPP",
+    subtitle = "Faceted by Intercropping and Water",
+    x = "Arbuscular/Vesicular Colonization (%)",
+    y = "Percent ANPP (%)",
+    color = "Inoculation"
+  )
+
 ```
 
 
