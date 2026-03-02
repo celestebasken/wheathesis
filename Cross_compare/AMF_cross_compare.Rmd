@@ -42,19 +42,21 @@ combined <- combined %>%
     Inoculation = factor(Inoculation)
   )
 
+ANPP_sum <- combined %>%
+  group_by(hyphal_colonization, Polyculture, Water_gal_per_plant_wk) %>%
+  summarise(ANPP_mean = mean(ANPP_g_pp, na.rm = TRUE), .groups = "drop")
+
 ggplot(combined,
        aes(x = arb_vesc_colonization,
            y = percent_ANPP,
-           color = Inoculation)) +
-  geom_point(size = 3, alpha = 0.7) +
-  geom_smooth(method = "lm", se = TRUE) +
-  facet_grid(Polyculture ~ Water_gal_per_plant_wk) +
+           color = Polyculture)) +
+  geom_point(aes(size = Water_gal_per_plant_wk), alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE) +
   labs(
-    title = "AMF Colonization vs Percent ANPP",
-    subtitle = "Faceted by Intercropping and Water",
-    x = "Arbuscular/Vesicular Colonization (%)",
+    x = "Arb/Vesc Colonization (%)",
     y = "Percent ANPP (%)",
-    color = "Inoculation"
+    color = "Intercropping",
+    size = "Water (gal/plant/wk)"
   )
 
 ```
