@@ -48,6 +48,14 @@ amf_hyphal_summary <- amf %>%
   )
 
 
+amf_hyphal_summary2 <- amf %>%
+  group_by(Inoculation) %>%
+  summarise(
+    mean_hyphal = mean(hyphal_colonization, na.rm = TRUE),
+    se_hyphal = sd(hyphal_colonization, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
 # Basic bar
 
 ggplot(amf_hyphal_summary,

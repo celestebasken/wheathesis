@@ -128,4 +128,38 @@ write.csv(an_percent_BNPP2_tidy,
           row.names = FALSE)
 ```
 
+```{r}
+# AMF
+# hyphal
+an_hyphal <- aov(hyphal_colonization~Polyculture+Inoculation+Water, data= combined)
+summary(an_hyphal)
 
+an_hyphal2 <- aov(hyphal_colonization~Polyculture*Inoculation*Water, data= combined)
+summary(an_hyphal2)
+
+lm_hyphal2 <- lm(hyphal_colonization~Polyculture*Inoculation*Water, data= combined)
+summary(an_hyphal2)
+
+# vesicles
+
+an_vesiclel <- aov(arb_vesc_colonization~Polyculture+Inoculation+Water, data= combined)
+summary(an_vesiclel)
+
+an_vesicle2 <- aov(arb_vesc_colonization~Polyculture*Inoculation*Water, data= combined)
+summary(an_vesicle2)
+
+ln_vesicle2 <- lm(arb_vesc_colonization~Polyculture*Inoculation*Water, data= combined)
+summary(ln_vesicle2)
+
+# to save
+an_hyphal_tidy <- tidy(an_hyphal2)
+write.csv(an_hyphal_tidy,
+          file.path(("BasicANOVA"), "an_hyphal2.csv"),
+          row.names = FALSE)
+
+an_vesicle2_tidy <- tidy(an_vesicle2)
+write.csv(an_vesicle2_tidy,
+          file.path(("BasicANOVA"), "an_vesicle2.csv"),
+          row.names = FALSE)
+
+```
