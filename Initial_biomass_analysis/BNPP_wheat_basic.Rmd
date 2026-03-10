@@ -22,6 +22,7 @@ library(dplyr)
 ```{r}
 # Loading in data to explore
 BNPP <- read.csv("Biomass/BNPP_Wheat_Weights.csv")
+combined <- read.csv("../Cross_compare/NPP_AMF_combined.csv")
 
 BNPP <- BNPP %>%
   mutate(
@@ -521,3 +522,51 @@ ggplot(BNPP,
 
 ```
 * So probably not statistically significant
+
+# Part 7: storytelling (3.10.26)
+
+```{r}
+
+# Looking at just non AMF
+
+BNPP <- BNPP %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture)
+  )
+
+BNPP_strl <- BNPP %>%
+  filter(Inoculation == "Strl")
+
+ggplot(BNPP_strl, aes(x = Water, y = Biomass_g_pp)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  facet_wrap(~ Polyculture) +
+  ggtitle("BNPP biomass by PPT, Sterile treatments only")
+
+# visualizing this with water as continuous
+
+BNPP_sum_strl <- BNPP_strl %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_plant_wk) %>%
+  summarise(mean_biomass = mean(Biomass_g_pp, na.rm = TRUE), .groups = "drop")
+
+# Sterile only, Really basic with a line connecting treatment means
+
+ggplot(
+  BNPP_sum_strl,
+  aes(
+    x = Water_gal_per_plant_wk,
+    y = mean_biomass,
+    color = Polyculture,
+    group = Polyculture
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("BNPP biomass by PPT (gallons per week) of sterile treatments", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean BNPP (g)")
+
+```
+

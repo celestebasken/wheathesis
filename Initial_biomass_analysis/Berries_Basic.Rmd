@@ -17,12 +17,14 @@ library(tidyverse)
 library(broom)
 library(knitr)
 library(dplyr)
+library(ggplot2)
 ```
 # Berries 
 
 ```{r}
 # Loading in data to explore
 berries <- read.csv("Biomass/Berry_Weights.csv")
+combined <- read.csv("../Cross_compare/NPP_AMF_combined.csv")
 
 berries <- berries %>%
   mutate(
@@ -470,7 +472,8 @@ berries_strl <- berries %>%
 
 ggplot(berries_strl, aes(x = Water, y = Biomass_g_pp)) +
   geom_boxplot(outlier.shape = NA) +
-  geom_jitter(width = 0.15, alpha = 0.6) + 
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  facet_wrap(~ Polyculture) +
   ggtitle("Berry biomass by PPT, Sterile treatments only")
 
 # visualizing this with water as continuous
@@ -501,9 +504,6 @@ ggplot(
 This isn't just due to resource allocation, because the percent_berries also had a statistical significance. Let's see it plotted
 
 ```{r}
-
-combined <- read.csv("../Cross_compare/NPP_AMF_combined.csv")
-
 # by water
 ggplot(combined, aes(x = Water_gal, y = percent_berries, color = Polyculture)) +
   geom_point(size = 2, alpha = 0.7) +
@@ -535,7 +535,8 @@ combined_strl <- combined %>%
 
 ggplot(combined_strl, aes(x = Water, y = percent_berries)) +
   geom_boxplot(outlier.shape = NA) +
-  geom_jitter(width = 0.15, alpha = 0.6) + 
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  facet_wrap(~ Polyculture) +
   ggtitle("Percent Berries by PPT, Sterile treatments only")
 
 # visualizing this with water as continuous
@@ -562,5 +563,29 @@ ggplot(
   ylab("Mean percent berry biomass")
 ```
 
+```{r}
+interaction_data <- combined %>%
+  group_by(Water, Inoculation) %>%
+  summarise(
+    mean_pb = mean(percent_berries, na.rm = TRUE),
+    se_pb = sd(percent_berries, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
 
+ggplot(interaction_data,
+       aes(x = Water, y = mean_pb,
+           color = Inoculation,
+           group = Inoculation)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 1) +
+  geom_errorbar(aes(ymin = mean_pb - se_pb,
+                    ymax = mean_pb + se_pb),
+                width = 0.15) +
+  labs(
+    title = "% Berry Interaction between Inoculation and Water",
+    x = "Water Treatment",
+    y = "Mean Percent Berries"
+  )
+
+```
 
