@@ -40,11 +40,14 @@ combined <- combined %>%
 
 ```{r}
 # Berry stats
-an_berry1 <- aov(Berries_g_pp~Polyculture+Inoculation+Water_gal, data= combined)
+an_berry1 <- aov(Berries_g_pp~Polyculture+Inoculation+hyphal_colonization+arb_vesc_colonization+Water_gal, data= combined)
 summary(an_berry1)
 
 an_berry2 <- aov(Berries_g_pp~Polyculture*Inoculation*Water, data= combined)
 summary(an_berry2)
+
+an_berry2.1 <- aov(Berries_g_pp~Polyculture*hyphal_colonization*Water, data= combined)
+summary(an_berry2.1)
 
 lm_berry2 <- lm(Berries_g_pp~Polyculture*Inoculation*Water, data= combined)
 summary(lm_berry2)
@@ -73,7 +76,7 @@ write.csv(an_percent_berries2_tidy,
 
 ```{r}
 # ANPP stats
-an_ANPP1 <- aov(ANPP_g_pp~Polyculture+Inoculation+Water, data= combined)
+an_ANPP1 <- aov(ANPP_g_pp~Polyculture+Inoculation+hyphal_colonization+arb_vesc_colonization+Water, data= combined)
 summary(an_ANPP1)
 
 an_ANPP2 <- aov(ANPP_g_pp~Polyculture*Inoculation*Water, data= combined)
@@ -106,7 +109,7 @@ write.csv(an_percent_ANPP2_tidy,
 
 ```{r}
 # BNPP stats
-an_BNPP1 <- aov(BNPP_g_pp~Polyculture+Inoculation+Water, data= combined)
+an_BNPP1 <- aov(BNPP_g_pp~Polyculture+Inoculation+hyphal_colonization+arb_vesc_colonization+Water, data= combined)
 summary(an_BNPP1)
 
 an_BNPP2 <- aov(BNPP_g_pp~Polyculture*Inoculation*Water, data= combined)
@@ -188,7 +191,7 @@ summary(an_AMF_vesicular)
 fava_subset <- combined %>%
   filter(Polyculture == "Inter")
 
-an_fava1 <- aov(Fava_g~Inoculation+Water_gal, data= fava_subset)
+an_fava1 <- aov(Fava_g~Inoculation+Water_gal+hyphal_colonization+arb_vesc_colonization, data= fava_subset)
 summary(an_fava1)
 
 an_fava2 <- aov(Fava_g~Inoculation*Water, data= fava_subset)
@@ -212,4 +215,35 @@ summary(an_biomass2)
 lm_biomass2 <- lm(Pot_productivity~Polyculture*Inoculation*Water, data= combined)
 summary(lm_biomass2)
 ```
+# plot
+
+```{r}
+interaction_data <- combined %>%
+  group_by(Polyculture, Inoculation) %>%
+  summarise(
+    mean_prod = mean(Pot_productivity, na.rm = TRUE),
+    se_prod = sd(Pot_productivity, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+ggplot(interaction_data,
+       aes(x = Polyculture,
+           y = mean_prod,
+           color = Inoculation,
+           group = Inoculation)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 1) +
+  geom_errorbar(aes(ymin = mean_prod - se_prod,
+                    ymax = mean_prod + se_prod),
+                width = 0.1) +
+  labs(
+    title = "Interaction between Polyculture and Inoculation on Pot Productivity",
+    x = "Polyculture Treatment",
+    y = "Mean Pot Productivity"
+  )
+```
+
+
+
+
 
