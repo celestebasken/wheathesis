@@ -34,7 +34,9 @@ combined <- combined %>%
 
 ```
 
-## Basic analysis
+# Basic stats analysis
+
+## ANPP
 
 ```{r}
 # Berry stats
@@ -67,6 +69,8 @@ write.csv(an_percent_berries2_tidy,
 
 ```
 
+## BNPP
+
 ```{r}
 # ANPP stats
 an_ANPP1 <- aov(ANPP_g_pp~Polyculture+Inoculation+Water, data= combined)
@@ -98,6 +102,8 @@ write.csv(an_percent_ANPP2_tidy,
 
 ```
 
+## BNPP
+
 ```{r}
 # BNPP stats
 an_BNPP1 <- aov(BNPP_g_pp~Polyculture+Inoculation+Water, data= combined)
@@ -127,6 +133,7 @@ write.csv(an_percent_BNPP2_tidy,
           file.path(("BasicANOVA"), "an_percent_BNPP2.csv"),
           row.names = FALSE)
 ```
+## AMF
 
 ```{r}
 # AMF
@@ -172,7 +179,37 @@ summary(an_AMF_hyphal)
 an_AMF_vesicular <- aov(percent_ANPP~Polyculture*arb_vesc_colonization*Water, data= combined)
 summary(an_AMF_vesicular)
 
+```
 
+## Fava
 
+```{r}
+
+fava_subset <- combined %>%
+  filter(Polyculture == "Inter")
+
+an_fava1 <- aov(Fava_g~Inoculation+Water_gal, data= fava_subset)
+summary(an_fava1)
+
+an_fava2 <- aov(Fava_g~Inoculation*Water, data= fava_subset)
+summary(an_fava2)
+
+lm_fava2 <- lm(Fava_g~Inoculation*Water, data= fava_subset)
+summary(lm_fava2)
+
+```
+
+## All plants total pot productivity
+
+```{r}
+# all biomass stats
+an_biomass1 <- aov(Pot_productivity~Polyculture+Inoculation+Water_gal, data= combined)
+summary(an_biomass1)
+
+an_biomass2 <- aov(Pot_productivity~Polyculture*Inoculation*Water, data= combined)
+summary(an_biomass2)
+
+lm_biomass2 <- lm(Pot_productivity~Polyculture*Inoculation*Water, data= combined)
+summary(lm_biomass2)
 ```
 

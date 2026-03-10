@@ -1,0 +1,80 @@
+---
+title: "fava_basic"
+author: "Celeste Basken"
+date: "2026-03-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+library(dplyr)
+```
+
+## Part 0: Loading data
+
+```{r}
+# Loading in data to explore
+fava <- read.csv("Biomass/NPP_Fava_Weights.csv")
+
+fava <- fava %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Group = interaction(Inoculation, sep = "_")
+  )
+
+```
+
+# Part 1: Some fava stats (also in box_comparison)
+
+```{r}
+# Fava stats
+an_fava1 <- aov(Biomass_g~Inoculation+Water_gal, data= fava)
+summary(an_fava1)
+
+an_fava2 <- aov(Biomass_g~Inoculation*Water, data= fava)
+summary(an_fava2)
+
+lm_fava2 <- lm(Biomass_g~Inoculation*Water, data= fava)
+summary(lm_fava2)
+```
+
+# Part 2 visualizing these
+
+```{r}
+# categorical water
+ggplot(fava, aes(x = Water, y = Biomass_g)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  facet_wrap(~ Inoculation) +
+  ggtitle("Fava biomass by PPT")
+
+# continuous water
+
+fava_sum <- fava %>%
+  group_by(Inoculation, Water_gal) %>%
+  summarise(mean_biomass = mean(Biomass_g, na.rm = TRUE), .groups = "drop")
+
+# Really basic with a line connecting treatment means
+ggplot(
+  fava_sum,
+  aes(
+    x = Water_gal,
+    y = mean_biomass,
+    color = Inoculation,
+    group = Inoculation
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Fava biomass by PPT (gallons per week)")
+
+```
+
+
