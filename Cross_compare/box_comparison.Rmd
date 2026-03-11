@@ -25,6 +25,9 @@ library(dplyr)
 # Combined data
 combined <- read.csv("NPP_AMF_combined.csv")
 
+# need to remove the fourth row bc I'm missing data (the bnpp)
+combined <- combined[-4,]
+
 combined <- combined %>%
   mutate(
     Inoculation = factor(Inoculation),
@@ -206,7 +209,7 @@ summary(lm_fava2)
 
 ```{r}
 # all biomass stats
-an_biomass1 <- aov(Pot_productivity~Polyculture+Inoculation+Water_gal, data= combined)
+an_biomass1 <- aov(Pot_productivity~Polyculture+Inoculation+Water_gal+Polyculture:Inoculation, data= combined)
 summary(an_biomass1)
 
 an_biomass2 <- aov(Pot_productivity~Polyculture*Inoculation*Water, data= combined)
