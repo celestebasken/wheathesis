@@ -1,0 +1,229 @@
+---
+title: "Direction_of_significance"
+author: "Celeste Basken"
+date: "2026-03-11"
+output: html_document
+---
+
+This doc is to look at interactions that were significant in our table of significance and then create a rough figure for em.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+```
+
+## Load data
+
+```{r}
+# Combined data
+combined <- read.csv("NPP_AMF_combined.csv")
+
+# need to remove the fourth row bc I'm missing data (the bnpp)
+combined <- combined[-4,]
+
+combined <- combined %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+```
+
+# 1. Simple biomass interactions
+
+## ANPP
+
+```{r}
+# ANPP x polyculture
+ggplot(combined, aes(x = Polyculture, y = ANPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Polyculture impact on ANPP (treatment means)", x = "", y = "ANPP per plant (g)")
+
+# ANPP x Inoculation
+ggplot(combined, aes(x = Inoculation, y = ANPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Inoculation impact on ANPP (treatment means)", x = "", y = "ANPP per plant (g)")
+
+# ANPP x PPT
+ggplot(combined, aes(x = Water, y = ANPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on ANPP", x = "", y = "ANPP per plant (g)")
+
+```
+## BNPP
+
+```{r}
+# polyculture
+ggplot(combined, aes(x = Polyculture, y = BNPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Polyculture impact on BNPP", x = "", y = "BNPP per plant (g)")
+```
+## Berry
+
+```{r}
+# polyculture
+ggplot(combined, aes(x = Polyculture, y = Berries_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Polyculture impact on Berries", x = "", y = "Berries g per plant")
+
+# Water
+ggplot(combined, aes(x = Water, y = Berries_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Berries", x = "", y = "Berries g per plant")
+```
+## Fava
+
+```{r}
+# Inoculation
+ggplot(combined, aes(x = Inoculation, y = Fava_g)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Inoculation impact on Fava NPP", x = "", y = "Fava g")
+
+# Water
+ggplot(combined, aes(x = Water, y = Fava_g)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Fava NPP", x = "", y = "Fava g")
+
+# Water: Inoc interaction
+ggplot(combined, aes(x = Water, y = Fava_g, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Intaction for Fava NPP", x = "", y = "Fava g")
+
+```
+## NPP
+
+```{r}
+# Polyculture
+ggplot(combined, aes(x = Polyculture, y = NPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Polyculture impact on Total NPP", x = "", y = "NPP g")
+
+# Water
+ggplot(combined, aes(x = Water, y = NPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Total NPP", x = "", y = "NPP g")
+
+# Poly: Inoc interaction
+ggplot(combined, aes(x = Inoculation, y = NPP_g_pp, color = Polyculture, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Polyculture:Inoculation Intaction for Total NPP", x = "", y = "NPP g")
+
+ggplot(combined, aes(x = Polyculture, y = NPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Polyculture:Inoculation Intaction for Total NPP", x = "Intercropping", y = "NPP g")
+```
+
+# 2. Stoichiometry
+
+## ANPP %
+
+```{r}
+# ANPP x polyculture
+ggplot(combined, aes(x = Polyculture, y = percent_ANPP)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Polyculture impact on ANPP %", x = "", y = "ANPP% of NPP")
+
+# ANPP x Inoculation
+ggplot(combined, aes(x = Inoculation, y = percent_ANPP)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Inoculation impact on ANPP %", x = "", y = "ANPP% of NPP")
+
+# ANPP x PPT
+ggplot(combined, aes(x = Water, y = percent_ANPP)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on ANPP %", x = "", y = "ANPP% of NPP")
+
+# Poly: Inoc: Water 3-way with ANPP
+ggplot(combined, aes(x = Water, y = percent_ANPP,
+                     color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  facet_wrap(~ Polyculture)
+
+# Poly: Inoc: Water 3-way with ANPP
+ggplot(combined, aes(x = Water, y = percent_ANPP,
+                     color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  facet_wrap(~ Polyculture) +
+  labs(title = "Allocation to ANPP (% of NPP) with 3-way interaction Poly: Inoc: Water")
+
+```
+## BNPP
+
+```{r}
+# polyculture
+ggplot(combined, aes(x = Polyculture, y = BNPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Polyculture impact on BNPP", x = "", y = "BNPP per plant (g)")
+```
+## Berry
+
+```{r}
+# polyculture
+ggplot(combined, aes(x = Polyculture, y = Berries_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Polyculture impact on Berries", x = "", y = "Berries g per plant")
+
+# Water
+ggplot(combined, aes(x = Water, y = Berries_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Berries", x = "", y = "Berries g per plant")
+```
+## Fava
+
+```{r}
+# Inoculation
+ggplot(combined, aes(x = Inoculation, y = Fava_g)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Inoculation impact on Fava NPP", x = "", y = "Fava g")
+
+# Water
+ggplot(combined, aes(x = Water, y = Fava_g)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Fava NPP", x = "", y = "Fava g")
+
+# Water: Inoc interaction
+ggplot(combined, aes(x = Water, y = Fava_g, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Intaction for Fava NPP", x = "", y = "Fava g")
+
+```
+## NPP
+
+```{r}
+# Polyculture
+ggplot(combined, aes(x = Polyculture, y = NPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Polyculture impact on Total NPP", x = "", y = "NPP g")
+
+# Water
+ggplot(combined, aes(x = Water, y = NPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Total NPP", x = "", y = "NPP g")
+
+# Poly: Inoc interaction
+ggplot(combined, aes(x = Inoculation, y = NPP_g_pp, color = Polyculture, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Polyculture:Inoculation Intaction for Total NPP", x = "", y = "NPP g")
+
+ggplot(combined, aes(x = Polyculture, y = NPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Polyculture:Inoculation Intaction for Total NPP", x = "Intercropping", y = "NPP g")
+```
+

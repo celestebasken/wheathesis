@@ -222,13 +222,13 @@ summary(lm_percent_fava2)
 
 ```{r}
 # all biomass stats
-an_biomass1 <- aov(NPP_g~Polyculture+Inoculation+Water_gal, data= combined)
+an_biomass1 <- aov(NPP_g_pp~Polyculture+Inoculation+Water, data= combined)
 summary(an_biomass1)
 
-an_biomass2 <- aov(NPP_g~Polyculture*Inoculation*Water, data= combined)
+an_biomass2 <- aov(NPP_g_pp~Polyculture*Inoculation*Water, data= combined)
 summary(an_biomass2)
 
-lm_biomass2 <- lm(NPP_g~Polyculture*Inoculation*Water, data= combined)
+lm_biomass2 <- lm(NPP_g_pp~Polyculture*Inoculation*Water, data= combined)
 summary(lm_biomass2)
 ```
 # plot
