@@ -56,7 +56,7 @@ lm_berry2 <- lm(Berries_g_pp~Polyculture*Inoculation*Water, data= combined)
 summary(lm_berry2)
 
 # % berries
-an_percent_berries1 <- aov(percent_berries~Polyculture+Inoculation+Water_gal, data= combined)
+an_percent_berries1 <- aov(percent_berries~Polyculture+Inoculation+Water, data= combined)
 summary(an_percent_berries1)
 
 an_percent_berries2 <- aov(percent_berries~Polyculture*Inoculation*Water, data= combined)
