@@ -147,7 +147,7 @@ write.csv(an_percent_BNPP2_tidy,
 an_hyphal <- aov(hyphal_colonization~Polyculture+Water, data= combined)
 summary(an_hyphal)
 
-an_hyphal2 <- aov(hyphal_colonization~Polyculture*Water, data= combined)
+an_hyphal2 <- aov(hyphal_colonization~Polyculture*Water_gal*Inoculation, data= combined)
 summary(an_hyphal2)
 
 lm_hyphal2 <- lm(hyphal_colonization~Polyculture*Water, data= combined)

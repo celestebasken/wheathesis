@@ -128,7 +128,17 @@ ggplot(combined, aes(x = Polyculture, y = NPP_g_pp, color = Inoculation, group =
   stat_summary(fun = mean, geom = "point") +
   stat_summary(fun = mean, geom = "line") +
   labs(title = "Polyculture:Inoculation Intaction for Total NPP", x = "Intercropping", y = "NPP g")
+
+# !! not statistically significant but I'm curious!!
+# Water: Inoc interaction
+ggplot(combined, aes(x = Water, y = NPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on system NPP", x = "", y = "NPP")
+
 ```
+
+
 ## Wheat productivity combined in intercropped treatments
 
 What if we looked at wheat success combined
@@ -142,6 +152,12 @@ combined <- combined %>%
   mutate(Wheat_NPP = sum(c(ANPP_g_pp,BNPP_g_pp,Berries_g_pp))) %>%
   ungroup()
 
+# wheat as percentage of NPP
+combined <- combined %>%
+  rowwise() %>%
+  mutate(percent_wheat_NPP = (Wheat_NPP/NPP_g_pp)) %>%
+  ungroup()
+
 # total npp vs water, intercropped only
 ggplot(data = filter(combined, Polyculture %in% c("Inter")), aes(x = Water, y = NPP_g_pp)) +
   stat_summary(fun = mean, geom = "bar") +
@@ -152,16 +168,24 @@ ggplot(data = filter(combined, Polyculture %in% c("Inter")), aes(x = Water, y = 
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Water impact on Wheat NPP", x = "", y = "Wheat NPP g per plant")
 
-# wheat as percentage of NPP
-combined <- combined %>%
-  rowwise() %>%
-  mutate(percent_wheat_NPP = (Wheat_NPP/NPP_g_pp)) %>%
-  ungroup()
-
 # % Wheat NPP vs water
 ggplot(data = filter(combined, Polyculture %in% c("Inter")), aes(x = Water, y = percent_wheat_NPP)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Water impact on % Wheat NPP", x = "", y = "Wheat NPP g per plant")
+
+
+# !! not statistically significant but I'm curious!!
+# Water: Inoc interaction
+ggplot(combined, aes(x = Water, y = percent_wheat_NPP, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on wheat NPP %", x = "", y = "Wheat percent of pot mass (basically wheat vs fava)")
+
+# this is only within intercropping
+an_NPP_wheat_percent <- aov(percent_wheat_NPP~Water_gal*Inoculation, 
+                            data = filter(combined, Polyculture %in% c("Inter")))
+summary(an_NPP_wheat_percent)
+# within intercropped system, inoculation has statistically significant impact on allocation to wheat vs fava
 
 
 ```
@@ -215,6 +239,12 @@ ggplot(combined, aes(x = Polyculture, y = percent_BNPP)) +
 ggplot(combined, aes(x = Water, y = percent_BNPP)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Allocation to BNPP based on PPT", x = "", y = "BNPP per plant (g)")
+
+# Water: Inoc interaction
+ggplot(combined, aes(x = Water, y = percent_BNPP, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on Allocation to BNPP", x = "", y = "BNPP %")
 
 # Poly: Inoc: Water 3-way with berries %
 ggplot(combined, aes(x = Water, y = percent_BNPP,
