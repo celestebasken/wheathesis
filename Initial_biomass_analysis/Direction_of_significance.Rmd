@@ -67,6 +67,7 @@ ggplot(combined, aes(x = Polyculture, y = BNPP_g_pp)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Polyculture impact on BNPP", x = "", y = "BNPP per plant (g)")
 ```
+
 ## Berry
 
 ```{r}
@@ -79,7 +80,10 @@ ggplot(combined, aes(x = Polyculture, y = Berries_g_pp)) +
 ggplot(combined, aes(x = Water, y = Berries_g_pp)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Water impact on Berries", x = "", y = "Berries g per plant")
+
+
 ```
+
 ## Fava
 
 ```{r}
@@ -100,6 +104,7 @@ ggplot(combined, aes(x = Water, y = Fava_g, color = Inoculation, group = Inocula
   labs(title = "Water:Inoculation Intaction for Fava NPP", x = "", y = "Fava g")
 
 ```
+
 ## NPP
 
 ```{r}
@@ -124,6 +129,43 @@ ggplot(combined, aes(x = Polyculture, y = NPP_g_pp, color = Inoculation, group =
   stat_summary(fun = mean, geom = "line") +
   labs(title = "Polyculture:Inoculation Intaction for Total NPP", x = "Intercropping", y = "NPP g")
 ```
+## Wheat productivity combined in intercropped treatments
+
+What if we looked at wheat success combined
+
+ANSWER: there is no real impact. Drought is affecting both wheat & fava "equally". This fits bc water has no impact on % fava.
+
+```{r}
+# new column which is wheat NPP
+combined <- combined %>%
+  rowwise() %>%
+  mutate(Wheat_NPP = sum(c(ANPP_g_pp,BNPP_g_pp,Berries_g_pp))) %>%
+  ungroup()
+
+# total npp vs water, intercropped only
+ggplot(data = filter(combined, Polyculture %in% c("Inter")), aes(x = Water, y = NPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on NPP", x = "", y = "NPP g per plant")
+
+# Wheat NPP vs water
+ggplot(data = filter(combined, Polyculture %in% c("Inter")), aes(x = Water, y = Wheat_NPP)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Wheat NPP", x = "", y = "Wheat NPP g per plant")
+
+# wheat as percentage of NPP
+combined <- combined %>%
+  rowwise() %>%
+  mutate(percent_wheat_NPP = (Wheat_NPP/NPP_g_pp)) %>%
+  ungroup()
+
+# % Wheat NPP vs water
+ggplot(data = filter(combined, Polyculture %in% c("Inter")), aes(x = Water, y = percent_wheat_NPP)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on % Wheat NPP", x = "", y = "Wheat NPP g per plant")
+
+
+```
+
 
 # 2. Stoichiometry
 
@@ -173,6 +215,15 @@ ggplot(combined, aes(x = Polyculture, y = percent_BNPP)) +
 ggplot(combined, aes(x = Water, y = percent_BNPP)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Allocation to BNPP based on PPT", x = "", y = "BNPP per plant (g)")
+
+# Poly: Inoc: Water 3-way with berries %
+ggplot(combined, aes(x = Water, y = percent_BNPP,
+                     color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  facet_wrap(~ Polyculture) +
+  labs(title = "Allocation to BNPP (% of NPP) with 3-way interaction Poly: Inoc: Water")
+
 ```
 
 
@@ -186,6 +237,11 @@ ggplot(combined, aes(x = Water, y = percent_berries)) +
   labs(title = "Water impact on Biomass allocation to Berries", x = "", y = "Berries g per plant")
 
 # Water
+ggplot(combined, aes(x = Water, y = percent_berries)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Biomass allocation to Berries", x = "", y = "Berries g per plant")
+
+# AMF
 ggplot(combined, aes(x = Inoculation, y = percent_berries)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Inoculation impact on Biomass allocation to Berries", x = "", y = "Berries g per plant")
@@ -234,4 +290,30 @@ ggplot(combined, aes(x = Water, y = percent_fava, color = Inoculation, group = I
 
 ```
 
+## AMF root colonization
+
+```{r}
+# Water: Hyphae
+ggplot(combined, aes(x = Water, y = hyphal_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Hyphal colonization", x = "", y = "% hyphal colonization")
+
+# poly-water hyphal
+ggplot(combined, aes(x = Water, y = hyphal_colonization, 
+                     color = Polyculture, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Impact of Drought & Polyculture on AMF hyphal colonization", x = "", y = "Hyphal colonization %")
+
+# Water: Arbuscular/ Vesicular
+ggplot(combined, aes(x = Water, y = arb_vesc_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Arbuscular/ Vesicular colonization", x = "", y = "% hyphal colonization")
+
+# Water: Arbuscular/ Vesicular
+ggplot(combined, aes(x = Polyculture, y = arb_vesc_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Polyculture impact on Arbuscular/ Vesicular colonization", x = "", y = "% hyphal colonization")
+
+```
 

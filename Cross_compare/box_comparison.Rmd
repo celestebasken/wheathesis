@@ -144,24 +144,24 @@ write.csv(an_percent_BNPP2_tidy,
 ```{r}
 # AMF
 # hyphal
-an_hyphal <- aov(hyphal_colonization~Polyculture+Inoculation+Water, data= combined)
+an_hyphal <- aov(hyphal_colonization~Polyculture+Water, data= combined)
 summary(an_hyphal)
 
-an_hyphal2 <- aov(hyphal_colonization~Polyculture*Inoculation*Water, data= combined)
+an_hyphal2 <- aov(hyphal_colonization~Polyculture*Water, data= combined)
 summary(an_hyphal2)
 
-lm_hyphal2 <- lm(hyphal_colonization~Polyculture*Inoculation*Water, data= combined)
+lm_hyphal2 <- lm(hyphal_colonization~Polyculture*Water, data= combined)
 summary(an_hyphal2)
 
 # vesicles
 
-an_vesiclel <- aov(arb_vesc_colonization~Polyculture+Inoculation+Water, data= combined)
+an_vesiclel <- aov(arb_vesc_colonization~Polyculture+Water_gal, data= combined)
 summary(an_vesiclel)
 
-an_vesicle2 <- aov(arb_vesc_colonization~Polyculture*Inoculation*Water, data= combined)
+an_vesicle2 <- aov(arb_vesc_colonization~Polyculture*Water_gal*Inoculation, data= combined)
 summary(an_vesicle2)
 
-ln_vesicle2 <- lm(arb_vesc_colonization~Polyculture*Inoculation*Water, data= combined)
+ln_vesicle2 <- lm(arb_vesc_colonization~Polyculture*Water, data= combined)
 summary(ln_vesicle2)
 
 # to save
@@ -205,6 +205,7 @@ summary(an_fava2)
 
 lm_fava2 <- lm(Fava_g~Inoculation*Water, data= fava_subset)
 summary(lm_fava2)
+
 
 # percent
 an_percent_fava1 <- aov(percent_fava~Inoculation+Water_gal, data= fava_subset)
