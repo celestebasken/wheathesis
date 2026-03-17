@@ -138,6 +138,13 @@ an_percent_BNPP2_tidy <- tidy(an_percent_BNPP2)
 write.csv(an_percent_BNPP2_tidy,
           file.path(("BasicANOVA"), "an_percent_BNPP2.csv"),
           row.names = FALSE)
+
+## Curious about just within monoculture
+BNPP_percent_mono_only <- aov(percent_BNPP~Water*Inoculation, 
+                            data = filter(combined, Polyculture %in% c("Mono")))
+summary(BNPP_percent_mono_only)
+
+
 ```
 ## AMF
 
@@ -231,6 +238,14 @@ summary(an_biomass2)
 
 lm_biomass2 <- lm(NPP_g_pp~Polyculture*Inoculation*Water, data= combined)
 summary(lm_biomass2)
+
+## Curious about just within monoculture
+an_biomass1_mono_only <- aov(NPP_g_pp~Inoculation+Water, data= filter(combined, Polyculture %in% c("Mono")))
+summary(an_biomass1_mono_only)
+
+an_biomass2_mono_only <- aov(NPP_g_pp~Inoculation*Water, data= filter(combined, Polyculture %in% c("Mono")))
+summary(an_biomass2_mono_only)
+
 ```
 # plot
 

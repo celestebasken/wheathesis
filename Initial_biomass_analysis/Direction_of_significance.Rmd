@@ -66,6 +66,15 @@ ggplot(combined, aes(x = Water, y = ANPP_g_pp)) +
 ggplot(combined, aes(x = Polyculture, y = BNPP_g_pp)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Polyculture impact on BNPP", x = "", y = "BNPP per plant (g)")
+
+# not stat significant but curious
+ggplot(combined, aes(x = Water, y = BNPP_g_pp,
+                     color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  facet_wrap(~ Polyculture) +
+  labs(title = "BNPP productivity (g) with 3-way interaction Poly: Inoc: Water")
+
 ```
 
 ## Berry
@@ -80,6 +89,14 @@ ggplot(combined, aes(x = Polyculture, y = Berries_g_pp)) +
 ggplot(combined, aes(x = Water, y = Berries_g_pp)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Water impact on Berries", x = "", y = "Berries g per plant")
+
+# Berry 3-way
+ggplot(combined, aes(x = Water, y = Berries_g_pp,
+                     color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  facet_wrap(~ Polyculture) +
+  labs(title = "Berry productivity (g) with 3-way interaction Poly: Inoc: Water")
 
 
 ```
@@ -135,6 +152,14 @@ ggplot(combined, aes(x = Water, y = NPP_g_pp, color = Inoculation, group = Inocu
   stat_summary(fun = mean, geom = "point") +
   stat_summary(fun = mean, geom = "line") +
   labs(title = "Water:Inoculation Interaction Impacts on system NPP", x = "", y = "NPP")
+
+# not stat significant but 3-way
+ggplot(combined, aes(x = Water, y = NPP_g_pp,
+                     color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  facet_wrap(~ Polyculture) +
+  labs(title = "NPP of system with 3-way interaction Poly: Inoc: Water")
 
 ```
 
