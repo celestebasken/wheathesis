@@ -111,6 +111,33 @@ ggplot(mono_only, aes(x = Water, y = percent_ANPP, color = Inoculation, group = 
 
 ```
 
+```{r}
+# AMF hyphal_colonization 
+
+# Check stat significance
+an_hyphal2_mono_only <- aov(hyphal_colonization~Water, data= mono_only)
+summary(an_hyphal2_mono_only)
+
+# Water
+ggplot(mono_only, aes(x = Water, y = hyphal_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Hyphal Colonization", x = "", y = "% roots with hyphal structures")
+
+# AMF arb_vesc_colonization 
+
+# Check stat significance
+an_arb_vesc2_mono_only <- aov(arb_vesc_colonization~Water, data= mono_only)
+summary(an_arb_vesc2_mono_only)
+
+# Water
+ggplot(mono_only, aes(x = Water, y = arb_vesc_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Arbuscular Vesicular Colonization", x = "", y = "% roots with Arbuscular or Vesicular AMF structures")
+
+```
+
+
+
 ## Part 2: Intercropping only, what is fava doing?
 
 ```{r}
