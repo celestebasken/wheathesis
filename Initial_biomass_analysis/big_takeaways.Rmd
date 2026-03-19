@@ -259,6 +259,8 @@ summary(an_BNPP_percent_inter_only)
 ## Part 3. Fava can offset the losses during drought of berry % incurred by inoculation!
 
 ```{r}
+
+# Berry allocation
 ggplot(combined, aes(x = Water, 
                      y = percent_berries_of_wheat, 
                      color = Inoculation, 
@@ -272,5 +274,36 @@ ggplot(combined, aes(x = Water,
     x = "",
     y = "Berry % of Wheat"
   )
+
+# Berry yield
+ggplot(combined, aes(x = Water, 
+                     y = Berries_g_pp, 
+                     color = Inoculation, 
+                     shape = Polyculture,
+                     group = interaction(Inoculation, Polyculture))) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  stat_summary(fun = mean, geom = "line", aes(linetype = Polyculture)) +
+  labs(
+    title = "Fava Intercropping Ameliorates Decline in Berry Production
+    Incurred by Inoculation During Drought",
+    x = "",
+    y = "Berry Yield"
+  )
+
+# NPP
+ggplot(combined, aes(x = Water, 
+                     y = NPP_g_pp, 
+                     color = Inoculation, 
+                     shape = Polyculture,
+                     group = interaction(Inoculation, Polyculture))) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  stat_summary(fun = mean, geom = "line", aes(linetype = Polyculture)) +
+  labs(
+    title = "Density-Adjusted NPP interaction between 
+    drought, inoculation, and intercropping",
+    x = "",
+    y = "NPP (g) per plant"
+  )
+
 ```
 
