@@ -43,7 +43,7 @@ combined <- combined %>%
 
 ```{r}
 # Berry stats
-an_berry1 <- aov(Berries_g_pp~Polyculture+Inoculation+Water_gal, data= combined)
+an_berry1 <- aov(Berries_g_pp~Polyculture+Inoculation+Water, data= combined)
 summary(an_berry1)
 
 an_berry2 <- aov(Berries_g_pp~Polyculture*Inoculation*Water, data= combined)
@@ -276,6 +276,17 @@ ggplot(interaction_data,
 ```
 
 
+## NPP Wheat only
 
+```{r}
+# all biomass stats
+an_wheat_NPP1 <- aov(Wheat_NPP_pp~Polyculture+Inoculation+Water, data= combined)
+summary(an_wheat_NPP1)
 
+an_biomass2 <- aov(NPP_g_pp~Polyculture*Inoculation*Water, data= combined)
+summary(an_biomass2)
+
+lm_biomass2 <- lm(NPP_g_pp~Polyculture*Inoculation*Water, data= combined)
+summary(lm_biomass2)
+```
 

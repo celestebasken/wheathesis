@@ -171,17 +171,6 @@ What if we looked at wheat success combined
 ANSWER: there is no real impact. Drought is affecting both wheat & fava "equally". This fits bc water has no impact on % fava.
 
 ```{r}
-# new column which is wheat NPP
-combined <- combined %>%
-  rowwise() %>%
-  mutate(Wheat_NPP = sum(c(ANPP_g_pp,BNPP_g_pp,Berries_g_pp))) %>%
-  ungroup()
-
-# wheat as percentage of NPP
-combined <- combined %>%
-  rowwise() %>%
-  mutate(percent_wheat_NPP = (Wheat_NPP/NPP_g_pp)) %>%
-  ungroup()
 
 # total npp vs water, intercropped only
 ggplot(data = filter(combined, Polyculture %in% c("Inter")), aes(x = Water, y = NPP_g_pp)) +

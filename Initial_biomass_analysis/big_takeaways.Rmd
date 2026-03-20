@@ -59,6 +59,9 @@ ggplot(mono_only, aes(x = Water, y = NPP_g_pp, color = Inoculation, group = Inoc
   stat_summary(fun = mean, geom = "line") +
   labs(title = "Mono Only: Water:Inoculation Interaction Impacts on system NPP", x = "", y = "NPP")
 
+```
+
+```{r}
 # Berries
 
 ##  Total berries
@@ -85,23 +88,81 @@ ggplot(mono_only, aes(x = Water, y = percent_berries_of_wheat, color = Inoculati
   stat_summary(fun = mean, geom = "line") +
   labs(title = "Water:Inoc Interaction Impacts on Allocation to Berries Within Wheat", x = "", y = "% berries of wheat")
 
+# Statistics
+# for berries g
+t.test(Berries_g_pp ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(Berries_g_pp ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Control"),
+       var.equal = FALSE)
+
+# for berries %
+t.test(percent_berries_of_wheat ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
 ```
 
 ```{r}
-## BNPP
+## ANPP
+
 # Water: Inoc interaction
-ggplot(mono_only, aes(x = Water, y = percent_BNPP_of_wheat, color = Inoculation, group = Inoculation)) +
+ggplot(mono_only, aes(x = Water, y = ANPP_g_pp, color = Inoculation, group = Inoculation)) +
   stat_summary(fun = mean, geom = "point") +
   stat_summary(fun = mean, geom = "line") +
-  labs(title = "Water:Inoc Interaction Impacts on Allocation to BNPP Within Wheat", x = "", y = "% BNPP")
+  labs(title = "Water:Inoc Interaction Impacts on ANPP",
+       x = "", y = "ANPP (g)")
 
-## ANPP
+# Stats
+an_ANPP2_mono_only <- aov(ANPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_ANPP2_mono_only)
+
+an2_ANPP_of_wheat_mono_only <- aov(percent_ANPP_of_wheat~Inoculation*Water, data= mono_only)
+summary(an2_ANPP_of_wheat_mono_only)
+
+# Wheat ANPP% vs water
+ggplot(combined, aes(x = Water, y = percent_ANPP_of_wheat)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on ANPP % of Wheat NPP", x = "", y = "ANPP %")
+
 # Water: Inoc interaction
 ggplot(mono_only, aes(x = Water, y = percent_ANPP_of_wheat, color = Inoculation, group = Inoculation)) +
   stat_summary(fun = mean, geom = "point") +
   stat_summary(fun = mean, geom = "line") +
   labs(title = "Water:Inoc Interaction Impacts on Allocation to ANPP Within Wheat",
        x = "", y = "% ANPP")
+```
+
+
+```{r}
+## BNPP
+
+# Stats
+an_BNPP2_mono_only <- aov(BNPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_BNPP2_mono_only)
+
+an2_BNPP_of_wheat_mono_only <- aov(percent_BNPP_of_wheat~Inoculation*Water, data= mono_only)
+summary(an2_BNPP_of_wheat_mono_only)
+
+# Water: Inoc interaction
+ggplot(mono_only, aes(x = Water, y = BNPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoc Interaction Impacts on BNPP", x = "", y = "BNPP")
+
+# Water: Inoc interaction
+ggplot(mono_only, aes(x = Water, y = percent_BNPP_of_wheat, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoc Interaction Impacts on Allocation to BNPP Within Wheat", x = "", y = "% BNPP")
+
+# Wheat BNPP% vs water
+ggplot(combined, aes(x = Water, y = percent_BNPP_of_wheat)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on BNPP % of Wheat NPP", x = "", y = "BNPP %")
+
 ```
 
 
