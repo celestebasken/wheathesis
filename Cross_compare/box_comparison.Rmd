@@ -55,12 +55,22 @@ summary(an_berry2.1)
 lm_berry2 <- lm(Berries_g_pp~Polyculture*Inoculation*Water, data= combined)
 summary(lm_berry2)
 
+an_berry2 <- aov(BNPP_g_pp~Polyculture, data= combined)
+summary(an_berry2)
+
+
 # % berries
 an_percent_berries1 <- aov(percent_berries~Polyculture+Inoculation+Water, data= combined)
 summary(an_percent_berries1)
 
 an_percent_berries2 <- aov(percent_berries~Polyculture*Inoculation*Water, data= combined)
 summary(an_percent_berries2)
+
+
+an_percent_BNPP2 <- aov(percent_berries_of_wheat~Polyculture
+                        #*Inoculation*Water
+                        , data= combined)
+summary(an_percent_BNPP2)
 
 # to save
 an_berry2_tidy <- tidy(an_berry2)
@@ -72,6 +82,8 @@ an_percent_berries2_tidy <- tidy(an_percent_berries2)
 write.csv(an_percent_berries2_tidy,
           file.path(("BasicANOVA"), "an_percent_berries2.csv"),
           row.names = FALSE)
+
+
 
 ```
 
@@ -93,6 +105,11 @@ an_percent_ANPP1 <- aov(percent_ANPP~Polyculture+Inoculation+Water, data= combin
 summary(an_percent_ANPP1)
 
 an_percent_ANPP2 <- aov(percent_ANPP~Polyculture*Inoculation*Water, data= combined)
+summary(an_percent_ANPP2)
+
+an_percent_ANPP2 <- aov(percent_ANPP_of_wheat~Polyculture
+                        #*Inoculation*Water
+                        , data= combined)
 summary(an_percent_ANPP2)
 
 # to save
@@ -125,7 +142,9 @@ summary(lm_BNPP2)
 an_percent_BNPP1 <- aov(percent_BNPP~Polyculture+Inoculation+Water, data= combined)
 summary(an_percent_BNPP1)
 
-an_percent_BNPP2 <- aov(percent_BNPP~Polyculture*Inoculation*Water, data= combined)
+an_percent_BNPP2 <- aov(percent_BNPP_of_wheat~Polyculture
+                        #*Inoculation*Water
+                        , data= combined)
 summary(an_percent_BNPP2)
 
 # to save

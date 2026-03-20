@@ -211,7 +211,7 @@ summary(an_NPP_wheat_percent)
 
 ```{r}
 # ANPP x polyculture
-ggplot(combined, aes(x = Polyculture, y = percent_ANPP)) +
+ggplot(combined, aes(x = Polyculture, y = percent_ANPP_of_wheat)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Polyculture impact on ANPP %", x = "", y = "ANPP% of NPP")
 
@@ -284,6 +284,11 @@ ggplot(combined, aes(x = Water, y = percent_berries)) +
 ggplot(combined, aes(x = Water, y = percent_berries)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Water impact on Biomass allocation to Berries", x = "", y = "Berries g per plant")
+
+# Water
+ggplot(combined, aes(x = Polyculture, y = percent_berries_of_wheat)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Intercropping impact on Biomass allocation to Berries", x = "", y = "Berries g per plant")
 
 # AMF
 ggplot(combined, aes(x = Inoculation, y = percent_berries)) +

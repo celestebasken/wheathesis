@@ -73,6 +73,7 @@ summary(an_berries2_mono_only)
 ggplot(mono_only, aes(x = Water, y = Berries_g_pp, color = Inoculation, group = Inoculation)) +
   stat_summary(fun = mean, geom = "point") +
   stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
   labs(title = "Mono Only: Water:Inoculation Interaction Impacts on Berry Productivity", x = "", y = "NPP")
 
 ## Percent berries
@@ -86,6 +87,7 @@ summary(an_berries_percent2_mono_only)
 ggplot(mono_only, aes(x = Water, y = percent_berries_of_wheat, color = Inoculation, group = Inoculation)) +
   stat_summary(fun = mean, geom = "point") +
   stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
   labs(title = "Water:Inoc Interaction Impacts on Allocation to Berries Within Wheat", x = "", y = "% berries of wheat")
 
 # Statistics
@@ -101,6 +103,10 @@ t.test(Berries_g_pp ~ Inoculation,
 # for berries %
 t.test(percent_berries_of_wheat ~ Inoculation,
        data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(percent_berries_of_wheat ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Control"),
        var.equal = FALSE)
 
 ```
@@ -133,6 +139,17 @@ ggplot(mono_only, aes(x = Water, y = percent_ANPP_of_wheat, color = Inoculation,
   stat_summary(fun = mean, geom = "line") +
   labs(title = "Water:Inoc Interaction Impacts on Allocation to ANPP Within Wheat",
        x = "", y = "% ANPP")
+
+# Individual stats
+# ANPP biomass
+t.test(percent_ANPP ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(ANPP_g_pp ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Control"),
+       var.equal = FALSE)
+
 ```
 
 
@@ -150,6 +167,7 @@ summary(an2_BNPP_of_wheat_mono_only)
 ggplot(mono_only, aes(x = Water, y = BNPP_g_pp, color = Inoculation, group = Inoculation)) +
   stat_summary(fun = mean, geom = "point") +
   stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
   labs(title = "Water:Inoc Interaction Impacts on BNPP", x = "", y = "BNPP")
 
 # Water: Inoc interaction
@@ -162,6 +180,12 @@ ggplot(mono_only, aes(x = Water, y = percent_BNPP_of_wheat, color = Inoculation,
 ggplot(combined, aes(x = Water, y = percent_BNPP_of_wheat)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Water impact on BNPP % of Wheat NPP", x = "", y = "BNPP %")
+
+# Individual stats
+# BNPP biomass
+t.test(percent_BNPP ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
 
 ```
 
@@ -329,6 +353,7 @@ ggplot(combined, aes(x = Water,
                      group = interaction(Inoculation, Polyculture))) +
   stat_summary(fun = mean, geom = "point", size = 3) +
   stat_summary(fun = mean, geom = "line", aes(linetype = Polyculture)) +
+  #stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
   labs(
     title = "Fava Intercropping Ameliorates Decline in Berry Allocation
     Incurred by Inoculation During Drought",
@@ -344,6 +369,7 @@ ggplot(combined, aes(x = Water,
                      group = interaction(Inoculation, Polyculture))) +
   stat_summary(fun = mean, geom = "point", size = 3) +
   stat_summary(fun = mean, geom = "line", aes(linetype = Polyculture)) +
+  #stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
   labs(
     title = "Fava Intercropping Ameliorates Decline in Berry Production
     Incurred by Inoculation During Drought",
@@ -353,7 +379,7 @@ ggplot(combined, aes(x = Water,
 
 # NPP
 ggplot(combined, aes(x = Water, 
-                     y = NPP_g_pp, 
+                     y = Wheat_NPP_pp, 
                      color = Inoculation, 
                      shape = Polyculture,
                      group = interaction(Inoculation, Polyculture))) +
@@ -363,7 +389,7 @@ ggplot(combined, aes(x = Water,
     title = "Density-Adjusted NPP interaction between 
     drought, inoculation, and intercropping",
     x = "",
-    y = "NPP (g) per plant"
+    y = "Wheat NPP (g) per plant"
   )
 
 ```
