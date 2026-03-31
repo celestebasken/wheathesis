@@ -35,6 +35,11 @@ combined <- combined %>%
     Group = interaction(Inoculation, Polyculture, sep = "_")
   )
 
+# Speciality subsetted ones
+mono_only <- combined[combined$Polyculture != "Inter", ]
+
+inter_only <- combined[combined$Polyculture != "Mono", ]
+
 ```
 
 # Basic stats analysis
@@ -145,6 +150,9 @@ summary(an_percent_BNPP1)
 an_percent_BNPP2 <- aov(percent_BNPP_of_wheat~Polyculture
                         #*Inoculation*Water
                         , data= combined)
+summary(an_percent_BNPP2)
+
+an_percent_BNPP2 <- aov(percent_BNPP_of_wheat~Inoculation*Water, data= mono_only)
 summary(an_percent_BNPP2)
 
 # to save
