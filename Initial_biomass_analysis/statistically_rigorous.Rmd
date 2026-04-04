@@ -1,0 +1,78 @@
+---
+title: "statistically_rigorous"
+author: "Celeste Basken"
+date: "2026-04-04"
+output: html_document
+---
+
+This is Yet Another doc to look at the significance of relationships! Wow! Yay! This one is using better stats though hopefully
+
+It's Mono Only because that's my more limited paper scope
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+
+# specific new ones
+library(car)
+library(emmeans)
+library(effectsize)
+```
+
+## Load data
+
+```{r}
+# Combined data
+combined <- read.csv("../Cross_compare/NPP_AMF_combined.csv")
+
+# need to remove the fourth row bc I'm missing data (the bnpp)
+combined <- combined[-4,]
+
+combined <- combined %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+# Speciality subsetted ones
+mono_only <- combined[combined$Polyculture != "Inter", ]
+
+inter_only <- combined[combined$Polyculture != "Mono", ]
+
+```
+
+## Part 1: Water
+
+ANPP (g) per plant
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(NPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+
+# Assumption checking
+mod <- aov(NPP_g_pp ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  #LOOKS GOOD
+
+plot(mod, 1)  # residuals vs fitted
+leveneTest(NPP_g_pp ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
