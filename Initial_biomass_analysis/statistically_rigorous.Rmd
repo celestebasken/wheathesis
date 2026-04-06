@@ -27,6 +27,7 @@ library(ggplot2)
 library(car)
 library(emmeans)
 library(effectsize)
+library(WRS2)
 ```
 
 ## Load data
@@ -54,7 +55,8 @@ inter_only <- combined[combined$Polyculture != "Mono", ]
 
 ## Part 1: Water
 
-ANPP (g) per plant
+### NPP (g) per plant
+
 ```{r}
 # ANOVA
 an_biomass2_mono_only <- aov(NPP_g_pp~Inoculation*Water, data= mono_only)
@@ -74,5 +76,219 @@ emmeans(mod, pairwise ~ Water, adjust = "tukey")
 
 # Effect sizes
 eta_squared(mod)
+```
+
+### ANPP pp g
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(ANPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(ANPP_g_pp ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  #LOOKS GOOD
+
+plot(mod, 1)  # residuals vs fitted
+  # it seems random but not SUPER random?? idk
+leveneTest(ANPP_g_pp ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+### BNPP pp g
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(BNPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(BNPP_g_pp ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  #LOOKS GOOD
+
+plot(mod, 1)  # residuals vs fitted
+  # looks okay
+leveneTest(BNPP_g_pp ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+
+### Berries pp g
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(Berries_g_pp~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(Berries_g_pp ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  #I think this looks okay?
+
+plot(mod, 1)  # residuals vs fitted
+  # looks okay
+leveneTest(Berries_g_pp ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+### ANPP %
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(percent_ANPP_of_wheat~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(percent_ANPP_of_wheat ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  # Looks good!
+
+plot(mod, 1)  # residuals vs fitted
+  # looks good!
+leveneTest(percent_ANPP_of_wheat ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+### BNPP %
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(percent_BNPP_of_wheat~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(percent_BNPP_of_wheat ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  # Looks good!
+
+plot(mod, 1)  # residuals vs fitted
+  # looks okay?
+leveneTest(percent_BNPP_of_wheat ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+### Berries %
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(percent_berries_of_wheat~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(percent_berries_of_wheat ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  # Looks potentially problematic?? Additionally testing:
+
+plot(mod, 1)  # residuals vs fitted
+  # looks okay?
+leveneTest(percent_berries_of_wheat ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+Oh now things are getting funky with assumptions due to the nonnormal QQ
+```{r}
+kruskal.test(percent_berries_of_wheat ~ interaction(Inoculation, Water), data = mono_only)
+
+# check range first
+range(mono_only$percent_berries_of_wheat, na.rm = TRUE)
+
+# if values are proportions on 0–1 scale:
+mono_only$percent_berries_logit <- qlogis(
+  pmin(pmax(mono_only$percent_berries_of_wheat, 0.001), 0.999)
+)
+
+mod_logit <- aov(percent_berries_logit ~ Inoculation * Water, data = mono_only)
+summary(mod_logit)
+
+plot(mod_logit, 2)
+shapiro.test(residuals(mod_logit))
+plot(mod_logit, 1)
+
+library(car)
+leveneTest(percent_berries_logit ~ interaction(Inoculation, Water), data = mono_only)
+```
+
+This isn't actually needed but:
+```{r}
+#library(ARTool)
+
+#mono_only$Water <- factor(mono_only$Water)
+#mono_only$Inoculation <- factor(mono_only$Inoculation)
+
+#mod_art <- art(percent_berries_of_wheat ~ Inoculation * Water, data = mono_only)
+#anova(mod_art)
+```
+
+### AMF colonization
+
+```{r}
+inoc_only <- mono_only[mono_only$Inoculation == "Inoc", ]
+
+aov(hyphal_colonization ~ Water, data = inoc_only)
+aov(arb_vesc_colonization ~ Water, data = inoc_only)
+
+# GLM
+inoc_only$hyphae_present <- round(inoc_only$hyphal_colonization * 100)
+inoc_only$hyphae_absent  <- 100 - inoc_only$hyphae_present
+
+glm_hyphae <- glm(cbind(hyphae_present, hyphae_absent) ~ Water,
+                  family = binomial, data = inoc_only)
+
+summary(glm_hyphae)
+
+# lm
+lm(percent_berries_of_wheat ~ hyphal_colonization, data = inoc_only)
+lm(percent_ANPP_of_wheat ~ hyphal_colonization, data = inoc_only)
+lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = inoc_only)
+lm(percent_berries_of_wheat ~ hyphal_colonization * Water, data = inoc_only)
+
+summary(lm(percent_ANPP_of_wheat ~ hyphal_colonization, data = inoc_only))
+summary(lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = inoc_only))
+summary(lm(percent_berries_of_wheat ~ hyphal_colonization, data = inoc_only))
+
 ```
 
