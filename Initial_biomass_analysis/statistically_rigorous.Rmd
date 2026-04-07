@@ -53,7 +53,7 @@ inter_only <- combined[combined$Polyculture != "Mono", ]
 
 ```
 
-## Part 1: Water
+## Part 1: More rigorous stats
 
 ### NPP (g) per plant
 
@@ -290,5 +290,45 @@ summary(lm(percent_ANPP_of_wheat ~ hyphal_colonization, data = inoc_only))
 summary(lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = inoc_only))
 summary(lm(percent_berries_of_wheat ~ hyphal_colonization, data = inoc_only))
 
+```
+
+Kind of out of scope but can we visualize this rq
+
+```{r}
+ggplot(inoc_only, aes(x = Water, y = hyphal_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on hyphal colonization", x = "", y = "Hyphal colonization")
+
+ggplot(inoc_only, aes(x = Water, y = arb_vesc_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Arb/Vesc colonization", x = "", y = "Arb/Vesc colonization")
+
+
+ggplot(inoc_only, aes(x = hyphal_colonization, y = percent_berries_of_wheat)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "Hyphal colonization (%)",
+    y = "Berry allocation (%)",
+    title = "AMF colonization & berry allocation"
+  )
+
+ggplot(inoc_only, aes(x = hyphal_colonization, y = percent_ANPP_of_wheat)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "Hyphal colonization (%)",
+    y = "ANPP allocation (%)",
+    title = "AMF colonization & ANPP allocation"
+  )
+
+ggplot(inoc_only, aes(x = hyphal_colonization, y = NPP_g_pp)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "Hyphal colonization (%)",
+    y = "NPP per plant (g)",
+    title = "AMF colonization & NPP"
+  )
 ```
 
