@@ -264,6 +264,7 @@ This isn't actually needed but:
 ```
 
 ### AMF colonization
+###  THIS IS ALL BAD DON'T USE INOC ONLY
 
 ```{r}
 inoc_only <- mono_only[mono_only$Inoculation == "Inoc", ]
@@ -295,7 +296,7 @@ summary(lm(percent_berries_of_wheat ~ hyphal_colonization, data = inoc_only))
 Kind of out of scope but can we visualize this rq
 
 ```{r}
-ggplot(inoc_only, aes(x = Water, y = hyphal_colonization)) +
+ggplot(mono_only, aes(x = Water, y = hyphal_colonization)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Water impact on hyphal colonization", x = "", y = "Hyphal colonization")
 
@@ -304,7 +305,7 @@ ggplot(inoc_only, aes(x = Water, y = arb_vesc_colonization)) +
   labs(title = "Water impact on Arb/Vesc colonization", x = "", y = "Arb/Vesc colonization")
 
 
-ggplot(inoc_only, aes(x = hyphal_colonization, y = percent_berries_of_wheat)) +
+ggplot(mono_only, aes(x = hyphal_colonization, y = percent_berries_of_wheat)) +
   geom_point(size = 3, alpha = 0.8) +
   geom_smooth(method = "lm", se = TRUE) +
   labs(

@@ -145,7 +145,7 @@ ggplot(mono_alloc_long,
   facet_wrap(~Response) +
   labs(
     title = "Water × Inoculation effects on wheat allocation",
-    x = "Water (gal)",
+    x = "Precipitation Treatment",
     y = "Percent allocation",
     color = "Inoculation"
   ) +
@@ -156,25 +156,94 @@ ggplot(mono_alloc_long,
     panel.grid.minor = element_blank()
   )
 
-# Continuous
-ggplot(mono_alloc_long,
-       aes(x = Water_gal, y = Value, color = Inoculation, group = Inoculation)) +
-  stat_summary(fun = mean, geom = "point", size = 2.5) +
-  stat_summary(fun = mean, geom = "line", linewidth = 0.9) +
-  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.15) +
-  facet_wrap(~Response) +
+
+```
+### Hyphal colonization
+
+```{r}
+
+# Just severe water Berries, for example
+ggplot(filter(mono_only, Water == "Severe"),
+       aes(x = hyphal_colonization, y = percent_berries_of_wheat)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
   labs(
-    title = "Water × Inoculation effects on wheat allocation",
-    x = "Water (gal)",
-    y = "Percent allocation",
-    color = "Inoculation"
-  ) +
-  theme_bw() +
-  theme(
-    plot.title = element_text(hjust = 0.5),
-    strip.text = element_text(face = "bold"),
-    panel.grid.minor = element_blank()
+    x = "Hyphal colonization (%)",
+    y = "Berry allocation (%)",
+    title = "AMF colonization & berry allocation (Severe only)"
   )
+
+# the faceted figures
+
+## HYPHAL
+
+hyphal_mono_berries <- mono_only %>%
+  filter(Water %in% c("Control", "Severe")) %>%
+  select(hyphal_colonization, Water, percent_berries_of_wheat, NPP_g_pp) %>%
+  pivot_longer(
+    cols = c(percent_berries_of_wheat, NPP_g_pp),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Severe")),
+    Response = factor(
+      Response,
+      levels = c("percent_berries_of_wheat", "NPP_g_pp"),
+      labels = c("Berry allocation (%)", "NPP (g per plant)")
+    )
+  )
+
+ggplot(hyphal_mono_berries, aes(x = hyphal_colonization, y = Value)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
+  labs(
+    x = "Hyphal colonization (%)",
+    y = NULL,
+    title = "AMF Hyphal colonization relationships with berry allocation and NPP"
+  ) +
+  theme_bw()
+
+
+## ARB VESC
+
+arbvesc_mono_berries <- mono_only %>%
+  filter(Water %in% c("Control", "Severe")) %>%
+  select(hyphal_colonization, Water, arb_vesc_colonization, NPP_g_pp) %>%
+  pivot_longer(
+    cols = c(arb_vesc_colonization, NPP_g_pp),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Severe")),
+    Response = factor(
+      Response,
+      levels = c("arb_vesc_colonization", "NPP_g_pp"),
+      labels = c("Berry allocation (%)", "NPP (g per plant)")
+    )
+  )
+
+ggplot(hyphal_mono_berries, aes(x = hyphal_colonization, y = Value)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
+  labs(
+    x = "Hyphal colonization (%)",
+    y = NULL,
+    title = "AMF Hyphal colonization relationships with berry allocation and NPP"
+  ) +
+  theme_bw()ggplot(arbvesc_mono_berries, aes(x = hyphal_colonization, y = Value)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
+  labs(
+    x = "Arbuscular Vesicular colonization (%)",
+    y = NULL,
+    title = "AMF Arbuscular Vesicular colonization relationships with berry allocation and NPP"
+  ) +
+  theme_bw()
 
 ```
 
