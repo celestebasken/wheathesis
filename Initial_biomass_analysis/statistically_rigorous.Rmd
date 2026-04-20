@@ -264,11 +264,8 @@ This isn't actually needed but:
 ```
 
 ### AMF colonization
-###  THIS IS ALL BAD DON'T USE INOC ONLY
 
 ```{r}
-inoc_only <- mono_only[mono_only$Inoculation == "Inoc", ]
-
 aov(hyphal_colonization ~ Water, data = inoc_only)
 aov(arb_vesc_colonization ~ Water, data = inoc_only)
 
@@ -300,7 +297,7 @@ ggplot(mono_only, aes(x = Water, y = hyphal_colonization)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Water impact on hyphal colonization", x = "", y = "Hyphal colonization")
 
-ggplot(inoc_only, aes(x = Water, y = arb_vesc_colonization)) +
+ggplot(mono_only, aes(x = Water, y = arb_vesc_colonization)) +
   stat_summary(fun = mean, geom = "bar") +
   labs(title = "Water impact on Arb/Vesc colonization", x = "", y = "Arb/Vesc colonization")
 
@@ -314,7 +311,7 @@ ggplot(mono_only, aes(x = hyphal_colonization, y = percent_berries_of_wheat)) +
     title = "AMF colonization & berry allocation"
   )
 
-ggplot(inoc_only, aes(x = hyphal_colonization, y = percent_ANPP_of_wheat)) +
+ggplot(mono_only, aes(x = hyphal_colonization, y = percent_ANPP_of_wheat)) +
   geom_point(size = 3, alpha = 0.8) +
   geom_smooth(method = "lm", se = TRUE) +
   labs(
@@ -323,7 +320,7 @@ ggplot(inoc_only, aes(x = hyphal_colonization, y = percent_ANPP_of_wheat)) +
     title = "AMF colonization & ANPP allocation"
   )
 
-ggplot(inoc_only, aes(x = hyphal_colonization, y = NPP_g_pp)) +
+ggplot(mono_only, aes(x = hyphal_colonization, y = NPP_g_pp)) +
   geom_point(size = 3, alpha = 0.8) +
   geom_smooth(method = "lm", se = TRUE) +
   labs(

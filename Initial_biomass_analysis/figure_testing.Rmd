@@ -338,7 +338,7 @@ hyphal_mono_berries <- mono_only %>%
     Response = factor(
       Response,
       levels = c("percent_berries_of_wheat", "NPP_g_pp"),
-      labels = c("Berry allocation (%)", "NPP (g per plant)")
+      labels = c("Allocation to Yield (%)", "Total Biomass (g per plant)")
     )
   )
 
@@ -369,7 +369,7 @@ arbvesc_mono_berries <- mono_only %>%
     Response = factor(
       Response,
       levels = c("arb_vesc_colonization", "NPP_g_pp"),
-      labels = c("Berry allocation (%)", "NPP (g per plant)")
+      labels = c("Reproductive allocation (%)", "NPP (g per plant)")
     )
   )
 
@@ -395,6 +395,128 @@ ggplot(arbvesc_mono_berries, aes(x = hyphal_colonization, y = Value)) +
   ) +
   theme_bw()
 
+
 ```
 
+```{r}
+# Pretty
+hyphal_berries_NPP.png <- ggplot(hyphal_mono_berries, aes(x = hyphal_colonization, y = Value)) +
+  geom_point(size = 2.8, alpha = 0.8, color = "black") +
+  geom_smooth(
+    method = "lm",
+    se = TRUE,
+    color = "#3B6C8E",
+    fill = "#3B6C8E",
+    alpha = 0.2,
+    linewidth = 1.2
+  ) +
+  facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
+  labs(
+    x = "Root hyphal colonization (%)",
+    y = NULL,
+    title = "AMF Hyphal Colonization Impact on Yield Allocation and Total Biomass"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.spacing = unit(1.2, "lines")
+  )
+
+ggsave("PresentationFigs/hyphal_berries_NPP.png", plot = hyphal_berries_NPP.png, width = 9, height = 6.5, dpi = 300)
+
+```
+
+# Water impacts on AMF colonization
+
+```{r}
+root_hyphal_drought.png <- ggplot(mono_only, aes(x = Water, y = hyphal_colonization)) +
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    fill = "#3B6C8E",
+    color = "black",
+    alpha = 0.85,
+    width = 0.7
+  ) +
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    width = 0.2,
+    linewidth = 0.9,
+    color = "black"
+  ) +
+  labs(
+    title = "Impact of Precipitation on AMF Hyphal Colonization",
+    x = "",
+    y = "Root hyphal colonization (%)"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+
+ggsave("PresentationFigs/root_hyphal_drought.png", plot = root_hyphal_drought.png, width = 9, height = 4.8, dpi = 300)
+
+```
+
+
+# Fava as mitgator?
+
+```{r}
+# Berry allocation
+fava_berry_allocation.png <- ggplot(
+  combined,
+  aes(
+    x = Water,
+    y = percent_berries_of_wheat,
+    color = Inoculation,
+    shape = Polyculture,
+    linetype = Polyculture,
+    group = interaction(Inoculation, Polyculture)
+  )
+) +
+  stat_summary(
+    fun = mean,
+    geom = "line",
+    linewidth = 1.1,
+    position = position_dodge(width = 0.15)
+  ) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 3,
+    alpha = 0.9,
+    position = position_dodge(width = 0.15)
+  ) +
+  scale_color_manual(values = c("Inoc" = "#3B6C8E", "Strl" = "#C2A46D")) +
+  labs(
+    title = "Fava Intercropping May Ameliorate Decline in Yield \n Allocation Incurred by Inoculation During Drought",
+    x = "",
+    y = "Allocation to Yield (%)",
+    color = "Inoculation",
+    shape = "Polyculture",
+    linetype = "Polyculture"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 17),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    legend.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+
+ggsave("PresentationFigs/fava_berry_allocation.png", plot = fava_berry_allocation.png, width = 9, height = 4.8, dpi = 300)
+```
 
