@@ -274,6 +274,7 @@ mono_alloc_long <- mono_only %>%
     Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
   )
 
+# testing with box
 resource_allocation.png <- ggplot(
   mono_alloc_long,
   aes(x = Water, y = Value, color = Inoculation, group = Inoculation)
@@ -291,21 +292,113 @@ resource_allocation.png <- ggplot(
   ) +
   theme_minimal(base_size = 15) +
   theme(
+    # Title & text
     plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
     axis.title = element_text(face = "bold"),
     axis.text = element_text(color = "black"),
+
+    # Facet styling
     strip.text = element_text(face = "bold", size = 13),
     strip.background = element_rect(fill = "#EAF1F5", color = NA),
+
+    # ADD BOXES AROUND FACETS
+    panel.border = element_rect(color = "grey70", fill = NA, linewidth = 0.8),
+
+    # LIGHT GRIDLINES
+    panel.grid.major.y = element_line(color = "grey85", linewidth = 0.6),
+    panel.grid.major.x = element_line(color = "grey90", linewidth = 0.5),
+    #panel.grid.major.x = element_blank(),
     panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank(),
+
+    # Spacing
     panel.spacing = unit(1.2, "lines"),
+
+    # Legend
     legend.position = "right",
     legend.title = element_text(face = "bold")
   )
 
-ggsave("PresentationFigs/resource_allocation.png", plot = resource_allocation.png, width = 9, height = 4.8, dpi = 300)
+ggsave("PresentationFigs/resource_allocation.png", plot = resource_allocation.png, width = 10, height = 4.8, dpi = 300)
+
+
 
 ```
+
+```{r}
+mono_alloc_long_npp <- mono_only %>%
+  select(
+    Water, Water_gal, Inoculation,
+    Berries_g_pp,
+    ANPP_g_pp,
+    BNPP_g_pp
+  ) %>%
+  pivot_longer(
+    cols = c(
+      Berries_g_pp,
+      ANPP_g_pp,
+      BNPP_g_pp
+    ),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "Berries_g_pp" ~ "Yield",
+      Response == "ANPP_g_pp" ~ "Aboveground Biomass",
+      Response == "BNPP_g_pp" ~ "Belowground Biomass"
+    ),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  )
+
+
+resource_biomass.png <- ggplot(
+  mono_alloc_long_npp,
+  aes(x = Water, y = Value, color = Inoculation, group = Inoculation)
+) +
+  stat_summary(fun = mean, geom = "line", linewidth = 1.2) +
+  stat_summary(fun = mean, geom = "point", size = 3.5) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.12, linewidth = 0.8) +
+  facet_wrap(~Response) +
+  scale_color_manual(values = c("#3B6C8E", "#C2A46D")) +
+  labs(
+    title = "Impacts of Precipitation and Inoculation on Wheat Biomass",
+    x = "Drought treatment",
+    y = "Biomass (g per plant)",
+    color = "Inoculation"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    # Title & text
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+
+    # Facet styling
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+
+    # ADD BOXES AROUND FACETS
+    panel.border = element_rect(color = "grey70", fill = NA, linewidth = 0.8),
+
+    # LIGHT GRIDLINES
+    panel.grid.major.y = element_line(color = "grey85", linewidth = 0.6),
+    panel.grid.major.x = element_line(color = "grey90", linewidth = 0.5),
+    #panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+
+    # Spacing
+    panel.spacing = unit(1.2, "lines"),
+
+    # Legend
+    legend.position = "right",
+    legend.title = element_text(face = "bold")
+  )
+
+ggsave("PresentationFigs/resource_biomass.png", plot = resource_biomass.png, width = 10, height = 4.8, dpi = 300)
+```
+
+
+
 ### Hyphal colonization
 
 ```{r}
