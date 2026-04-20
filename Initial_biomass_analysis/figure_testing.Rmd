@@ -65,28 +65,28 @@ ggplot(mono_only, aes(x = Water_gal, y = Berries_g_pp, color = Inoculation, grou
 
 # make long dataframe with both response variables
 mono_long <- mono_only %>%
-  select(Water_gal, Inoculation, NPP_g_pp, Berries_g_pp) %>%
+  select(Water_gal, Water, Inoculation, Berries_g_pp, NPP_g_pp) %>%
   pivot_longer(
-    cols = c(NPP_g_pp, Berries_g_pp),
+    cols = c(Berries_g_pp, NPP_g_pp),
     names_to = "Response",
     values_to = "Value"
   ) %>%
   mutate(
     Response = case_when(
-      Response == "NPP_g_pp" ~ "System NPP",
-      Response == "Berries_g_pp" ~ "Berry productivity"
+      Response == "NPP_g_pp" ~ "Total Biomass",
+      Response == "Berries_g_pp" ~ "Yield"
     )
   )
 
 # faceted plot
-ggplot(mono_long, aes(x = Water_gal, y = Value, color = Inoculation, group = Inoculation)) +
+ggplot(mono_long, aes(x = Water, y = Value, color = Inoculation, group = Inoculation)) +
   stat_summary(fun = mean, geom = "point", size = 2.5) +
   stat_summary(fun = mean, geom = "line", linewidth = 0.9) +
   stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.15) +
   facet_wrap(~Response, scales = "free_y") +
   labs(
-    title = "Interacting Effects of Precipitation and AMF Inoculation",
-    x = "Water (gal)",
+    title = "Interacting Effects of Drought and AMF Inoculation",
+    x = "Water treatment",
     y = "Grams biomass per plant",
     color = "Inoculation"
   ) +
@@ -96,7 +96,98 @@ ggplot(mono_long, aes(x = Water_gal, y = Value, color = Inoculation, group = Ino
     strip.text = element_text(face = "bold"),
     panel.grid.minor = element_blank()
   )
+
+inoc_ppt_interact.png <- ggplot(mono_long, aes(x = Water, y = Value, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "line", linewidth = 1.2) +
+  stat_summary(fun = mean, geom = "point", size = 3.5) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.12, linewidth = 0.8) +
+  facet_wrap(~Response, scales = "free_y") +
+  scale_color_manual(values = c("#3B6C8E", "#C2A46D")) +
+  labs(
+    title = "Interacting Effects of Precipitation and AMF Inoculation",
+    x = "Drought treatment",
+    y = "Biomass (g per plant)",
+    color = "Inoculation"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.spacing = unit(1.2, "lines"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold")
+  )
+
+ggsave("PresentationFigs/inoc_ppt_interact.png", plot = inoc_ppt_interact.png, width = 9, height = 4.8, dpi = 300)
+
 ```
+
+```{r}
+# just drought ?? lol
+mono_long <- mono_only %>%
+  select(Water, Berries_g_pp, NPP_g_pp) %>%
+  pivot_longer(
+    cols = c(Berries_g_pp, NPP_g_pp),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "NPP_g_pp" ~ "Total Biomass",
+      Response == "Berries_g_pp" ~ "Yield"
+    )
+  )
+
+# fancy
+biomass_water_facet.png <- ggplot(mono_long, aes(x = Water, y = Value, group = 1)) +
+  stat_summary(
+    fun = mean,
+    geom = "line",
+    linewidth = 1.3,
+    color = "#3B6C8E"
+  ) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 4,
+    color = "#3B6C8E"
+  ) +
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    width = 0.12,
+    linewidth = 0.9,
+    color = "#3B6C8E"
+  ) +
+  facet_wrap(~Response, scales = "free_y") +
+  labs(
+    title = "Biomass by Precipitation Treatment",
+    x = "Drought treatment",
+    y = "Biomass (g per plant)"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.spacing = unit(1.2, "lines")
+  )
+
+biomass_water_facet.png
+
+ggsave("PresentationFigs/biomass_water_facet.png", plot = biomass_water_facet.png, width = 9, height = 4.8, dpi = 300)
+```
+
+
 ### Allocation to berries
 ```{r}
 ggplot(mono_only, aes(x = Water, y = percent_berries_of_wheat, color = Inoculation, group = Inoculation)) +
@@ -144,7 +235,7 @@ ggplot(mono_alloc_long,
   stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.15) +
   facet_wrap(~Response) +
   labs(
-    title = "Water × Inoculation effects on wheat allocation",
+    title = "Impacts of Precipitation and Inoculation on Biomass Allocation",
     x = "Precipitation Treatment",
     y = "Percent allocation",
     color = "Inoculation"
@@ -156,6 +247,63 @@ ggplot(mono_alloc_long,
     panel.grid.minor = element_blank()
   )
 
+
+# colors
+mono_alloc_long <- mono_only %>%
+  select(
+    Water, Water_gal, Inoculation,
+    percent_berries_of_wheat,
+    percent_ANPP_of_wheat,
+    percent_BNPP_of_wheat
+  ) %>%
+  pivot_longer(
+    cols = c(
+      percent_berries_of_wheat,
+      percent_ANPP_of_wheat,
+      percent_BNPP_of_wheat
+    ),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "percent_berries_of_wheat" ~ "Yield",
+      Response == "percent_ANPP_of_wheat" ~ "Aboveground Biomass",
+      Response == "percent_BNPP_of_wheat" ~ "Belowground Biomass"
+    ),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  )
+
+resource_allocation.png <- ggplot(
+  mono_alloc_long,
+  aes(x = Water, y = Value, color = Inoculation, group = Inoculation)
+) +
+  stat_summary(fun = mean, geom = "line", linewidth = 1.2) +
+  stat_summary(fun = mean, geom = "point", size = 3.5) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.12, linewidth = 0.8) +
+  facet_wrap(~Response) +
+  scale_color_manual(values = c("#3B6C8E", "#C2A46D")) +
+  labs(
+    title = "Impacts of Precipitation and Inoculation on Resource Allocation",
+    x = "Drought treatment",
+    y = "Percent allocation",
+    color = "Inoculation"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.spacing = unit(1.2, "lines"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold")
+  )
+
+ggsave("PresentationFigs/resource_allocation.png", plot = resource_allocation.png, width = 9, height = 4.8, dpi = 300)
 
 ```
 ### Hyphal colonization
@@ -234,7 +382,9 @@ ggplot(hyphal_mono_berries, aes(x = hyphal_colonization, y = Value)) +
     y = NULL,
     title = "AMF Hyphal colonization relationships with berry allocation and NPP"
   ) +
-  theme_bw()ggplot(arbvesc_mono_berries, aes(x = hyphal_colonization, y = Value)) +
+  theme_bw()
+
+ggplot(arbvesc_mono_berries, aes(x = hyphal_colonization, y = Value)) +
   geom_point(size = 2.5, alpha = 0.8) +
   geom_smooth(method = "lm", se = TRUE) +
   facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
