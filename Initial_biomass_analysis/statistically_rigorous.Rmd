@@ -46,11 +46,16 @@ combined <- combined %>%
     Group = interaction(Inoculation, Polyculture, sep = "_")
   )
 
+# percent vegetative of wheat
+combined <- combined %>%
+  mutate(
+    percent_vegetative_of_wheat = percent_ANPP_of_wheat + percent_BNPP_of_wheat
+  )
+
 # Speciality subsetted ones
 mono_only <- combined[combined$Polyculture != "Inter", ]
 
 inter_only <- combined[combined$Polyculture != "Mono", ]
-
 ```
 
 ## Part 1: More rigorous stats
@@ -76,6 +81,23 @@ emmeans(mod, pairwise ~ Water, adjust = "tukey")
 
 # Effect sizes
 eta_squared(mod)
+
+# r squared
+mod_lm <- lm(NPP_g_pp ~ Inoculation * Water, data = mono_only)
+summary(mod_lm)
+
+
+# cleanly together
+mod <- lm(NPP_g_pp ~ Inoculation * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod)  
+
+# okay type 2 anova??
+mod <- lm(NPP_g_pp ~ Inoculation * Water, data = mono_only)
+
+Anova(mod, type = 2)   # correct ANOVA
+summary(mod)$r.squared # R²
 ```
 
 ### ANPP pp g
@@ -152,6 +174,12 @@ emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
 
 # Effect sizes
 eta_squared(mod)
+
+# cleanly together
+mod <- lm(Berries_g_pp ~ Inoculation * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod)  
 ```
 
 ### ANPP %
@@ -227,7 +255,23 @@ emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
 
 # Effect sizes
 eta_squared(mod)
+
+# cleanly together
+mod <- lm(percent_berries_of_wheat ~ Inoculation * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
 ```
+
+```{r}
+# allocation to vegetative
+
+mod <- lm(percent_vegetative_of_wheat ~ Inoculation * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
+```
+
 
 Oh now things are getting funky with assumptions due to the nonnormal QQ
 ```{r}
@@ -289,6 +333,15 @@ summary(lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = inoc_only))
 summary(lm(percent_berries_of_wheat ~ hyphal_colonization, data = inoc_only))
 
 ```
+
+```{r}
+mod <- lm(NPP_g_pp ~ hyphal_colonization * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
+```
+
+
 
 Kind of out of scope but can we visualize this rq
 

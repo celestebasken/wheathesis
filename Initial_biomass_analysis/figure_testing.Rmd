@@ -18,6 +18,10 @@ library(knitr)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(ggpubr)
+library(multcompView)
+library(emmeans)
+library(stringr)
 ```
 
 ## Load data
@@ -36,12 +40,20 @@ combined <- combined %>%
     Group = interaction(Inoculation, Polyculture, sep = "_")
   )
 
+# percent vegetative of wheat
+combined <- combined %>%
+  mutate(
+    percent_vegetative_of_wheat = percent_ANPP_of_wheat + percent_BNPP_of_wheat
+  )
+
 # Speciality subsetted ones
 mono_only <- combined[combined$Polyculture != "Inter", ]
 
 inter_only <- combined[combined$Polyculture != "Mono", ]
 
 ```
+
+# Initial figures
 
 ### NPP vs Berry productivity
 
@@ -97,6 +109,24 @@ ggplot(mono_long, aes(x = Water, y = Value, color = Inoculation, group = Inocula
     panel.grid.minor = element_blank()
   )
 
+```
+
+```{r}
+
+mono_long <- mono_only %>%
+  select(Water_gal, Water, Inoculation, Berries_g_pp, NPP_g_pp) %>%
+  pivot_longer(
+    cols = c(Berries_g_pp, NPP_g_pp),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "NPP_g_pp" ~ "Total Biomass",
+      Response == "Berries_g_pp" ~ "Yield"
+    )
+  )
+
 inoc_ppt_interact.png <- ggplot(mono_long, aes(x = Water, y = Value, color = Inoculation, group = Inoculation)) +
   stat_summary(fun = mean, geom = "line", linewidth = 1.2) +
   stat_summary(fun = mean, geom = "point", size = 3.5) +
@@ -124,8 +154,9 @@ inoc_ppt_interact.png <- ggplot(mono_long, aes(x = Water, y = Value, color = Ino
   )
 
 ggsave("PresentationFigs/inoc_ppt_interact.png", plot = inoc_ppt_interact.png, width = 9, height = 4.8, dpi = 300)
-
 ```
+
+
 
 ```{r}
 # just drought ?? lol
@@ -254,13 +285,15 @@ mono_alloc_long <- mono_only %>%
     Water, Water_gal, Inoculation,
     percent_berries_of_wheat,
     percent_ANPP_of_wheat,
-    percent_BNPP_of_wheat
+    percent_BNPP_of_wheat,
+    percent_vegetative_of_wheat
   ) %>%
   pivot_longer(
     cols = c(
       percent_berries_of_wheat,
       percent_ANPP_of_wheat,
-      percent_BNPP_of_wheat
+      percent_BNPP_of_wheat,
+      percent_vegetative_of_wheat
     ),
     names_to = "Response",
     values_to = "Value"
@@ -269,7 +302,8 @@ mono_alloc_long <- mono_only %>%
     Response = case_when(
       Response == "percent_berries_of_wheat" ~ "Yield",
       Response == "percent_ANPP_of_wheat" ~ "Aboveground Biomass",
-      Response == "percent_BNPP_of_wheat" ~ "Belowground Biomass"
+      Response == "percent_BNPP_of_wheat" ~ "Belowground Biomass",
+      Response == "percent_vegetative_of_wheat" ~ "Vegetative Biomass"
     ),
     Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
   )
@@ -525,6 +559,8 @@ ggsave("PresentationFigs/hyphal_berries_NPP.png", plot = hyphal_berries_NPP.png,
 
 ```
 
+
+
 # Water impacts on AMF colonization
 
 ```{r}
@@ -612,4 +648,620 @@ fava_berry_allocation.png <- ggplot(
 
 ggsave("PresentationFigs/fava_berry_allocation.png", plot = fava_berry_allocation.png, width = 9, height = 4.8, dpi = 300)
 ```
+
+# New figures with p-values etc
+
+## Drought (which we don't need anyways)
+
+```{r}
+
+mono_long <- mono_only %>%
+  select(Water, Berries_g_pp, NPP_g_pp) %>%
+  pivot_longer(
+    cols = c(Berries_g_pp, NPP_g_pp),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "NPP_g_pp" ~ "Total Biomass",
+      Response == "Berries_g_pp" ~ "Yield"
+    ),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  )
+
+# Overall model stats
+model_labels <- mono_long %>%
+  group_by(Response) %>%
+  summarise(
+    mod = list(lm(Value ~ Water)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    stats = map(mod, glance),
+    label = map_chr(stats, ~ paste0(
+      "Model p = ", signif(.x$p.value, 3),
+      "\nR² = ", round(.x$r.squared, 2)
+    ))
+  ) %>%
+  select(Response, label)
+
+# Tukey compact letters
+letters_df <- mono_long %>%
+  group_by(Response) %>%
+  group_modify(~ {
+    mod <- lm(Value ~ Water, data = .x)
+    
+    em <- emmeans::emmeans(mod, ~ Water)
+    
+    cld <- multcomp::cld(em, adjust = "tukey", Letters = letters)
+    
+    as.data.frame(cld)
+  }) %>%
+  mutate(.group = stringr::str_trim(.group)) %>%
+  select(Response, Water, .group)
+
+se <- function(x, na.rm = FALSE) {
+  sd(x, na.rm = na.rm) / sqrt(sum(!is.na(x)))
+}
+
+# y positions for letters
+letter_positions <- mono_long %>%
+  group_by(Response, Water) %>%
+  summarise(
+    y = mean(Value, na.rm = TRUE) + se(Value, na.rm = TRUE) * 1.8,
+    .groups = "drop"
+  ) %>%
+  left_join(letters_df, by = c("Response", "Water"))
+
+biomass_water_facet.png <- ggplot(
+  mono_long,
+  aes(x = Water, y = Value, group = 1)
+) +
+  stat_summary(
+    fun = mean,
+    geom = "line",
+    linewidth = 1.2,
+    color = "#3B6C8E"
+  ) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 4,
+    color = "#3B6C8E"
+  ) +
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    width = 0.12,
+    linewidth = 0.9,
+    color = "#3B6C8E"
+  ) +
+  geom_text(
+    data = letter_positions,
+    aes(x = Water, y = y, label = .group),
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 5
+  ) +
+  geom_text(
+    data = model_labels,
+    aes(x = 1, y = Inf, label = label),
+    inherit.aes = FALSE,
+    hjust = 0,
+    vjust = 1.4,
+    size = 4
+  ) +
+  facet_wrap(~Response, scales = "free_y") +
+  labs(
+    title = "Biomass by Precipitation Treatment",
+    x = "Drought treatment",
+    y = "Biomass (g per plant)",
+    caption = "Different letters indicate significant differences among drought treatments within each panel, Tukey-adjusted p < 0.05."
+  ) +
+  coord_cartesian(clip = "off") +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.spacing = unit(1.5, "lines"),
+    plot.caption = element_text(hjust = 0, size = 10),
+    plot.margin = margin(10, 20, 20, 10)
+  )
+
+ggsave("PresentationFigs/Plabels/biomass_water_facet.png", plot = biomass_water_facet.png, width = 9, height = 6, dpi = 300)
+```
+
+```{r}
+se <- function(x) sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
+
+mono_summary <- mono_long %>%
+  group_by(Response, Water) %>%
+  summarise(
+    mean = mean(Value, na.rm = TRUE),
+    se = se(Value),
+    ymin = mean - se,
+    ymax = mean + se,
+    .groups = "drop"
+  )
+
+letters_df <- mono_long %>%
+  group_by(Response) %>%
+  group_modify(~ {
+    mod <- lm(Value ~ Water, data = .x)
+    em <- emmeans::emmeans(mod, ~ Water)
+    cld <- multcomp::cld(em, adjust = "tukey", Letters = letters)
+    as.data.frame(cld)
+  }) %>%
+  mutate(.group = stringr::str_trim(.group)) %>%
+  select(Response, Water, .group)
+
+letter_positions <- mono_summary %>%
+  left_join(letters_df, by = c("Response", "Water")) %>%
+  group_by(Response) %>%
+  mutate(
+    panel_range = max(ymax, na.rm = TRUE) - min(ymin, na.rm = TRUE),
+    label_y = ymax + 0.08 * panel_range
+  ) %>%
+  ungroup()
+
+biomass_water_facet.png <- ggplot(
+  mono_summary,
+  aes(x = Water, y = mean, group = 1)
+) +
+  geom_line(linewidth = 1.2, color = "#3B6C8E") +
+  geom_point(size = 3.8, color = "#3B6C8E") +
+  geom_errorbar(
+    aes(ymin = ymin, ymax = ymax),
+    width = 0.12,
+    linewidth = 0.8,
+    color = "#3B6C8E"
+  ) +
+  geom_text(
+    data = letter_positions,
+    aes(x = Water, y = label_y, label = .group),
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 5
+  ) +
+  facet_wrap(~ Response, scales = "free_y") +
+  scale_y_continuous(expand = expansion(mult = c(0.12, 0.25))) +
+  labs(
+    title = "Biomass by Precipitation Treatment",
+    x = "Drought treatment",
+    y = "Biomass (g per plant)",
+    caption = "Points show means ± SE. Different letters indicate Sidak-adjusted differences among drought treatments within each panel (p < 0.05)."
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    panel.grid = element_blank(),   # removes ALL gridlines
+    axis.line = element_line(color = "black", linewidth = 0.8),
+    axis.ticks = element_line(color = "black"),
+    panel.spacing = unit(1.5, "lines"),
+    plot.caption = element_text(hjust = 0, size = 10),
+    plot.margin = margin(10, 20, 15, 10)
+  )
+
+ggsave("PresentationFigs/Plabels/biomass_water_facet.png", plot = biomass_water_facet.png, width = 9, height = 6, dpi = 300)
+
+```
+
+## water inoc interaction
+
+```{r}
+
+mono_long <- mono_only %>%
+  select(Water_gal, Water, Inoculation, Berries_g_pp, NPP_g_pp) %>%
+  pivot_longer(
+    cols = c(Berries_g_pp, NPP_g_pp),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "NPP_g_pp" ~ "Total Biomass",
+      Response == "Berries_g_pp" ~ "Yield"
+    )
+  )
+
+letters_df2 <- mono_long %>%
+  group_by(Response, Water) %>%
+  group_modify(~ {
+    mod <- lm(Value ~ Inoculation, data = .x)
+    em <- emmeans::emmeans(mod, ~ Inoculation)
+    cld <- multcomp::cld(em, adjust = "tukey", Letters = letters)
+    as.data.frame(cld)
+  }) %>%
+  mutate(.group = stringr::str_trim(.group)) %>%
+  select(Response, Water, Inoculation, .group)
+
+summary_df2 <- mono_long %>%
+  group_by(Response, Water, Inoculation) %>%
+  summarise(
+    mean = mean(Value, na.rm = TRUE),
+    se = se(Value),
+    ymax = mean + se,
+    .groups = "drop"
+  )
+
+label_positions2 <- summary_df2 %>%
+  left_join(letters_df2, by = c("Response", "Water", "Inoculation")) %>%
+  group_by(Response, Water) %>%
+  mutate(
+    panel_range = max(ymax, na.rm = TRUE) - min(ymax, na.rm = TRUE),
+
+    # base height above error bars (increase this)
+    base_y = ymax + 0.3 * panel_range,
+
+    # stagger labels by group (key fix)
+    offset = ifelse(Inoculation == levels(Inoculation)[1],
+                    0.04 * panel_range,
+                    0.10 * panel_range),
+
+    label_y = base_y + offset
+  ) %>%
+  ungroup()
+
+pd <- position_dodge(width = 0.7)
+
+inoc_ppt_interact.png <- ggplot(
+  mono_long,
+  aes(x = Water, y = Value, color = Inoculation, group = Inoculation)
+) +
+  stat_summary(fun = mean, geom = "line", linewidth = 1.2, position = pd) +
+  stat_summary(fun = mean, geom = "point", size = 3.8, position = pd) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", 
+             width = 0.12, linewidth = 0.8, position = pd) +
+  
+  geom_text(
+  data = label_positions2,
+  aes(x = Water, y = label_y, label = .group, color = Inoculation),
+  position = position_dodge(width = 0.3),  # 👈 key fix
+  fontface = "bold",
+  size = 5
+  ) +
+  
+  facet_wrap(~Response, scales = "free_y") +
+  scale_color_manual(values = c("#3B6C8E", "#C2A46D")) +
+  scale_y_continuous(expand = expansion(mult = c(0.12, 0.25))) +
+  
+  labs(
+    title = "Interacting Effects of Precipitation and AMF Inoculation",
+    x = "Drought treatment",
+    y = "Biomass (g per plant)",
+    color = "Inoculation",
+    caption = "Points show means ± SE. Different letters indicate adjusted pairwise differences\n between inoculation treatments within each drought level (p < 0.05)."
+  ) +
+  
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    
+    panel.grid = element_blank(),                 # remove ALL gridlines
+    axis.line = element_line(color = "black", linewidth = 0.8),
+    axis.ticks = element_line(color = "black"),
+    
+    panel.spacing = unit(1.5, "lines"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    plot.caption = element_text(hjust = 0, size = 10),
+    plot.margin = margin(10, 20, 15, 10)
+  )
+
+ggsave("PresentationFigs/Plabels/inoc_ppt_interact.png",
+       plot = inoc_ppt_interact.png,
+       width = 9, height = 4.8, dpi = 300)
+
+```
+
+## allocation
+
+```{r}
+se <- function(x) sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
+
+mono_alloc_long <- mono_only %>%
+  select(
+    Water, Water_gal, Inoculation,
+    percent_berries_of_wheat,
+    percent_vegetative_of_wheat
+  ) %>%
+  pivot_longer(
+    cols = c(
+      percent_berries_of_wheat,
+      percent_vegetative_of_wheat
+    ),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "percent_berries_of_wheat" ~ "Yield",
+      Response == "percent_vegetative_of_wheat" ~ "Vegetative Biomass"
+    ),
+    Response = factor(Response, levels = c("Yield", "Vegetative Biomass")),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  )
+
+summary_alloc <- mono_alloc_long %>%
+  group_by(Response, Water, Inoculation) %>%
+  summarise(
+    mean = mean(Value, na.rm = TRUE),
+    se = se(Value),
+    ymin = mean - se,
+    ymax = mean + se,
+    .groups = "drop"
+  )
+
+letters_alloc <- mono_alloc_long %>%
+  group_by(Response, Water) %>%
+  group_modify(~ {
+    mod <- lm(Value ~ Inoculation, data = .x)
+    em <- emmeans::emmeans(mod, ~ Inoculation)
+    cld <- multcomp::cld(em, adjust = "sidak", Letters = letters)
+    as.data.frame(cld)
+  }) %>%
+  mutate(.group = stringr::str_trim(.group)) %>%
+  select(Response, Water, Inoculation, .group)
+
+label_positions_alloc <- summary_alloc %>%
+  left_join(letters_alloc, by = c("Response", "Water", "Inoculation")) %>%
+  group_by(Response) %>%
+  mutate(
+    panel_range = max(ymax, na.rm = TRUE) - min(ymin, na.rm = TRUE),
+    label_y = ymax + 0.10 * panel_range
+  ) %>%
+  ungroup()
+
+pd <- position_dodge(width = 0.3)
+
+resource_allocation.png <- ggplot(
+  summary_alloc,
+  aes(x = Water, y = mean, color = Inoculation, group = Inoculation)
+) +
+  geom_line(linewidth = 1.2, position = pd) +
+  geom_point(size = 3.8, position = pd) +
+  geom_errorbar(
+    aes(ymin = ymin, ymax = ymax),
+    width = 0.12,
+    linewidth = 0.8,
+    position = pd
+  ) +
+  geom_text(
+    data = label_positions_alloc,
+    aes(x = Water, y = label_y, label = .group, color = Inoculation),
+    position = pd,
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 5
+  ) +
+  facet_wrap(~ Response, scales = "free_y") +
+  scale_color_manual(values = c("#3B6C8E", "#C2A46D")) +
+  scale_y_continuous(expand = expansion(mult = c(0.12, 0.25))) +
+  labs(
+    title = "Impacts of Precipitation and Inoculation on Resource Allocation",
+    x = "Drought treatment",
+    y = "Percent allocation",
+    color = "Inoculation",
+    caption = "Points show means ± SE. Different letters indicate adjusted pairwise differences between inoculation treatments within each drought level (p < 0.05)."
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.8),
+    axis.ticks = element_line(color = "black"),
+
+    panel.spacing = unit(1.5, "lines"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    plot.caption = element_text(hjust = 0, size = 10),
+    plot.margin = margin(10, 20, 15, 10)
+  )
+
+ggsave(
+  "PresentationFigs/Plabels/resource_allocation.png",
+  plot = resource_allocation.png,
+  width = 10,
+  height = 4.8,
+  dpi = 300
+)
+```
+
+
+## hyphal
+
+```{r}
+
+dir.create("PresentationFigs/Plabels", recursive = TRUE, showWarnings = FALSE)
+
+hyphal_berries_NPP.png <- ggplot(
+  hyphal_mono_berries,
+  aes(x = hyphal_colonization, y = Value)
+) +
+  geom_point(size = 2.8, alpha = 0.8, color = "black") +
+  geom_smooth(
+    method = "lm",
+    se = TRUE,
+    color = "#3B6C8E",
+    fill = "#3B6C8E",
+    alpha = 0.2,
+    linewidth = 1.2
+  ) +
+  facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
+  labs(
+    x = "Root hyphal colonization (%)",
+    y = NULL,
+    title = "AMF Hyphal Colonization Impact on Yield Allocation and Total Biomass"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.8),
+    axis.ticks = element_line(color = "black"),
+
+    panel.spacing = unit(1.5, "lines"),
+    plot.margin = margin(10, 20, 15, 10)
+  )
+
+ggsave(
+  "PresentationFigs/Plabels/hyphal_berries_NPP.png",
+  plot = hyphal_berries_NPP.png,
+  width = 9,
+  height = 6.5,
+  dpi = 300
+)
+```
+
+# questions slide:
+
+```{r}
+se <- function(x) sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
+
+dir.create("PresentationFigs/Plabels", recursive = TRUE, showWarnings = FALSE)
+
+# Make long dataframe with 3 response variables
+inoc_response_long <- mono_only %>%
+  select(
+    Water, Inoculation,
+    NPP_g_pp,
+    Berries_g_pp,
+    percent_berries_of_wheat
+  ) %>%
+  pivot_longer(
+    cols = c(NPP_g_pp, Berries_g_pp, percent_berries_of_wheat),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "NPP_g_pp" ~ "Total Biomass",
+      Response == "Berries_g_pp" ~ "Yield",
+      Response == "percent_berries_of_wheat" ~ "Yield Allocation"
+    ),
+    Response = factor(Response, levels = c("Total Biomass", "Yield", "Yield Allocation")),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  )
+
+# Summary statistics
+summary_inoc <- inoc_response_long %>%
+  group_by(Response, Water, Inoculation) %>%
+  summarise(
+    mean = mean(Value, na.rm = TRUE),
+    se = se(Value),
+    ymin = mean - se,
+    ymax = mean + se,
+    .groups = "drop"
+  )
+
+# Pairwise letters: comparing Inoculation within each Water level, within each Response
+letters_inoc <- inoc_response_long %>%
+  group_by(Response, Water) %>%
+  group_modify(~ {
+    mod <- lm(Value ~ Inoculation, data = .x)
+    em <- emmeans::emmeans(mod, ~ Inoculation)
+    cld <- multcomp::cld(em, adjust = "sidak", Letters = letters)
+    as.data.frame(cld)
+  }) %>%
+  mutate(.group = stringr::str_trim(.group)) %>%
+  select(Response, Water, Inoculation, .group)
+
+# Label positions
+label_positions_inoc <- summary_inoc %>%
+  left_join(letters_inoc, by = c("Response", "Water", "Inoculation")) %>%
+  group_by(Response) %>%
+  mutate(
+    panel_range = max(ymax, na.rm = TRUE) - min(ymin, na.rm = TRUE),
+    label_y = ymax + 0.10 * panel_range
+  ) %>%
+  ungroup()
+
+pd <- position_dodge(width = 0.3)
+
+inoc_ppt_interact_3panel.png <- ggplot(
+  summary_inoc,
+  aes(x = Water, y = mean, color = Inoculation, group = Inoculation)
+) +
+  geom_line(linewidth = 1.2, position = pd) +
+  geom_point(size = 3.8, position = pd) +
+  geom_errorbar(
+    aes(ymin = ymin, ymax = ymax),
+    width = 0.12,
+    linewidth = 0.8,
+    position = pd
+  ) +
+  geom_text(
+    data = label_positions_inoc,
+    aes(x = Water, y = label_y, label = .group, color = Inoculation),
+    position = pd,
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 5
+  ) +
+  facet_wrap(~ Response, scales = "free_y", nrow = 1) +
+  scale_color_manual(values = c("#3B6C8E", "#C2A46D")) +
+  scale_y_continuous(expand = expansion(mult = c(0.12, 0.25))) +
+  labs(
+    title = "Interacting Effects of Precipitation and AMF Inoculation",
+    x = "Drought treatment",
+    y = NULL,
+    color = "Inoculation",
+    caption = "Points show means ± SE. Different letters indicate adjusted pairwise differences between inoculation treatments within each drought level (p < 0.05)."
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.8),
+    axis.ticks = element_line(color = "black"),
+
+    panel.spacing = unit(1.5, "lines"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    plot.caption = element_text(hjust = 0, size = 10),
+    plot.margin = margin(10, 20, 15, 10)
+  )
+
+ggsave(
+  "PresentationFigs/Plabels/inoc_ppt_interact_3panel.png",
+  plot = inoc_ppt_interact_3panel.png,
+  width = 12,
+  height = 5,
+  dpi = 300
+)
+
+
+```
+
 
