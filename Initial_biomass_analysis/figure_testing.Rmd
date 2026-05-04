@@ -525,62 +525,33 @@ ggplot(arbvesc_mono_berries, aes(x = hyphal_colonization, y = Value)) +
 
 ```
 
-```{r}
-# Pretty
-hyphal_berries_NPP.png <- ggplot(hyphal_mono_berries, aes(x = hyphal_colonization, y = Value)) +
-  geom_point(size = 2.8, alpha = 0.8, color = "black") +
-  geom_smooth(
-    method = "lm",
-    se = TRUE,
-    color = "#3B6C8E",
-    fill = "#3B6C8E",
-    alpha = 0.2,
-    linewidth = 1.2
-  ) +
-  facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
-  labs(
-    x = "Root hyphal colonization (%)",
-    y = NULL,
-    title = "AMF Hyphal Colonization Impact on Yield Allocation and Total Biomass"
-  ) +
-  theme_minimal(base_size = 15) +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
-    axis.title = element_text(face = "bold"),
-    axis.text = element_text(color = "black"),
-    strip.text = element_text(face = "bold", size = 13),
-    strip.background = element_rect(fill = "#EAF1F5", color = NA),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.spacing = unit(1.2, "lines")
-  )
-
-ggsave("PresentationFigs/hyphal_berries_NPP.png", plot = hyphal_berries_NPP.png, width = 9, height = 6.5, dpi = 300)
-
-```
-
 
 ```{r}
 # pretty with p values
 
 p_labels <- hyphal_mono_berries %>%
   group_by(Response, Water) %>%
-  do(tidy(lm(Value ~ hyphal_colonization, data = .))) %>%
-  filter(term == "hyphal_colonization") %>%
-  mutate(
-    p_label = case_when(
-      p.value < 0.001 ~ "p < 0.001 ***",
-      p.value < 0.01  ~ paste0("p = ", signif(p.value, 2), " **"),
-      p.value < 0.05  ~ paste0("p = ", signif(p.value, 2), " *"),
-      p.value < 0.1   ~ paste0("p = ", signif(p.value, 2), " ."),
-      TRUE            ~ paste0("p = ", signif(p.value, 2))
+  group_modify(~{
+    mod <- lm(Value ~ hyphal_colonization, data = .x)
+    
+    tidy_mod <- tidy(mod)
+    glance_mod <- glance(mod)
+    
+    p_val <- tidy_mod %>%
+      filter(term == "hyphal_colonization") %>%
+      pull(p.value)
+    
+    r2 <- glance_mod$r.squared
+    
+    data.frame(
+      p_label = paste0(
+        "p = ", signif(p_val, 2),
+        "\nR² = ", signif(r2, 2)
+      ),
+      x = -Inf,
+      y = -Inf
     )
-  ) %>%
-  group_by(Response, Water) %>%
-  mutate(
-    x = Inf,
-    y = Inf
-  )
+  })
 
 hyphal_berries_NPP.png <- ggplot(hyphal_mono_berries, aes(x = hyphal_colonization, y = Value)) +
   geom_point(size = 2.8, alpha = 0.8, color = "black") +
@@ -593,14 +564,13 @@ hyphal_berries_NPP.png <- ggplot(hyphal_mono_berries, aes(x = hyphal_colonizatio
     linewidth = 1.2
   ) +
   geom_text(
-    data = p_labels,
-    aes(x = x, y = y, label = p_label),
-    inherit.aes = FALSE,
-    hjust = 1.08,
-    vjust = 1.4,
-    size = 4.2,
-    fontface = "bold"
-  ) +
+  data = p_labels,
+  aes(x = x, y = y, label = p_label),
+  inherit.aes = FALSE,
+  hjust = -0.3,
+  vjust = -0.0,
+  size = 4.2
+) +
   facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
   labs(
     x = "Root hyphal colonization (%)",
