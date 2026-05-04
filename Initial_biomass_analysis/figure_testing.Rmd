@@ -1265,3 +1265,80 @@ ggsave(
 ```
 
 
+```{r}
+# Fit model for p-value and R²
+mod <- lm(hyphal_colonization ~ Water, data = mono_only)
+mod_summary <- summary(mod)
+
+p_val <- anova(mod)[["Pr(>F)"]][1]
+r2_val <- mod_summary$r.squared
+
+p_label <- ifelse(p_val < 0.001, "italic(p) < 0.001",
+                  paste0("italic(p) == ", signif(p_val, 2)))
+r2_label <- paste0("italic(R)^2 == ", round(r2_val, 2))
+
+label_text <- paste(r2_label, "*','~~", p_label)
+
+# Get label position
+label_pos <- mono_only %>%
+  summarise(
+    x = 1,
+    y = max(hyphal_colonization, na.rm = TRUE)
+  )
+
+root_hyphal_drought.png <- ggplot(
+  mono_only,
+  aes(x = Water, y = hyphal_colonization)
+) +
+  stat_summary(
+    fun = mean,
+    geom = "bar",
+    fill = "#3B6C8E",
+    color = "black",
+    alpha = 0.85,
+    width = 0.7
+  ) +
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    width = 0.2,
+    linewidth = 0.9,
+    color = "black"
+  ) +
+  geom_text(
+    data = label_pos,
+    aes(x = x, y = y, label = label_text),
+    inherit.aes = FALSE,
+    hjust = 0,
+    vjust = 1,
+    parse = TRUE,
+    size = 5
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
+  labs(
+    title = "Impact of Precipitation on AMF Hyphal Colonization",
+    x = "",
+    y = "Root hyphal colonization (%)"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.8),
+    axis.ticks = element_line(color = "black"),
+
+    plot.margin = margin(10, 20, 15, 10)
+  )
+
+ggsave(
+  "PresentationFigs/Plabels/root_hyphal_drought.png",
+  plot = root_hyphal_drought.png,
+  width = 9,
+  height = 4.8,
+  dpi = 300
+)
+```
+
