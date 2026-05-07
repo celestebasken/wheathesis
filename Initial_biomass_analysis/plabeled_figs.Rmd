@@ -55,6 +55,8 @@ inter_only <- combined[combined$Polyculture != "Mono", ]
 
 
 
+
+
 ```{r}
 # pretty with p values
 
@@ -219,7 +221,7 @@ ggsave("PresentationFigs/fava_berry_allocation.png", plot = fava_berry_allocatio
 ```{r}
 
 mono_long <- mono_only %>%
-  select(Water, Berries_g_pp, NPP_g_pp) %>%
+  dplyr::select(Water, Berries_g_pp, NPP_g_pp) %>%
   pivot_longer(
     cols = c(Berries_g_pp, NPP_g_pp),
     names_to = "Response",
@@ -247,7 +249,7 @@ model_labels <- mono_long %>%
       "\nR² = ", round(.x$r.squared, 2)
     ))
   ) %>%
-  select(Response, label)
+  dplyr::select(Response, label)
 
 # Tukey compact letters
 letters_df <- mono_long %>%
@@ -262,7 +264,7 @@ letters_df <- mono_long %>%
     as.data.frame(cld)
   }) %>%
   mutate(.group = stringr::str_trim(.group)) %>%
-  select(Response, Water, .group)
+  dplyr::select(Response, Water, .group)
 
 se <- function(x, na.rm = FALSE) {
   sd(x, na.rm = na.rm) / sqrt(sum(!is.na(x)))
@@ -362,7 +364,7 @@ letters_df <- mono_long %>%
     as.data.frame(cld)
   }) %>%
   mutate(.group = stringr::str_trim(.group)) %>%
-  select(Response, Water, .group)
+  dplyr::select(Response, Water, .group)
 
 letter_positions <- mono_summary %>%
   left_join(letters_df, by = c("Response", "Water")) %>%
@@ -424,7 +426,7 @@ ggsave("PresentationFigs/Plabels/biomass_water_facet.png", plot = biomass_water_
 ```{r}
 
 mono_long <- mono_only %>%
-  select(Water_gal, Water, Inoculation, Berries_g_pp, NPP_g_pp) %>%
+  dplyr::select(Water_gal, Water, Inoculation, Berries_g_pp, NPP_g_pp) %>%
   pivot_longer(
     cols = c(Berries_g_pp, NPP_g_pp),
     names_to = "Response",
@@ -446,7 +448,7 @@ letters_df2 <- mono_long %>%
     as.data.frame(cld)
   }) %>%
   mutate(.group = stringr::str_trim(.group)) %>%
-  select(Response, Water, Inoculation, .group)
+  dplyr::select(Response, Water, Inoculation, .group)
 
 summary_df2 <- mono_long %>%
   group_by(Response, Water, Inoculation) %>%
@@ -537,7 +539,7 @@ ggsave("PresentationFigs/Plabels/inoc_ppt_interact.png",
 se <- function(x) sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
 
 mono_alloc_long <- mono_only %>%
-  select(
+  dplyr::select(
     Water, Water_gal, Inoculation,
     percent_berries_of_wheat,
     percent_vegetative_of_wheat
@@ -578,7 +580,7 @@ letters_alloc <- mono_alloc_long %>%
     as.data.frame(cld)
   }) %>%
   mutate(.group = stringr::str_trim(.group)) %>%
-  select(Response, Water, Inoculation, .group)
+  dplyr::select(Response, Water, Inoculation, .group)
 
 label_positions_alloc <- summary_alloc %>%
   left_join(letters_alloc, by = c("Response", "Water", "Inoculation")) %>%
@@ -654,7 +656,7 @@ ggsave(
 
 ```{r}
 mono_alloc_long <- mono_only %>%
-  select(
+  dplyr::select(
     Water, Water_gal, Inoculation,
     percent_berries_of_wheat,
     percent_ANPP_of_wheat,
@@ -763,7 +765,7 @@ dir.create("PresentationFigs/Plabels", recursive = TRUE, showWarnings = FALSE)
 
 # Make long dataframe with 3 response variables
 inoc_response_long <- mono_only %>%
-  select(
+  dplyr::select(
     Water, Inoculation,
     NPP_g_pp,
     Berries_g_pp,
@@ -805,7 +807,7 @@ letters_inoc <- inoc_response_long %>%
     as.data.frame(cld)
   }) %>%
   mutate(.group = stringr::str_trim(.group)) %>%
-  select(Response, Water, Inoculation, .group)
+  dplyr::select(Response, Water, Inoculation, .group)
 
 # Label positions
 label_positions_inoc <- summary_inoc %>%
