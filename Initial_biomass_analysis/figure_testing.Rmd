@@ -198,7 +198,7 @@ biomass_water_facet.png <- ggplot(mono_long, aes(x = Water, y = Value, group = 1
   ) +
   facet_wrap(~Response, scales = "free_y") +
   labs(
-    title = "Biomass by Precipitation Treatment",
+    title = "Drought Impact on Total Productivity and Yield",
     x = "Drought treatment",
     y = "Biomass (g per plant)"
   ) +
@@ -1231,8 +1231,6 @@ ggsave(
 ```{r}
 se <- function(x) sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
 
-dir.create("PresentationFigs/Plabels", recursive = TRUE, showWarnings = FALSE)
-
 # Make long dataframe with 3 response variables
 inoc_response_long <- mono_only %>%
   dplyr::select(
@@ -1353,6 +1351,203 @@ ggsave(
 ```
 
 
+## Allocation to dif parts
+
+
+```{r}
+se <- function(x) sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
+
+format_p <- function(p) {
+  case_when(
+    is.na(p) ~ "p = NA",
+    p < 0.001 ~ "p < 0.001",
+    TRUE ~ paste0("p = ", sprintf("%.3f", p))
+  )
+}
+
+# Colors
+inoc_colors <- c(
+  "Inoc" = "#3B6C8E",
+  "Strl" = "#C2A46D"
+)
+
+# Long dataframe: 3 allocation responses
+alloc_long <- mono_only %>%
+  dplyr::select(
+    Water, Inoculation,
+    percent_ANPP_of_wheat,
+    percent_BNPP_of_wheat,
+    percent_berries_of_wheat
+  ) %>%
+  pivot_longer(
+    cols = c(
+      percent_ANPP_of_wheat,
+      percent_BNPP_of_wheat,
+      percent_berries_of_wheat
+    ),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "percent_ANPP_of_wheat" ~ "(A) Aboveground Biomass",
+      Response == "percent_BNPP_of_wheat" ~ "(B) Belowground Biomass",
+      Response == "percent_berries_of_wheat" ~ "(C) Yield"
+    ),
+    Response = factor(Response, levels = 
+                        c("(A) Aboveground Biomass", "(B) Belowground Biomass", "(C) Yield")),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation, levels = c("Inoc", "Strl"))
+  )
+
+# Summary stats
+summary_alloc <- alloc_long %>%
+  group_by(Response, Water, Inoculation) %>%
+  summarise(
+    mean = mean(Value, na.rm = TRUE),
+    se = se(Value),
+    ymin = mean - se,
+    ymax = mean + se,
+    .groups = "drop"
+  )
+
+# Compact letters across all Water x Inoculation combinations within each response
+letters_alloc <- alloc_long %>%
+  group_by(Response) %>%
+  group_modify(~ {
+    mod <- lm(Value ~ Water * Inoculation, data = .x)
+
+    em <- emmeans(mod, ~ Water * Inoculation)
+
+    cld_out <- multcomp::cld(
+      em,
+      adjust = "sidak",
+      Letters = letters
+    )
+
+    as.data.frame(cld_out)
+  }) %>%
+  mutate(.group = str_trim(.group)) %>%
+  dplyr::select(Response, Water, Inoculation, .group)
+
+# Label positions for significance letters
+label_positions_alloc <- summary_alloc %>%
+  left_join(letters_alloc, by = c("Response", "Water", "Inoculation")) %>%
+  group_by(Response) %>%
+  mutate(
+    panel_range = max(ymax, na.rm = TRUE) - min(ymin, na.rm = TRUE),
+    label_y = ymax + 0.10 * panel_range
+  ) %>%
+  ungroup()
+
+# Model stats: interaction p-value + model R²
+model_stats_alloc <- alloc_long %>%
+  group_by(Response) %>%
+  group_modify(~ {
+    mod <- lm(Value ~ Water * Inoculation, data = .x)
+    anova_out <- anova(mod)
+
+    tibble(
+      r2 = summary(mod)$r.squared,
+      p_interaction = anova_out["Water:Inoculation", "Pr(>F)"]
+    )
+  }) %>%
+  mutate(
+    label = paste0(
+      "Water × Inoculation: ",
+      format_p(p_interaction),
+      "\nR² = ",
+      sprintf("%.2f", r2)
+    )
+  )
+
+# Position model-stat labels in each panel
+stats_positions_alloc <- summary_alloc %>%
+  group_by(Response) %>%
+  summarise(
+    x = 1,
+    y = max(ymax, na.rm = TRUE) + 
+      0.28 * (max(ymax, na.rm = TRUE) - min(ymin, na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  left_join(model_stats_alloc, by = "Response")
+
+pd <- position_dodge(width = 0.3)
+
+alloc_ppt_interact_3panel.png <- ggplot(
+  summary_alloc,
+  aes(x = Water, y = mean, color = Inoculation, group = Inoculation)
+) +
+  geom_line(linewidth = 1.2, position = pd) +
+  geom_point(size = 3.8, position = pd) +
+  geom_errorbar(
+    aes(ymin = ymin, ymax = ymax),
+    width = 0.12,
+    linewidth = 0.8,
+    position = pd
+  ) +
+  geom_text(
+    data = label_positions_alloc,
+    aes(
+      x = Water,
+      y = label_y,
+      label = .group,
+      color = Inoculation,
+      group = Inoculation
+    ),
+    position = pd,
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 5
+  ) +
+  geom_text(
+    data = stats_positions_alloc,
+    aes(x = x, y = y, label = label),
+    inherit.aes = FALSE,
+    hjust = 0,
+    vjust = 1,
+    size = 3.6,
+    color = "black"
+  ) +
+  facet_wrap(~ Response, scales = "free_y", nrow = 1) +
+  scale_color_manual(values = inoc_colors) +
+  scale_y_continuous(expand = expansion(mult = c(0.12, 0.32))) +
+  labs(
+    title = "Impacts of Precipitation and AMF Inoculation on Resource Allocation",
+    x = "Drought treatment",
+    y = "Allocation (%)",
+    color = "Inoculation",
+    caption = "Points show means ± SE. Letters indicate Sidak-adjusted pairwise differences among Water × Inoculation treatment combinations within each panel."
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.8),
+    axis.ticks = element_line(color = "black"),
+    panel.spacing = unit(1.5, "lines"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    plot.caption = element_text(hjust = 0, size = 10),
+    plot.margin = margin(10, 20, 15, 10)
+  )
+
+ggsave(
+  "PresentationFigs/Plabels/alloc_ppt_interact_3panel.png",
+  plot = alloc_ppt_interact_3panel.png,
+  width = 12,
+  height = 5,
+  dpi = 300
+)
+```
+
+
+## Hyphal 
+
 ```{r}
 # Fit model for p-value and R²
 mod <- lm(hyphal_colonization ~ Water, data = mono_only)
@@ -1404,7 +1599,7 @@ root_hyphal_drought.png <- ggplot(
   ) +
   scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
   labs(
-    title = "Impact of Precipitation on AMF Hyphal Colonization",
+    title = "Drought Impact on AMF Hyphal Colonization",
     x = "",
     y = "Root hyphal colonization (%)"
   ) +
