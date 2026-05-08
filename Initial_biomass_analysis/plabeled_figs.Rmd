@@ -255,7 +255,7 @@ label_positions_alloc <- summary_alloc %>%
   group_by(Response) %>%
   mutate(
     panel_range = max(ymax, na.rm = TRUE) - min(ymin, na.rm = TRUE),
-    label_y = ymax + 0.10 * panel_range
+    label_y = ymax + 0.1 * panel_range
   ) %>%
   ungroup()
 
@@ -358,8 +358,8 @@ alloc_ppt_interact_3panel.png <- ggplot(
 ggsave(
   "PresentationFigs/Plabels/alloc_ppt_interact_3panel.png",
   plot = alloc_ppt_interact_3panel.png,
-  width = 12,
-  height = 5,
+  width = 16,
+  height = 7,
   dpi = 300
 )
 ```
@@ -374,17 +374,30 @@ p_labels <- hyphal_mono_berries %>%
   group_by(Response, Water) %>%
   group_modify(~{
     mod <- lm(Value ~ hyphal_colonization, data = .x)
-    
-    tidy_mod <- tidy(mod)
-    glance_mod <- glance(mod)
-    
+
+    tidy_mod <- broom::tidy(mod)
+    glance_mod <- broom::glance(mod)
+
+    intercept <- tidy_mod %>%
+      filter(term == "(Intercept)") %>%
+      pull(estimate)
+
+    slope <- tidy_mod %>%
+      filter(term == "hyphal_colonization") %>%
+      pull(estimate)
+
     p_val <- tidy_mod %>%
       filter(term == "hyphal_colonization") %>%
       pull(p.value)
-    
+
     r2 <- glance_mod$r.squared
-    
+
     data.frame(
+      equation = paste0(
+        "y = ", round(intercept, 3),
+        ifelse(slope >= 0, " + ", " - "),
+        abs(round(slope, 3)), "x"
+      ),
       p_label = paste0(
         "p = ", signif(p_val, 2),
         "\nR² = ", signif(r2, 2)
@@ -431,6 +444,14 @@ hyphal_berries_NPP.png <- ggplot(hyphal_mono_berries, aes(x = hyphal_colonizatio
   )
 
 ggsave("PresentationFigs/Plabels/hyphal_berries_NPP.png", plot = hyphal_berries_NPP.png, width = 9, height = 6.5, dpi = 300)
+
+caption_eqs <- p_labels %>%
+  dplyr::select(Response, Water, equation) %>%
+  mutate(
+    caption_text = paste0(Response, " under ", Water, ": ", equation)
+  )
+
+caption_eqs$caption_text
 
 ```
 

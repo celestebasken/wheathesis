@@ -361,6 +361,7 @@ summary(lm(percent_berries_of_wheat ~ hyphal_colonization, data = mono_only))
 
 ```
 
+#NPP
 
 ```{r}
 mod <- lm(NPP_g_pp ~ hyphal_colonization * Water, data = mono_only)
@@ -369,7 +370,23 @@ summary(mod)        # gives R²
 anova(mod) 
 ```
 
+# Berries
 
+```{r}
+mod <- lm(Berries_g_pp ~ hyphal_colonization * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
+```
+
+# Berries %
+
+```{r}
+mod <- lm(percent_berries_of_wheat ~ hyphal_colonization * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
+```
 
 Kind of out of scope but can we visualize this rq
 
