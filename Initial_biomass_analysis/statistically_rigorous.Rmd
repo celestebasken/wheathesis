@@ -307,7 +307,7 @@ This isn't actually needed but:
 #anova(mod_art)
 ```
 
-### AMF colonization
+### AMF colonization INOC ONLY (Lau is anti this)
 
 ```{r}
 aov(hyphal_colonization ~ Water, data = inoc_only)

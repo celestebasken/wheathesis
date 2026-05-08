@@ -55,76 +55,6 @@ inter_only <- combined[combined$Polyculture != "Mono", ]
 
 
 
-```{r}
-# pretty with p values
-
-p_labels <- hyphal_mono_berries %>%
-  group_by(Response, Water) %>%
-  group_modify(~{
-    mod <- lm(Value ~ hyphal_colonization, data = .x)
-    
-    tidy_mod <- tidy(mod)
-    glance_mod <- glance(mod)
-    
-    p_val <- tidy_mod %>%
-      filter(term == "hyphal_colonization") %>%
-      pull(p.value)
-    
-    r2 <- glance_mod$r.squared
-    
-    data.frame(
-      p_label = paste0(
-        "p = ", signif(p_val, 2),
-        "\nR² = ", signif(r2, 2)
-      ),
-      x = -Inf,
-      y = -Inf
-    )
-  })
-
-hyphal_berries_NPP.png <- ggplot(hyphal_mono_berries, aes(x = hyphal_colonization, y = Value)) +
-  geom_point(size = 2.8, alpha = 0.8, color = "black") +
-  geom_smooth(
-    method = "lm",
-    se = TRUE,
-    color = "#3B6C8E",
-    fill = "#3B6C8E",
-    alpha = 0.2,
-    linewidth = 1.2
-  ) +
-  geom_text(
-  data = p_labels,
-  aes(x = x, y = y, label = p_label),
-  inherit.aes = FALSE,
-  hjust = -0.3,
-  vjust = -0.0,
-  size = 4.2
-) +
-  facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
-  labs(
-    x = "Root hyphal colonization (%)",
-    y = NULL,
-    title = "AMF Hyphal Colonization Impact on Yield Allocation and Total Biomass"
-  ) +
-  theme_minimal(base_size = 15) +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
-    axis.title = element_text(face = "bold"),
-    axis.text = element_text(color = "black"),
-    strip.text = element_text(face = "bold", size = 13),
-    strip.background = element_rect(fill = "#EAF1F5", color = NA),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.spacing = unit(1.2, "lines")
-  )
-
-ggsave("PresentationFigs/hyphal_berries_NPP.png", plot = hyphal_berries_NPP.png, width = 9, height = 6.5, dpi = 300)
-
-```
-
-
-
-
 
 ## FIGURE 1: inoc + ppt impact on NPP and yield
 
@@ -402,7 +332,7 @@ alloc_ppt_interact_3panel.png <- ggplot(
   scale_color_manual(values = inoc_colors) +
   scale_y_continuous(expand = expansion(mult = c(0.12, 0.32))) +
   labs(
-    title = "Impacts of Precipitation and AMF Inoculation on Resource Allocation",
+    title = "Impacts of Drought and AMF Inoculation on Resource Allocation",
     x = "Drought treatment",
     y = "Allocation (%)",
     color = "Inoculation",
@@ -435,6 +365,75 @@ ggsave(
 ```
 
 
+## FIGURE 3: Relationships between AMF hyphal colonization and biomass allocation and NPP under drought.
+
+```{r}
+# pretty with p values
+
+p_labels <- hyphal_mono_berries %>%
+  group_by(Response, Water) %>%
+  group_modify(~{
+    mod <- lm(Value ~ hyphal_colonization, data = .x)
+    
+    tidy_mod <- tidy(mod)
+    glance_mod <- glance(mod)
+    
+    p_val <- tidy_mod %>%
+      filter(term == "hyphal_colonization") %>%
+      pull(p.value)
+    
+    r2 <- glance_mod$r.squared
+    
+    data.frame(
+      p_label = paste0(
+        "p = ", signif(p_val, 2),
+        "\nR² = ", signif(r2, 2)
+      ),
+      x = -Inf,
+      y = -Inf
+    )
+  })
+
+hyphal_berries_NPP.png <- ggplot(hyphal_mono_berries, aes(x = hyphal_colonization, y = Value)) +
+  geom_point(size = 2.8, alpha = 0.8, color = "black") +
+  geom_smooth(
+    method = "lm",
+    se = TRUE,
+    color = "#3B6C8E",
+    fill = "#3B6C8E",
+    alpha = 0.2,
+    linewidth = 1.2
+  ) +
+  geom_text(
+  data = p_labels,
+  aes(x = x, y = y, label = p_label),
+  inherit.aes = FALSE,
+  hjust = -0.3,
+  vjust = -0.0,
+  size = 4.2
+) +
+  facet_grid(Response ~ Water, scales = "free_y", drop = TRUE) +
+  labs(
+    x = "Root hyphal colonization (%)",
+    y = NULL,
+    title = "AMF Colonization Impact on Yield Allocation and Total Biomass"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.spacing = unit(1.2, "lines")
+  )
+
+ggsave("PresentationFigs/Plabels/hyphal_berries_NPP.png", plot = hyphal_berries_NPP.png, width = 9, height = 6.5, dpi = 300)
+
+```
+
 # SUPPLEMENTALS
 
 ## FIGURE S1: drought decreases NPP and yield
@@ -459,10 +458,10 @@ mono_long <- mono_only %>%
   ) %>%
   mutate(
     Response = case_when(
-      Response == "NPP_g_pp" ~ "Total Biomass",
-      Response == "Berries_g_pp" ~ "Yield"
+      Response == "NPP_g_pp" ~ "(A) Total Biomass",
+      Response == "Berries_g_pp" ~ "(B) Yield"
     ),
-    Response = factor(Response, levels = c("Total Biomass", "Yield")),
+    Response = factor(Response, levels = c("(A) Total Biomass", "(B) Yield")),
     Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
   )
 
@@ -679,6 +678,203 @@ ggsave(
 ```
 
 
+## FIGURE S3: IS CANCELLED BC TUKEY IS NOT VALID
+
+```{r}
+se <- function(x) sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
+
+format_p <- function(p) {
+  case_when(
+    is.na(p) ~ "p = NA",
+    p < 0.001 ~ "p < 0.001",
+    TRUE ~ paste0("p = ", sprintf("%.3f", p))
+  )
+}
+
+# Long dataframe: 3 allocation responses
+alloc_water_long <- mono_only %>%
+  dplyr::select(
+    Water,
+    percent_ANPP_of_wheat,
+    percent_BNPP_of_wheat,
+    percent_berries_of_wheat
+  ) %>%
+  pivot_longer(
+    cols = c(
+      percent_ANPP_of_wheat,
+      percent_BNPP_of_wheat,
+      percent_berries_of_wheat
+    ),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Response = case_when(
+      Response == "percent_ANPP_of_wheat" ~ "(A) Aboveground Biomass",
+      Response == "percent_BNPP_of_wheat" ~ "(B) Belowground Biomass",
+      Response == "percent_berries_of_wheat" ~ "(C) Yield"
+    ),
+    Response = factor(
+      Response,
+      levels = c(
+        "(A) Aboveground Biomass",
+        "(B) Belowground Biomass",
+        "(C) Yield"
+      )
+    ),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  )
+
+# Summary stats
+summary_alloc_water <- alloc_water_long %>%
+  group_by(Response, Water) %>%
+  summarise(
+    mean = mean(Value, na.rm = TRUE),
+    se = se(Value),
+    ymin = mean - se,
+    ymax = mean + se,
+    .groups = "drop"
+  )
+
+# Compact letters for Water differences within each response
+letters_alloc_water <- alloc_water_long %>%
+  group_by(Response) %>%
+  group_modify(~ {
+
+    mod <- lm(Value ~ Water, data = .x)
+
+    em <- emmeans(mod, ~ Water)
+
+    cld_out <- multcomp::cld(
+      em,
+      adjust = "tukey",
+      Letters = letters
+    )
+
+    as.data.frame(cld_out)
+
+  }) %>%
+  mutate(.group = stringr::str_trim(.group)) %>%
+  dplyr::select(Response, Water, .group)
+
+# Label positions
+label_positions_alloc_water <- summary_alloc_water %>%
+  left_join(letters_alloc_water, by = c("Response", "Water")) %>%
+  group_by(Response) %>%
+  mutate(
+    panel_range = max(ymax, na.rm = TRUE) - min(ymin, na.rm = TRUE),
+    label_y = ymax + 0.10 * panel_range
+  ) %>%
+  ungroup()
+
+# Model stats: Water p-value + model R²
+model_stats_alloc_water <- alloc_water_long %>%
+  group_by(Response) %>%
+  group_modify(~ {
+
+    mod <- lm(Value ~ Water, data = .x)
+    anova_out <- anova(mod)
+
+    tibble(
+      r2 = summary(mod)$r.squared,
+      p_water = anova_out["Water", "Pr(>F)"]
+    )
+
+  }) %>%
+  mutate(
+    label = paste0(
+      "Water: ",
+      format_p(p_water),
+      "\nR² = ",
+      sprintf("%.2f", r2)
+    )
+  )
+
+# Position model-stat labels
+stats_positions_alloc_water <- summary_alloc_water %>%
+  group_by(Response) %>%
+  summarise(
+    x = 1,
+    y = max(ymax, na.rm = TRUE) +
+      0.28 * (max(ymax, na.rm = TRUE) - min(ymin, na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  left_join(model_stats_alloc_water, by = "Response")
+
+# Plot
+alloc_ppt_water_3panel.png <- ggplot(
+  summary_alloc_water,
+  aes(x = Water, y = mean, group = 1)
+) +
+  geom_line(
+    linewidth = 1.2,
+    color = "#3B6C8E"
+  ) +
+  geom_point(
+    size = 3.8,
+    color = "#3B6C8E"
+  ) +
+  geom_errorbar(
+    aes(ymin = ymin, ymax = ymax),
+    width = 0.12,
+    linewidth = 0.8,
+    color = "#3B6C8E"
+  ) +
+  geom_text(
+    data = label_positions_alloc_water,
+    aes(
+      x = Water,
+      y = label_y,
+      label = .group
+    ),
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 5,
+    color = "black"
+  ) +
+  geom_text(
+    data = stats_positions_alloc_water,
+    aes(x = x, y = y, label = label),
+    inherit.aes = FALSE,
+    hjust = 0,
+    vjust = 1,
+    size = 3.6,
+    color = "black"
+  ) +
+  facet_wrap(~ Response, scales = "free_y", nrow = 1) +
+  scale_y_continuous(expand = expansion(mult = c(0.12, 0.32))) +
+  labs(
+    title = "Drought Impact on Biomass Allocation",
+    x = "Drought treatment",
+    y = "Allocation (%)",
+    caption = "Points show means ± SE. Letters indicate Sidak-adjusted pairwise differences among drought treatments within each panel."
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    strip.background = element_rect(fill = "#EAF1F5", color = NA),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.8),
+    axis.ticks = element_line(color = "black"),
+    panel.spacing = unit(1.5, "lines"),
+    plot.caption = element_text(hjust = 0, size = 10),
+    plot.margin = margin(10, 20, 15, 10)
+  )
+
+ggsave(
+  "PresentationFigs/Plabels/alloc_ppt_3panel.png",
+  plot = alloc_ppt_water_3panel.png,
+  width = 12,
+  height = 6,
+  dpi = 300
+)
+```
+
+
+
 # ONLY FOR THE SLIDESHOW
 
 ## Thank you slide -- NPP, Berries, Berries %
@@ -808,6 +1004,8 @@ ggsave(
 ```
 
 
+
+
 # FAVA
 
 # Fava as mitgator? BUT NOT EVEN PLABELED
@@ -859,4 +1057,5 @@ fava_berry_allocation.png <- ggplot(
 
 ggsave("PresentationFigs/fava_berry_allocation.png", plot = fava_berry_allocation.png, width = 9, height = 4.8, dpi = 300)
 ```
+
 
