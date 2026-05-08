@@ -334,6 +334,34 @@ summary(lm(percent_berries_of_wheat ~ hyphal_colonization, data = inoc_only))
 
 ```
 
+# AMF hyphal but with all mono data
+
+```{r}
+aov(hyphal_colonization ~ Water, data = mono_only)
+aov(arb_vesc_colonization ~ Water, data = mono_only)
+
+# GLM
+mono_only$hyphae_present <- round(mono_only$hyphal_colonization * 100)
+mono_only$hyphae_absent  <- 100 - mono_only$hyphae_present
+
+glm_hyphae <- glm(cbind(hyphae_present, hyphae_absent) ~ Water,
+                  family = binomial, data = mono_only)
+
+summary(glm_hyphae)
+
+# lm
+lm(percent_berries_of_wheat ~ hyphal_colonization, data = mono_only)
+lm(percent_ANPP_of_wheat ~ hyphal_colonization, data = mono_only)
+lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = mono_only)
+lm(percent_berries_of_wheat ~ hyphal_colonization * Water, data = mono_only)
+
+summary(lm(percent_ANPP_of_wheat ~ hyphal_colonization, data = mono_only))
+summary(lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = mono_only))
+summary(lm(percent_berries_of_wheat ~ hyphal_colonization, data = mono_only))
+
+```
+
+
 ```{r}
 mod <- lm(NPP_g_pp ~ hyphal_colonization * Water, data = mono_only)
 
