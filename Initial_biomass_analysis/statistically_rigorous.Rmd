@@ -428,3 +428,88 @@ ggplot(mono_only, aes(x = hyphal_colonization, y = NPP_g_pp)) +
   )
 ```
 
+
+# Most interesting data for abstract
+
+```{r}
+# If mono_only is already made, start here:
+berry_summary <- mono_only %>%
+  group_by(Water, Inoculation) %>%
+  summarise(
+    mean_berry_alloc = mean(percent_berries_of_wheat, na.rm = TRUE),
+    sd_berry_alloc = sd(percent_berries_of_wheat, na.rm = TRUE),
+    n = n(),
+    se_berry_alloc = sd_berry_alloc / sqrt(n),
+    .groups = "drop"
+  )
+
+berry_summary
+
+severe_berry_change <- berry_summary %>%
+  filter(Water == "Severe") %>%
+  select(Inoculation, mean_berry_alloc) %>%
+  tidyr::pivot_wider(
+    names_from = Inoculation,
+    values_from = mean_berry_alloc
+  ) %>%
+  mutate(
+    difference_proportion = Inoc - Strl,
+    difference_percentage_points = difference_proportion * 100,
+    percent_change_relative_to_sterile = ((Inoc - Strl) / Strl) * 100
+  )
+
+severe_berry_change
+
+severe_berry_change %>%
+  mutate(
+    Inoc_percent = Inoc * 100,
+    Strl_percent = Strl * 100
+  ) %>%
+  select(
+    Inoc_percent,
+    Strl_percent,
+    difference_percentage_points,
+    percent_change_relative_to_sterile
+  )
+```
+
+```{r}
+# Summarize overall means by inoculation treatment
+overall_summary <- mono_only %>%
+  group_by(Inoculation) %>%
+  summarise(
+    mean_NPP = mean(NPP_g_pp, na.rm = TRUE),
+    mean_berries = mean(Berries_g_pp, na.rm = TRUE),
+    
+    sd_NPP = sd(NPP_g_pp, na.rm = TRUE),
+    sd_berries = sd(Berries_g_pp, na.rm = TRUE),
+    
+    n = n(),
+    .groups = "drop"
+  )
+
+overall_summary
+
+overall_changes <- overall_summary %>%
+  select(Inoculation, mean_NPP, mean_berries) %>%
+  pivot_wider(
+    names_from = Inoculation,
+    values_from = c(mean_NPP, mean_berries)
+  ) %>%
+  mutate(
+    
+    # NPP change with inoculation
+    NPP_difference = mean_NPP_Inoc - mean_NPP_Strl,
+    NPP_percent_change = 
+      ((mean_NPP_Inoc - mean_NPP_Strl) / mean_NPP_Strl) * 100,
+    
+    # Berry biomass change with inoculation
+    berry_difference = mean_berries_Inoc - mean_berries_Strl,
+    berry_percent_change =
+      ((mean_berries_Inoc - mean_berries_Strl) / mean_berries_Strl) * 100
+  )
+
+overall_changes
+```
+
+

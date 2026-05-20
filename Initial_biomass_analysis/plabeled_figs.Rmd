@@ -132,15 +132,18 @@ inoc_ppt_interact.png <- ggplot(
   ) +
   
   facet_wrap(~Response, scales = "free_y") +
-  scale_color_manual(values = c("#3B6C8E", "#C2A46D")) +
+  scale_color_manual(
+  values = c("Inoc" = "#3B6C8E", "Strl" = "#C2A46D"),
+  labels = c("Inoc" = "Inoculated",
+             "Strl" = "Sterile")
+) +
   scale_y_continuous(expand = expansion(mult = c(0.12, 0.25))) +
   
   labs(
     title = "Interacting Effects of Precipitation and AMF Inoculation",
     x = "Drought treatment",
     y = "Biomass (g per plant)",
-    color = "Inoculation",
-    caption = "Points show means ± SE. Different letters indicate Sidak-adjusted pairwise differences\n between inoculation treatments within each drought level (p < 0.05)."
+    color = "Inoculation"
   ) +
   
   theme_minimal(base_size = 15) +
@@ -329,15 +332,18 @@ alloc_ppt_interact_3panel.png <- ggplot(
     color = "black"
   ) +
   facet_wrap(~ Response, scales = "free_y", nrow = 1) +
-  scale_color_manual(values = inoc_colors) +
+  scale_color_manual(
+  values = c("Inoc" = "#3B6C8E", "Strl" = "#C2A46D"),
+  labels = c("Inoc" = "Inoculated",
+             "Strl" = "Sterile")
+) +
   scale_y_continuous(expand = expansion(mult = c(0.12, 0.32))) +
   labs(
     title = "Impacts of Drought and AMF Inoculation on Resource Allocation",
     x = "Drought treatment",
     y = "Allocation (%)",
-    color = "Inoculation",
-    caption = "Points show means ± SE. Letters indicate Sidak-adjusted pairwise differences among Water × Inoculation treatment combinations within each panel."
-  ) +
+    color = "Inoculation"
+    ) +
   theme_minimal(base_size = 15) +
   theme(
     plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
