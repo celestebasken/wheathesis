@@ -512,4 +512,152 @@ overall_changes <- overall_summary %>%
 overall_changes
 ```
 
+# and now more summaries for discussion
+
+```{r}
+# Summarize means across water treatments
+water_summary <- mono_only %>%
+  group_by(Water) %>%
+  summarise(
+    mean_NPP = mean(NPP_g_pp, na.rm = TRUE),
+    mean_ANPP = mean(ANPP_g_pp, na.rm = TRUE),
+    mean_BNPP = mean(BNPP_g_pp, na.rm = TRUE),
+    mean_berries = mean(Berries_g_pp, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+water_summary
+
+drought_changes <- water_summary %>%
+  filter(Water %in% c("Control", "Severe")) %>%
+  pivot_wider(
+    names_from = Water,
+    values_from = c(
+      mean_NPP,
+      mean_ANPP,
+      mean_BNPP,
+      mean_berries
+    )
+  ) %>%
+  mutate(
+
+    # NPP
+    NPP_difference = mean_NPP_Severe - mean_NPP_Control,
+    NPP_percent_change =
+      ((mean_NPP_Severe - mean_NPP_Control) /
+         mean_NPP_Control) * 100,
+
+    # ANPP
+    ANPP_difference = mean_ANPP_Severe - mean_ANPP_Control,
+    ANPP_percent_change =
+      ((mean_ANPP_Severe - mean_ANPP_Control) /
+         mean_ANPP_Control) * 100,
+
+    # BNPP
+    BNPP_difference = mean_BNPP_Severe - mean_BNPP_Control,
+    BNPP_percent_change =
+      ((mean_BNPP_Severe - mean_BNPP_Control) /
+         mean_BNPP_Control) * 100,
+
+    # Reproductive output
+    berry_difference = mean_berries_Severe - mean_berries_Control,
+    berry_percent_change =
+      ((mean_berries_Severe - mean_berries_Control) /
+         mean_berries_Control) * 100
+  )
+
+drought_changes
+
+drought_changes %>%
+  select(
+    starts_with("mean_"),
+    ends_with("difference"),
+    ends_with("percent_change")
+  )
+```
+
+```{r}
+allocation_summary <- mono_only %>%
+  group_by(Water) %>%
+  summarise(
+    mean_berry_alloc =
+      mean(percent_berries_of_wheat, na.rm = TRUE),
+
+    mean_ANPP_alloc =
+      mean(percent_ANPP_of_wheat, na.rm = TRUE),
+
+    mean_BNPP_alloc =
+      mean(percent_BNPP_of_wheat, na.rm = TRUE),
+
+    mean_vegetative_alloc =
+      mean(percent_vegetative_of_wheat, na.rm = TRUE),
+
+    .groups = "drop"
+  )
+
+allocation_summary
+
+allocation_changes <- allocation_summary %>%
+  filter(Water %in% c("Control", "Severe")) %>%
+  pivot_wider(
+    names_from = Water,
+    values_from = c(
+      mean_berry_alloc,
+      mean_ANPP_alloc,
+      mean_BNPP_alloc,
+      mean_vegetative_alloc
+    )
+  ) %>%
+  mutate(
+
+    # Berry allocation
+    berry_alloc_difference =
+      mean_berry_alloc_Severe -
+      mean_berry_alloc_Control,
+
+    berry_alloc_percent_change =
+      ((mean_berry_alloc_Severe -
+          mean_berry_alloc_Control) /
+          mean_berry_alloc_Control) * 100,
+
+    # ANPP allocation
+    ANPP_alloc_difference =
+      mean_ANPP_alloc_Severe -
+      mean_ANPP_alloc_Control,
+
+    ANPP_alloc_percent_change =
+      ((mean_ANPP_alloc_Severe -
+          mean_ANPP_alloc_Control) /
+          mean_ANPP_alloc_Control) * 100,
+
+    # BNPP allocation
+    BNPP_alloc_difference =
+      mean_BNPP_alloc_Severe -
+      mean_BNPP_alloc_Control,
+
+    BNPP_alloc_percent_change =
+      ((mean_BNPP_alloc_Severe -
+          mean_BNPP_alloc_Control) /
+          mean_BNPP_alloc_Control) * 100,
+
+    # Vegetative allocation
+    vegetative_alloc_difference =
+      mean_vegetative_alloc_Severe -
+      mean_vegetative_alloc_Control,
+
+    vegetative_alloc_percent_change =
+      ((mean_vegetative_alloc_Severe -
+          mean_vegetative_alloc_Control) /
+          mean_vegetative_alloc_Control) * 100
+  )
+
+allocation_changes
+
+allocation_changes %>%
+  select(
+    ends_with("difference"),
+    ends_with("percent_change")
+  )
+```
 
