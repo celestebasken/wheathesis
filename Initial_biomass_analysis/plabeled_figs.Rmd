@@ -1148,6 +1148,36 @@ ggsave(
 # Fava as mitgator? BUT NOT EVEN PLABELED
 
 ```{r}
+# Summary stats for each Water x Inoculation x Polyculture group
+summary_fava <- combined %>%
+  group_by(Water, Inoculation, Polyculture) %>%
+  summarise(
+    mean = mean(percent_berries_of_wheat, na.rm = TRUE),
+    se = se(percent_berries_of_wheat),
+    ymax = mean + se,
+    .groups = "drop"
+  )
+
+# Compact letters: compare all 4 Inoculation x Polyculture combos within each Water level
+letters_fava <- combined %>%
+  group_by(Water) %>%
+  group_modify(~ {
+    mod <- lm(percent_berries_of_wheat ~ Inoculation * Polyculture, data = .x)
+    em <- emmeans::emmeans(mod, ~ Inoculation * Polyculture)
+    cld <- multcomp::cld(em, adjust = "sidak", Letters = letters)
+    as.data.frame(cld)
+  }) %>%
+  mutate(.group = stringr::str_trim(.group)) %>%
+  dplyr::select(Water, Inoculation, Polyculture, .group)
+
+# Position labels above each point
+label_positions_fava <- summary_fava %>%
+  left_join(letters_fava, by = c("Water", "Inoculation", "Polyculture")) %>%
+  mutate(
+    panel_range = max(ymax, na.rm = TRUE) - min(ymax, na.rm = TRUE),
+    label_y = ymax + 0.08 * panel_range
+  )
+
 # Berry allocation
 fava_berry_allocation.png <- ggplot(
   combined,
@@ -1173,9 +1203,23 @@ fava_berry_allocation.png <- ggplot(
     alpha = 0.9,
     position = position_dodge(width = 0.15)
   ) +
+    geom_text(
+    data = label_positions_fava,
+    aes(
+      x = Water,
+      y = label_y,
+      label = .group,
+      color = Inoculation,
+      group = interaction(Inoculation, Polyculture)
+    ),
+    position = position_dodge(width = 0.15),
+    fontface = "bold",
+    size = 4,
+    show.legend = FALSE
+  ) +
   scale_color_manual(values = c("Inoc" = "#3B6C8E", "Strl" = "#C2A46D")) +
   labs(
-    title = "Fava Intercropping May Ameliorate Decline in Yield \n Allocation Incurred by Inoculation During Drought",
+    title = "Fava Intercropping May Impact Decline in Yield \n Allocation Incurred by Inoculation During Drought",
     x = "",
     y = "Allocation to Yield (%)",
     color = "Inoculation",
@@ -1192,7 +1236,7 @@ fava_berry_allocation.png <- ggplot(
     panel.grid.major.x = element_blank()
   )
 
-ggsave("PresentationFigs/fava_berry_allocation.png", plot = fava_berry_allocation.png, width = 9, height = 4.8, dpi = 300)
+ggsave("PresentationFigs/Plabels/fava_berry_allocation.png", plot = fava_berry_allocation.png, width = 9, height = 4.8, dpi = 300)
 ```
 
 

@@ -1,0 +1,190 @@
+---
+title: "intercropping_story"
+output: html_document
+---
+
+New document to clean things up
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 0. Basic imports
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+```
+
+## Load data
+
+```{r}
+# Combined data
+combined <- read.csv("../Cross_compare/NPP_AMF_combined.csv")
+
+# need to remove the fourth row bc I'm missing data (the bnpp)
+combined <- combined[-4,]
+
+combined <- combined %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+# percent vegetative of wheat
+combined <- combined %>%
+  mutate(
+    percent_vegetative_of_wheat = percent_ANPP_of_wheat + percent_BNPP_of_wheat
+  )
+
+# Speciality subsetted ones
+mono_only <- combined[combined$Polyculture != "Inter", ]
+
+inter_only <- combined[combined$Polyculture != "Mono", ]
+```
+
+# 1. Fava and AMF colonization interactions
+
+
+Fava NPP
+
+```{r}
+p_labels_fava_npp <- inter_only %>%
+  group_by(Water) %>%
+  group_modify(~{
+    mod <- lm(Fava_g ~ hyphal_colonization, data = .x)
+
+    tidy_mod <- broom::tidy(mod)
+    glance_mod <- broom::glance(mod)
+
+    intercept <- tidy_mod %>%
+      filter(term == "(Intercept)") %>%
+      pull(estimate)
+
+    slope <- tidy_mod %>%
+      filter(term == "hyphal_colonization") %>%
+      pull(estimate)
+
+    p_val <- tidy_mod %>%
+      filter(term == "hyphal_colonization") %>%
+      pull(p.value)
+
+    r2 <- glance_mod$r.squared
+
+    data.frame(
+      equation = paste0(
+        "y = ", round(intercept, 3),
+        ifelse(slope >= 0, " + ", " - "),
+        abs(round(slope, 3)), "x"
+      ),
+      p_label = paste0(
+        "p = ", signif(p_val, 2),
+        "\nR² = ", signif(r2, 2)
+      ),
+      x = -Inf,
+      y = -Inf
+    )
+  })
+
+fava_npp_amf_hyphal_multipanel.png <- ggplot(inter_only, aes(x = hyphal_colonization, y = Fava_g)) +
+  geom_point(size = 2.5, alpha = 0.7) +
+  geom_smooth(method = "lm", se = TRUE, color = "#2C7BB6") +
+  geom_text(
+    data = p_labels_fava_npp,
+    aes(x = x, y = y, label = p_label),
+    inherit.aes = FALSE,
+    hjust = -0.3,
+    vjust = -0.0,
+    size = 4.2
+  ) +
+  facet_wrap(~Water) +
+  labs(
+    title = "AMF colonization–fava NPP relationship varies with water availability",
+    x = "AMF hyphal colonization (%)",
+    y = "Fava NPP"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+ggsave("PresentationFigs/fava_npp_amf_hyphal_multipanel.png",
+       plot = fava_npp_amf_hyphal_multipanel.png,
+       width = 9, height = 4.8, dpi = 300)
+```
+
+
+Fava %
+```{r}
+p_labels_fava <- inter_only %>%
+  group_by(Water) %>%
+  group_modify(~{
+    mod <- lm(percent_fava ~ hyphal_colonization, data = .x)
+
+    tidy_mod <- broom::tidy(mod)
+    glance_mod <- broom::glance(mod)
+
+    intercept <- tidy_mod %>%
+      filter(term == "(Intercept)") %>%
+      pull(estimate)
+
+    slope <- tidy_mod %>%
+      filter(term == "hyphal_colonization") %>%
+      pull(estimate)
+
+    p_val <- tidy_mod %>%
+      filter(term == "hyphal_colonization") %>%
+      pull(p.value)
+
+    r2 <- glance_mod$r.squared
+
+    data.frame(
+      equation = paste0(
+        "y = ", round(intercept, 3),
+        ifelse(slope >= 0, " + ", " - "),
+        abs(round(slope, 3)), "x"
+      ),
+      p_label = paste0(
+        "p = ", signif(p_val, 2),
+        "\nR² = ", signif(r2, 2)
+      ),
+      x = -Inf,
+      y = -Inf
+    )
+  })
+
+fava_percent_amf_hyphal_multipanel.png <- ggplot(inter_only, aes(x = hyphal_colonization, y = percent_fava)) +
+  geom_point(size = 2.5, alpha = 0.7) +
+  geom_smooth(method = "lm", se = TRUE, color = "#2C7BB6") +
+  geom_text(
+    data = p_labels_fava,
+    aes(x = x, y = y, label = p_label),
+    inherit.aes = FALSE,
+    hjust = -0.3,
+    vjust = -0.0,
+    size = 4.2
+  ) +
+  facet_wrap(~Water) +
+  labs(
+    title = "AMF impact on fava competitiveness",
+    x = "AMF hyphal colonization (%)",
+    y = "Fava percent of pot biomass"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+ggsave("PresentationFigs/fava_percent_amf_hyphal_multipanel.png",
+       plot = fava_percent_amf_hyphal_multipanel.png,
+       width = 9, height = 4.8, dpi = 300)
+```
+
+
