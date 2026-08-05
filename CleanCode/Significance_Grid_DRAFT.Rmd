@@ -21,7 +21,11 @@ variables) - but generated from the `battery_core.R` models instead of hand-type
   `Inter: Inoc > Strl<br>Mono: Strl > Inoc`) computed automatically from group means,
   instead of typed by hand.
 - **a small thumbnail plot** embedded directly in the cell, generated from the same data
-  used to fit the model.
+  used to fit the model - now with the p-value and significance stars (`***`/`**`/`*`/`.`/`ns`,
+  the standard convention) printed as a subtitle directly on the plot itself, bolded and
+  darkened when p_adj < .05 so significant panels visually pop out of the grid. This uses
+  the exact same `p_adj` as the `Yes`/`Kinda`/`No` text below it, so the two can never
+  disagree with each other.
 
 A blank/`NA` cell here means the term literally isn't in that variable's model (e.g. no
 "AMF inoculation" row for the AMF-colonization columns, since those are fit on the
@@ -86,10 +90,32 @@ direction_label <- function(data, response, term_vars) {
 }
 ```
 
-# 2. Helper: build + save one cell's thumbnail plot
+# 2. Helper: format a p-value into stars + text
 
 ```{r}
-plot_cell <- function(data, response, term_vars, out_dir, cell_id) {
+# Standard significance-star convention. Deliberately keyed off p_adj (the
+# same BH-adjusted value that decides the Yes/Kinda(<.1)/No label below the
+# plot) - not raw p - so the star on the figure can never disagree with the
+# text label next to it.
+p_to_stars <- function(p) {
+  dplyr::case_when(
+    p < 0.001 ~ "***",
+    p < 0.01  ~ "**",
+    p < 0.05  ~ "*",
+    p < 0.10  ~ ".",     # conventional "marginal" marker
+    TRUE      ~ "ns"
+  )
+}
+
+format_p <- function(p) {
+  if (p < 0.001) "p < .001" else paste0("p = ", formatC(p, digits = 3, format = "f"))
+}
+```
+
+# 3. Helper: build + save one cell's thumbnail plot
+
+```{r}
+plot_cell <- function(data, response, term_vars, out_dir, cell_id, p_val) {
 
   # ---- Step 1: mean + standard error per group, however many factors ----
   summary_df <- data %>%
@@ -113,38 +139,74 @@ plot_cell <- function(data, response, term_vars, out_dir, cell_id) {
   facet_var <- if (length(ordered_vars) == 3) ordered_vars[3] else NA
 
   # ---- Step 3: build the plot ----
+  # IMPORTANT ORDERING NOTE: theme_minimal() is a COMPLETE theme, not an
+  # incremental tweak - adding it AFTER a theme(legend.position = "bottom")
+  # call (as an earlier version of this function did, and as is easy to do
+  # by accident) silently wipes that setting back to theme_minimal()'s own
+  # default (legend on the right), which is exactly what was cramming the
+  # legend into the corner of the interaction-plot thumbnails. Fix: apply
+  # theme_minimal() FIRST, immediately on creation, and only ever use plain
+  # theme(...) calls (which merge into the existing theme rather than
+  # replacing it) after that point.
   if (length(term_vars) == 1) {
     p <- ggplot(summary_df, aes(x = .data[[x_var]], y = mean_y)) +
+      theme_minimal(base_size = 6) +
       geom_col(fill = "grey30", width = 0.6) +
       geom_errorbar(aes(ymin = mean_y - se_y, ymax = mean_y + se_y), width = 0.15)
   } else {
     p <- ggplot(summary_df, aes(x = .data[[x_var]], y = mean_y,
                                  color = .data[[color_var]], group = .data[[color_var]])) +
+      theme_minimal(base_size = 6) +
       geom_line(linewidth = 0.5) +
       geom_point(size = 1) +
       geom_errorbar(aes(ymin = mean_y - se_y, ymax = mean_y + se_y), width = 0.15) +
       theme(legend.position = "bottom",
             legend.title    = element_blank(),
             legend.text     = element_text(size = 5),
-            legend.key.size = unit(3, "mm"))
+            legend.key.size = unit(3, "mm"),
+            legend.margin   = margin(t = -4))
 
     if (!is.na(facet_var)) {
       p <- p + facet_wrap(stats::as.formula(paste("~", facet_var)))
     }
   }
 
-  p <- p +
-    theme_minimal(base_size = 6) +
-    theme(axis.title = element_blank(), plot.margin = margin(1, 1, 1, 1))
+  # ---- Step 4: p-value + stars as a subtitle directly on the plot ----
+  # This is the new part: rather than only stating "Yes"/"Kinda"/"No" in the
+  # table cell text below the image, the actual number and stars are baked
+  # into the figure itself - so if this thumbnail is ever pulled out and
+  # used on its own (e.g. dropped into the thesis as a standalone figure),
+  # it's still self-labeled and doesn't depend on the surrounding table.
+  subtitle_txt <- paste0(format_p(p_val), "  ", p_to_stars(p_val))
 
-  # ---- Step 4: save + return the file path ----
+  p <- p +
+    labs(subtitle = subtitle_txt) +
+    theme(
+      axis.title      = element_blank(),
+      plot.margin     = margin(1, 1, 1, 1),
+      # Bold + darker when the BH-adjusted result is significant (p < .05),
+      # so a significant panel visually pops out of the grid even before
+      # you read the number - grey/plain otherwise so "ns" doesn't compete
+      # for attention.
+      plot.subtitle   = element_text(
+        size   = 5.5,
+        face   = ifelse(p_val < 0.05, "bold", "plain"),
+        colour = ifelse(p_val < 0.05, "black", "grey40"),
+        hjust  = 0.5,
+        margin = margin(b = 1)
+      )
+    )
+
+  # ---- Step 5: save + return the file path ----
+  # Height bumped up slightly from the first version (1.0 -> 1.2 in) to
+  # leave room for the new subtitle line without it overlapping the plot.
   out_path <- file.path(out_dir, paste0(cell_id, ".png"))
-  ggplot2::ggsave(out_path, p, width = 1.3, height = 1.0, dpi = 150)
+  ggplot2::ggsave(out_path, p, width = 1.3, height = 1.2, dpi = 150)
   out_path
 }
 ```
 
-# 3. Build one row per (response variable, ANOVA term) cell
+# 4. Build one row per (response variable, ANOVA term) cell
 
 ```{r}
 # term_summary (from battery_core.R) already has one row per label x term,
@@ -171,12 +233,15 @@ cell_data$direction <- purrr::map2_chr(
   }
 )
 
+# p_adj is now passed straight into plot_cell() too, so the number/stars
+# baked into the image are guaranteed to be the same p_adj driving `sig`
+# above - never a second, silently-different p-value.
 cell_data$plot_path <- purrr::pmap_chr(
-  list(cell_data$label, cell_data$term, cell_data$term_vars),
-  function(lbl, trm, tv) {
+  list(cell_data$label, cell_data$term, cell_data$term_vars, cell_data$p_adj),
+  function(lbl, trm, tv, p_val) {
     spec    <- spec_by_label[[lbl]]
     cell_id <- paste(gsub("[^A-Za-z0-9]", "_", lbl), gsub(":", "_", trm), sep = "__")
-    plot_cell(spec$data, spec$response, tv, out_dir = plot_dir, cell_id = cell_id)
+    plot_cell(spec$data, spec$response, tv, out_dir = plot_dir, cell_id = cell_id, p_val = p_val)
   }
 )
 
@@ -197,7 +262,7 @@ cell_data$cell_html <- purrr::pmap_chr(
 )
 ```
 
-# 4. Render the two grids (mass / percent), matching the old table's layout
+# 5. Render the two grids (mass / percent), matching the old table's layout
 
 ```{r}
 # Row order + friendlier row labels than the raw "Inoculation:Water" term
@@ -244,19 +309,19 @@ render_grid <- function(group) {
 }
 ```
 
-## 4.1 Mass variables (grams, per plant)
+## 5.1 Mass variables (grams, per plant)
 
 ```{r}
 render_grid("mass")
 ```
 
-## 4.2 Percent / allocation variables
+## 5.2 Percent / allocation variables
 
 ```{r}
 render_grid("percent")
 ```
 
-# 5. What this doesn't do (yet)
+# 6. What this doesn't do (yet)
 
 This only rebuilds grids 1+2 from your PDF (the significance codes + figures-with-
 direction). It does **not** rebuild grid 3 (the literature-comparison table with the
