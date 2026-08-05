@@ -51,6 +51,14 @@ inter_only <- combined[combined$Polyculture != "Mono", ]
 # 1. Fava and AMF colonization interactions
 
 
+Are the fava npp and amf statistically significant?
+```{r}
+mod_interact <- lm(Fava_g ~ hyphal_colonization * Water, data = inter_only)
+
+anova(mod_interact)
+```
+
+
 Fava NPP
 
 ```{r}
