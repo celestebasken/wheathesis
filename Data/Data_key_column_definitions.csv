@@ -1,0 +1,29 @@
+COLUMN NAME,COLUMN MEANING
+Name,"Unique identifier of the pot. Includes the pot number, inoculation treatment, polyculture treatment, water treatment, and replicate identifier. "
+Pot,"Unique pot number, 1-60 for 60 experimental units."
+Inoculation,Categorical descriptor of inoculation treatment: inoc or strl.
+Polyculture,Categorical descriptor of polyculture treatment: inter or mono.
+Replicate,"Replicate number within the treatment, 1-5."
+Water,"Categorical descriptor of water treatment: Control, Moderate, or Severe."
+Water_gal,Continuous descriptor of water treatment: gallons of water received per week by the experimental unit.
+Num_wheat_pot,Number of individual wheat plants within the experimental unit (pot).
+Num_fava,Number of individual fava plants within the experimental unit (pot).
+hyphal_colonization,Percent of root hyphal colonization detected using the standard grid-intersect method.
+arb_vesc_colonization,Percent of root hyphal AND arbuscular or vesicular colonization detected using the standard grid-intersect method.
+Pot_NPP_g,Total biomass recorded for the pot. This includes NPP of wheat + fava.
+Pot_NPP_g_pp,Density-adjusted total biomass recorded for the pot; adjusted per plant. This includes NPP of wheat + fava.
+W_NPP,Total wheat biomass (net primary productivity) of wheat in the pot.
+W_NPP_pp,Density-adjusted wheat biomass (net primary productivity) of wheat in the pot.
+W_BNPP_g,Total wheat belowground biomass (roots) of wheat in the pot.
+W_BNPP_g_pp,Density-adjusted wheat belowground biomass (roots) of wheat in the pot.
+W_ANPP_g,"Total aboveground wheat biomass (shoots, minus berries) of wheat in the pot."
+W_ANPP_g_pp,"Density-adjusted aboveground wheat biomass (shoots, minus berries) of wheat in the pot."
+W_Berries_g,Total wheat reproductive biomass in the pot.
+W_Berries_g_pp,Density-adjusted reproductive wheat biomass in the pot.
+W_pcent_BNPP,Percent of wheat biomass in the pot that is belowground biomass.
+W_pcent_ANPP,Percent of wheat biomass in the pot that is aboveground biomass.
+W_pcent_vegetative,Percent of wheat biomass in the pot that is vegetative biomass (NPP excluding berries; ANPP + BNPP).
+W_pcent_berries,Percent of wheat biomass in the pot that is berries/ reproductive biomass.
+Pot_pcent_wheat,"Percent of the pot biomass that is wheat biomass (in intercropped systems, <1)."
+Fava_g,Total fava biomass (NPP) in the pot
+Pot_pcent_fava,"Percent of the pot biomass that is fava biomass (in intercropped systems, <1. In monoculture wheat systems, zero)."
