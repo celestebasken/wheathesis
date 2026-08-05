@@ -1,0 +1,101 @@
+---
+title: "ANOVA battery - DRAFT (for review)"
+author: "CLAUDE + Celeste Basken"
+date: "2026-08-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# READ ME FIRST
+
+This is a **scratch/draft file**, not a replacement for `Mono+Inter_SignificanceTable.Rmd`.
+Nothing in here edits that file or any other existing script.
+
+**Refactor note:** the data loading / logit transforms / subsets / `run_anova_check()` /
+`battery_spec` / model-fitting loop that used to live directly in this file have been moved
+into [`battery_core.R`](battery_core.R), so that this file and the new
+[`Significance_Grid_DRAFT.Rmd`](Significance_Grid_DRAFT.Rmd) both run off the exact same
+models instead of two copies that could quietly drift apart. This file now just sources
+that core and prints/inspects the results - nothing about the statistics changed.
+
+```{r}
+source("battery_core.R")
+```
+
+`battery_core.R` produces, in order: `combined`, `inoc_only`, `inter_only`, `mono_only`,
+`battery_spec`, `spec_by_label`, `results_list`, `assumption_summary`, `term_summary`.
+Open that file to see the full commented walkthrough of what each step does and why
+(Type II sums of squares, logit transforms, per-model `na.omit`, FDR correction within
+family, etc.) - it's the same content that used to be inline here.
+
+# 1. Assumption-check summary table
+
+One row per variable: sample size actually used, Shapiro-Wilk p-value, Levene's test
+p-value, and a plain-language flag. These flags are a **heads-up, not an automatic
+rejection** - ANOVA is fairly robust to mild non-normality when the design is balanced
+with equal n per cell (which most of these are). Large/consistent violations are what
+should push you toward the WRS2 robust fallback in Section 4.
+
+```{r}
+knitr::kable(assumption_summary, caption = "Assumption checks per response variable")
+```
+
+# 2. Term-level ANOVA results, with effect sizes and FDR correction
+
+```{r}
+term_summary %>%
+  dplyr::arrange(family, label, term) %>%
+  dplyr::mutate(dplyr::across(c(statistic, p.value, p_adj, eta2_partial), ~round(.x, 3))) %>%
+  knitr::kable(caption = "ANOVA battery: term-level results (Type II SS), BH-adjusted within family")
+```
+
+# 3. Post-hoc pairwise comparisons
+
+Printed one variable at a time. Worth reading alongside Section 2: a significant
+interaction term in the ANOVA table is the cue to look at the *sliced* comparisons here
+rather than the marginal ones.
+
+```{r}
+for (r in results_list) {
+  if (!is.null(r$posthoc)) {
+    cat("\n----", r$label, "----\n")
+    print(r$posthoc)
+  }
+}
+```
+
+# 4. Diagnostic plots (visual assumption checking)
+
+The numeric checks in Section 1 are the same two things you'd otherwise eyeball here -
+still worth looking at the plots directly, since Shapiro-Wilk has limited power to catch
+non-normality at n=59-60. Change the label in `results_list[[ ... ]]` to inspect a
+different variable.
+
+```{r}
+plot(results_list[["Wheat aboveground NPP per plant"]]$model, 2)  # QQ plot of residuals
+plot(results_list[["Wheat aboveground NPP per plant"]]$model, 1)  # residuals vs fitted
+```
+
+# 5. Optional robust fallback (WRS2), for anything flagged in Section 1
+
+`WRS2::t3way()` runs a three-way ANOVA on **trimmed means** (20% trimmed by default)
+instead of ordinary means, which is much less sensitive to outliers/skew than the
+standard ANOVA above. It takes the same formula shape as `lm()` above. Left commented out
+- fill in whichever variable comes back flagged in `assumption_summary` and uncomment:
+
+```{r}
+# library(WRS2)
+# robust_result <- WRS2::t3way(
+#   formula = W_pcent_berries_logit ~ Inoculation * Polyculture * Water,
+#   data    = combined
+# )
+# robust_result
+```
+
+An aligned-rank-transform alternative (`ARTool` package, not currently installed) is
+another option for the same purpose if you'd rather stay closer to a standard
+ANOVA/post-hoc workflow than switch to trimmed means - flagging it here rather than
+wiring it in, since it needs a new package install.
