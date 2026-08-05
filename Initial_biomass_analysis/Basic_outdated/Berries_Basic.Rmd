@@ -23,8 +23,8 @@ library(ggplot2)
 
 ```{r}
 # Loading in data to explore
-berries <- read.csv("Biomass/Berry_Weights.csv")
-combined <- read.csv("../Cross_compare/NPP_AMF_combined.csv")
+berries <- read.csv("../Biomass/Berry_Weights.csv")
+combined <- read.csv("../../Cross_compare/NPP_AMF_combined.csv")
 
 berries <- berries %>%
   mutate(

@@ -22,7 +22,7 @@ library(dplyr)
 ```{r}
 # Loading in data to explore
 
-ANPP <- read.csv("Biomass/ANPP_Wheat_Weights.csv")
+ANPP <- read.csv("../Biomass/ANPP_Wheat_Weights.csv")
 
 ANPP <- ANPP %>%
   mutate(
