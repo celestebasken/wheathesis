@@ -1,28 +1,31 @@
 ---
-title: "Significance grid - DRAFT (for review)"
+title: "Significance grid - Full dataset - DRAFT (for review)"
 author: "CLAUDE + Celeste Basken"
 date: "2026-08-05"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
 # READ ME FIRST
 
 This recreates the shape of your old PDF significance table (rows = ANOVA terms, columns
 = response variables, one grid for raw-gram "mass" variables and one for "percent"
-variables) - but generated from the `battery_core.R` models instead of hand-typed, with:
+variables) for the **full dataset** (Inter + Mono pots together, Polyculture as a 3-way
+factor) - generated from the `battery_core.R` models instead of hand-typed, with:
 
 - **cell label** (`Yes` / `Kinda (<.1)` / `No` / blank-`NA`) based on the **BH-adjusted**
   p-value (`p_adj`) from `term_summary`, not a raw per-test p-value - per your call.
 - **direction text** (e.g. `Inter > Mono`, or per-slice text for interactions like
   `Inter: Inoc > Strl<br>Mono: Strl > Inoc`) computed automatically from group means,
   instead of typed by hand.
-- **a small thumbnail plot** embedded directly in the cell, generated from the same data
-  used to fit the model - now with the p-value and significance stars (`***`/`**`/`*`/`.`/`ns`,
-  the standard convention) printed as a subtitle directly on the plot itself, bolded and
+- **a small thumbnail plot** embedded directly in every cell (`No` included), generated
+  from the same data used to fit the model, with the p-value and significance stars
+  (`***`/`**`/`*`/`.`/`ns`) printed as a subtitle directly on the plot - bolded and
   darkened when p_adj < .05 so significant panels visually pop out of the grid. This uses
   the exact same `p_adj` as the `Yes`/`Kinda`/`No` text below it, so the two can never
   disagree with each other.
@@ -34,346 +37,53 @@ Inoc-only subset) - this happens automatically from the model structure in
 old table's "Yes (duh)" cells don't reappear: there's no tautological "does inoculation
 predict colonization" test being run in the first place anymore.
 
-```{r, message=FALSE}
-# kableExtra isn't used elsewhere in your scripts yet - install if needed:
-# install.packages("kableExtra")
-library(kableExtra)
+This is one of **three** near-identical grid docs - see also
+[Significance_Grid_Inter_DRAFT.Rmd] (Inter pots only) and
+[Significance_Grid_Mono_DRAFT.Rmd] (Mono pots only). All three source the same
+`battery_core.R` (model-fitting) and `grid_helpers.R` (plot/table-rendering) files, so
+there's one place to fix anything rather than three.
 
-source("battery_core.R")
+```{r, message=FALSE}
+source("battery_core.R")   # combined/inoc_only/inter_only/mono_only, battery_spec,
+                             # spec_by_label, results_list, term_summary (scope = "full")
+source("grid_helpers.R")    # plot_cell(), direction_label(), build_cell_data(), render_grid()
 ```
 
 ```{r}
-# Where the per-cell PNG thumbnails get saved. Created fresh each knit.
+# Where the per-cell PNG thumbnails get saved. Created fresh each knit. Each
+# of the three grid docs uses its own directory (this one has no suffix,
+# the Inter/Mono docs use "_inter"/"_mono") so their same-named cells (e.g.
+# "Wheat_total_NPP_per_plant__Water.png" occurs in all three) don't collide
+# or overwrite each other on disk.
 plot_dir <- "significance_grid_plots"
 dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
 ```
 
-# 1. Helper: turn "Inoculation:Water" into a direction sentence
+# 1. Build the cell data (one row per response variable x ANOVA term)
 
 ```{r}
-direction_label <- function(data, response, term_vars) {
-  # term_vars is the term string split on ":", e.g. c("Water") for a main
-  # effect, or c("Inoculation","Water") for a 2-way interaction.
-
-  if (length(term_vars) == 1) {
-    # ---- Main effect: just rank the group means, high to low ----
-    form  <- stats::as.formula(paste(response, "~", term_vars[1]))
-    means <- stats::aggregate(form, data = data, FUN = mean, na.rm = TRUE)
-    means <- means[order(-means[[response]]), ]
-    paste(means[[term_vars[1]]], collapse = " > ")
-
-  } else if (length(term_vars) == 2) {
-    # ---- 2-way interaction: rank factor A's levels SEPARATELY within each
-    # level of factor B, e.g. "Inter: Inoc > Strl" / "Mono: Strl > Inoc" -
-    # this is exactly the by-hand format you used in the old PDF table.
-    fA <- term_vars[1]
-    fB <- term_vars[2]
-    form  <- stats::as.formula(paste(response, "~", fA, "+", fB))
-    means <- stats::aggregate(form, data = data, FUN = mean, na.rm = TRUE)
-
-    splits <- split(means, means[[fB]])
-    lines <- vapply(names(splits), function(lvl) {
-      sub <- splits[[lvl]]
-      sub <- sub[order(-sub[[response]]), ]
-      paste0(lvl, ": ", paste(sub[[fA]], collapse = " > "))
-    }, character(1))
-    paste(lines, collapse = "<br>")
-
-  } else {
-    # ---- 3-way interaction: too many combinations for a one-line summary -
-    # leave a pointer to the thumbnail instead of guessing at a caption.
-    # (Your old table hand-wrote this row too, e.g. the "But! In mono,
-    # strl > inoc..." note - that kind of nuance still needs a human once
-    # you're looking at the actual faceted plot below.)
-    "see facets ->"
-  }
-}
+cell_data <- build_cell_data(term_summary, spec_by_label, results_list, plot_dir)
 ```
 
-# 2. Helper: format a p-value into stars + text
+# 2. Render the two grids (mass / percent), matching the old table's layout
 
 ```{r}
-# Standard significance-star convention. Deliberately keyed off p_adj (the
-# same BH-adjusted value that decides the Yes/Kinda(<.1)/No label below the
-# plot) - not raw p - so the star on the figure can never disagree with the
-# text label next to it.
-p_to_stars <- function(p) {
-  dplyr::case_when(
-    p < 0.001 ~ "***",
-    p < 0.01  ~ "**",
-    p < 0.05  ~ "*",
-    p < 0.10  ~ ".",     # conventional "marginal" marker
-    TRUE      ~ "ns"
-  )
-}
-
-format_p <- function(p) {
-  if (p < 0.001) "p < .001" else paste0("p = ", formatC(p, digits = 3, format = "f"))
-}
+term_labels <- term_labels_for_scope("full")
 ```
 
-# 3. Helper: build + save one cell's thumbnail plot
+## 2.1 Mass variables (grams, per plant)
 
 ```{r}
-plot_cell <- function(data, response, term_vars, out_dir, cell_id, p_val) {
-
-  # ---- Step 1: mean + standard error per group, however many factors ----
-  summary_df <- data %>%
-    dplyr::group_by(dplyr::across(dplyr::all_of(term_vars))) %>%
-    dplyr::summarise(
-      mean_y = mean(.data[[response]], na.rm = TRUE),
-      se_y   = sd(.data[[response]], na.rm = TRUE) / sqrt(sum(!is.na(.data[[response]]))),
-      .groups = "drop"
-    )
-
-  # ---- Step 2: decide which factor goes on x / color / facet ----
-  # Whichever factor has the MOST levels goes on the x-axis (in our design
-  # that's always Water, when Water is involved, since it has 3 levels vs.
-  # 2 for Inoculation/Polyculture). Second-most goes to color. Third (only
-  # for the 3-way term) goes to facets.
-  n_levels     <- sapply(term_vars, function(v) dplyr::n_distinct(data[[v]]))
-  ordered_vars <- term_vars[order(-n_levels)]
-
-  x_var     <- ordered_vars[1]
-  color_var <- if (length(ordered_vars) >= 2) ordered_vars[2] else NA
-  facet_var <- if (length(ordered_vars) == 3) ordered_vars[3] else NA
-
-  # ---- Step 3: build the plot ----
-  # IMPORTANT ORDERING NOTE: theme_minimal() is a COMPLETE theme, not an
-  # incremental tweak - adding it AFTER a theme(legend.position = "bottom")
-  # call (as an earlier version of this function did, and as is easy to do
-  # by accident) silently wipes that setting back to theme_minimal()'s own
-  # default (legend on the right), which is exactly what was cramming the
-  # legend into the corner of the interaction-plot thumbnails. Fix: apply
-  # theme_minimal() FIRST, immediately on creation, and only ever use plain
-  # theme(...) calls (which merge into the existing theme rather than
-  # replacing it) after that point.
-  if (length(term_vars) == 1) {
-    p <- ggplot(summary_df, aes(x = .data[[x_var]], y = mean_y)) +
-      theme_minimal(base_size = 6) +
-      geom_col(fill = "grey30", width = 0.6) +
-      geom_errorbar(aes(ymin = mean_y - se_y, ymax = mean_y + se_y), width = 0.15)
-  } else {
-    p <- ggplot(summary_df, aes(x = .data[[x_var]], y = mean_y,
-                                 color = .data[[color_var]], group = .data[[color_var]])) +
-      theme_minimal(base_size = 6) +
-      geom_line(linewidth = 0.5) +
-      geom_point(size = 1) +
-      geom_errorbar(aes(ymin = mean_y - se_y, ymax = mean_y + se_y), width = 0.15) +
-      theme(legend.position = "bottom",
-            legend.title    = element_blank(),
-            legend.text     = element_text(size = 5),
-            legend.key.size = unit(3, "mm"),
-            legend.margin   = margin(t = -4))
-
-    if (!is.na(facet_var)) {
-      p <- p + facet_wrap(stats::as.formula(paste("~", facet_var)))
-    }
-  }
-
-  # ---- Step 4: p-value + stars as a subtitle directly on the plot ----
-  # This is the new part: rather than only stating "Yes"/"Kinda"/"No" in the
-  # table cell text below the image, the actual number and stars are baked
-  # into the figure itself - so if this thumbnail is ever pulled out and
-  # used on its own (e.g. dropped into the thesis as a standalone figure),
-  # it's still self-labeled and doesn't depend on the surrounding table.
-  subtitle_txt <- paste0(format_p(p_val), "  ", p_to_stars(p_val))
-
-  # `expand_limits(y = 0)` is the actual fix for "0 should always be at the
-  # bottom": geom_col() already anchors bars at 0 by default, but the
-  # interaction plots (geom_line/geom_point) don't - their y-axis just
-  # ranges over whatever the group means happen to span, which does NOT
-  # necessarily reach down to 0. This forces every panel's axis to include
-  # 0 as its floor, bar chart or line chart alike, so the baseline is
-  # consistent across the whole grid. (It only ever EXTENDS the range to
-  # reach 0 - it can't clip data - so nothing gets cut off.)
-  #
-  # NOTE: this is a real fix on top of the plot_response change in
-  # battery_core.R (drawing the natural 0-1 proportion scale instead of the
-  # logit scale used for the model) - that change is what stopped the
-  # percent-family panels from going negative in the first place, which was
-  # the actual root cause of "0 at the top" for some of them. This
-  # expand_limits() call is a belt-and-suspenders guarantee on top of that.
-  p <- p +
-    ggplot2::expand_limits(y = 0) +
-    labs(subtitle = subtitle_txt) +
-    theme(
-      axis.title      = element_blank(),
-      plot.margin     = margin(1, 1, 1, 1),
-      # Bold + darker when the BH-adjusted result is significant (p < .05),
-      # so a significant panel visually pops out of the grid even before
-      # you read the number - grey/plain otherwise so "ns" doesn't compete
-      # for attention.
-      plot.subtitle   = element_text(
-        size   = 5.5,
-        face   = ifelse(p_val < 0.05, "bold", "plain"),
-        colour = ifelse(p_val < 0.05, "black", "grey40"),
-        hjust  = 0.5,
-        margin = margin(b = 1)
-      )
-    )
-
-  # ---- Step 5: save + return the file path ----
-  # Height bumped up slightly from the first version (1.0 -> 1.2 in) to
-  # leave room for the new subtitle line without it overlapping the plot.
-  out_path <- file.path(out_dir, paste0(cell_id, ".png"))
-  ggplot2::ggsave(out_path, p, width = 1.3, height = 1.2, dpi = 150)
-  out_path
-}
+render_grid("mass", cell_data, battery_spec, term_labels)
 ```
 
-# 4. Build one row per (response variable, ANOVA term) cell
+## 2.2 Percent / allocation variables
 
 ```{r}
-# term_summary (from battery_core.R) already has one row per label x term,
-# with the BH-adjusted p_adj we agreed to key the labels off. We add the
-# significance code, direction text, and thumbnail path here.
-cell_data <- term_summary %>%
-  dplyr::mutate(
-    term_vars = strsplit(term, ":"),
-    sig = dplyr::case_when(
-      p_adj < 0.05 ~ "Yes",
-      p_adj < 0.10 ~ "Kinda (&lt;.1)",
-      TRUE         ~ "No"
-    )
-  )
-
-# purrr::pmap_chr walks label + term_vars together, row by row, looking up
-# that label's actual data/response from spec_by_label (built in
-# battery_core.R) to compute the direction text and render the plot.
-cell_data$direction <- purrr::map2_chr(
-  cell_data$label, cell_data$term_vars,
-  function(lbl, tv) {
-    spec <- spec_by_label[[lbl]]
-    direction_label(spec$data, spec$response, tv)
-  }
-)
-
-# p_adj is now passed straight into plot_cell() too, so the number/stars
-# baked into the image are guaranteed to be the same p_adj driving `sig`
-# above - never a second, silently-different p-value.
-#
-# A figure is generated for EVERY cell, "No" included - per your call, you'd
-# rather always have the picture available to glance at than save the
-# render time. (An earlier draft skipped "No" cells here; reverted.)
-#
-# spec$plot_response is used instead of spec$response when it's set - that's
-# the natural 0-1 scale for the logit-transformed percent/AMF variables (see
-# battery_core.R comment on plot_response for why: plotting the raw logit
-# values put "0" at the top of the panel for some variables and the bottom
-# for others, entirely depending on which side of 0.5 that variable's mean
-# happened to fall on).
-cell_data$plot_path <- purrr::pmap_chr(
-  list(cell_data$label, cell_data$term, cell_data$term_vars, cell_data$p_adj),
-  function(lbl, trm, tv, p_val) {
-    spec           <- spec_by_label[[lbl]]
-    plot_response  <- if (is.null(spec$plot_response)) spec$response else spec$plot_response
-    cell_id        <- paste(gsub("[^A-Za-z0-9]", "_", lbl), gsub(":", "_", trm), sep = "__")
-    plot_cell(spec$data, plot_response, tv, out_dir = plot_dir, cell_id = cell_id, p_val = p_val)
-  }
-)
-
-# ---- Styling per significance level ----
-# Yes/Kinda get a tinted cell background + colored bold label so they pop
-# out of the grid at a glance; No stays plain/muted so it visually recedes
-# instead of competing for attention. This is a plain if/else (not
-# dplyr::case_when) because it runs once per row inside the pmap below, on
-# a single scalar `sig` value each time - case_when is for vectorized use.
-sig_style <- function(sig) {
-  if (sig == "Yes") {
-    list(bg = "#e9f7ec", fg = "#1a7431", weight = "bold")     # green tint
-  } else if (sig == "Kinda (&lt;.1)") {
-    list(bg = "#fff8e1", fg = "#8a6100", weight = "bold")     # amber tint
-  } else {
-    list(bg = "transparent", fg = "#999999", weight = "normal")  # No: muted, no tint
-  }
-}
-
-# ---- Assemble the actual HTML that will go inside each table cell ----
-# knitr::image_uri() base64-encodes the PNG straight into the <img> tag, so
-# the knitted HTML file is self-contained (no separate image files it
-# depends on to display correctly if you move/share the .html).
-cell_data$cell_html <- purrr::pmap_chr(
-  list(cell_data$sig, cell_data$direction, cell_data$plot_path),
-  function(sig, dir, path) {
-    sty <- sig_style(sig)
-
-    # Every cell gets its image + direction text now, "No" included -
-    # only the background tint/label color (sig_style) distinguishes them.
-    img_html <- paste0('<img src="', knitr::image_uri(path), '" width="70"><br>')
-    dir_html <- paste0("<br><span style='font-size:85%;color:#555'>", dir, "</span>")
-
-    paste0(
-      "<div style='background-color:", sty$bg, "; padding:4px; border-radius:4px;'>",
-      img_html,
-      "<b style='color:", sty$fg, "; font-weight:", sty$weight, ";'>", sig, "</b>",
-      dir_html,
-      "</div>"
-    )
-  }
-)
+render_grid("percent", cell_data, battery_spec, term_labels)
 ```
 
-# 5. Render the two grids (mass / percent), matching the old table's layout
-
-```{r}
-# Row order + friendlier row labels than the raw "Inoculation:Water" term
-# strings - matches the order your old PDF table used.
-term_labels <- c(
-  "Polyculture"                   = "Polyculture",
-  "Inoculation"                   = "AMF inoculation",
-  "Water"                         = "Water (PPT)",
-  "Inoculation:Polyculture"       = "Poly:Inoc",
-  "Polyculture:Water"             = "Poly:Water",
-  "Inoculation:Water"             = "Inoc:Water",
-  "Inoculation:Polyculture:Water" = "Poly:Inoc:Water (all 3)"
-)
-term_order <- names(term_labels)
-
-render_grid <- function(group) {
-  # Which labels (response variables) belong in this grid, and in what
-  # column order - taken straight from battery_spec so this file never
-  # has to repeat that list itself.
-  labels_in_group <- battery_spec %>%
-    purrr::keep(~ .x$display_group == group) %>%
-    purrr::map_chr("label")
-
-  grid_df <- cell_data %>%
-    dplyr::filter(label %in% labels_in_group) %>%
-    dplyr::mutate(term = factor(term, levels = term_order)) %>%
-    dplyr::select(term, label, cell_html) %>%
-    tidyr::pivot_wider(names_from = label, values_from = cell_html) %>%
-    dplyr::arrange(term) %>%
-    # Blank out any term row this response family never fits (NA from the
-    # pivot = "this term isn't in that variable's model") with a muted
-    # "NA" tag instead of a literal R "NA" string.
-    dplyr::mutate(dplyr::across(
-      -term,
-      ~ ifelse(is.na(.x), "<span style='color:#aaa'><i>NA</i></span>", .x)
-    )) %>%
-    dplyr::mutate(term = term_labels[as.character(term)]) %>%
-    dplyr::select(term, dplyr::all_of(labels_in_group))
-
-  grid_df %>%
-    knitr::kable(format = "html", escape = FALSE, col.names = c("", labels_in_group)) %>%
-    kableExtra::kable_styling(full_width = FALSE, font_size = 11) %>%
-    kableExtra::column_spec(1, bold = TRUE, background = "#f0f0f0")
-}
-```
-
-## 5.1 Mass variables (grams, per plant)
-
-```{r}
-render_grid("mass")
-```
-
-## 5.2 Percent / allocation variables
-
-```{r}
-render_grid("percent")
-```
-
-# 6. What this doesn't do (yet)
+# 3. What this doesn't do (yet)
 
 This only rebuilds grids 1+2 from your PDF (the significance codes + figures-with-
 direction). It does **not** rebuild grid 3 (the literature-comparison table with the
