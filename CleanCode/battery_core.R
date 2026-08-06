@@ -156,6 +156,22 @@ run_anova_check <- function(data,             # data frame to fit on (already su
 # grids ("mass" columns in raw grams, vs "percent" columns) a variable
 # belongs in, mirroring how your old PDF table split across two grids.
 # It has no effect on the ANOVA/FDR logic, which still keys off `family`.
+#
+# `plot_response` is also NEW, and purely cosmetic like `display_group`: it
+# tells the thumbnail plots which column to actually draw, separate from
+# `response` (what the model is fit on). This matters for every _logit
+# variable below - the model needs the logit scale to be valid, but a bar
+# chart of logit values goes negative whenever the underlying proportion is
+# below 0.5, which put "0" at the TOP of the panel for some variables (e.g.
+# aboveground allocation, usually <50%) and at the BOTTOM for others (e.g.
+# belowground allocation, usually >50%) - same transform, opposite-looking
+# axis, purely depending on which side of 0.5 that variable's mean happens
+# to sit. Plotting the original 0-1 proportion instead keeps every
+# percent-family thumbnail non-negative, so 0 is always at the bottom.
+# Variables without a `plot_response` entry just fall back to `response`
+# (see the fallback logic in Significance_Grid_DRAFT.Rmd) - that covers all
+# the mass-family variables, which were never transformed and are already
+# non-negative grams.
 battery_spec <- list(
 
   # ---------------- Biomass family: raw grams, per plant, full 3-way --------
@@ -182,27 +198,34 @@ battery_spec <- list(
   # from your old PDF table, which wasn't in the original battery_spec.
 
   # ---------------- Allocation family: logit-transformed %, full 3-way ------
+  # (plot_response = the un-transformed 0-1 column, so the thumbnail shows
+  # the natural proportion instead of the logit scale used for the model.)
   list(label = "Aboveground allocation (%)", response = "W_pcent_ANPP_logit",    data = combined,
        predictors = c("Inoculation", "Polyculture", "Water"), family = "allocation",
-       posthoc_rhs = "Water | Inoculation * Polyculture", display_group = "percent"),
+       posthoc_rhs = "Water | Inoculation * Polyculture", display_group = "percent",
+       plot_response = "W_pcent_ANPP"),
 
   list(label = "Belowground allocation (%)", response = "W_pcent_BNPP_logit",   data = combined,
        predictors = c("Inoculation", "Polyculture", "Water"), family = "allocation",
-       posthoc_rhs = "Water | Inoculation * Polyculture", display_group = "percent"),
+       posthoc_rhs = "Water | Inoculation * Polyculture", display_group = "percent",
+       plot_response = "W_pcent_BNPP"),
 
   list(label = "Berry allocation (%)",       response = "W_pcent_berries_logit", data = combined,
        predictors = c("Inoculation", "Polyculture", "Water"), family = "allocation",
-       posthoc_rhs = "Water | Inoculation * Polyculture", display_group = "percent"),
+       posthoc_rhs = "Water | Inoculation * Polyculture", display_group = "percent",
+       plot_response = "W_pcent_berries"),
   # W_pcent_vegetative deliberately left out - it's just 1 - W_pcent_berries.
 
   # ---------------- AMF family: Inoc-only subset, 2-way ----------------------
   list(label = "Hyphal colonization (%)",        response = "hyphal_colonization_logit",   data = inoc_only,
        predictors = c("Polyculture", "Water"), family = "amf",
-       posthoc_rhs = "Water | Polyculture", display_group = "percent"),
+       posthoc_rhs = "Water | Polyculture", display_group = "percent",
+       plot_response = "hyphal_colonization"),
 
   list(label = "Arbuscular/vesicular colonization (%)", response = "arb_vesc_colonization_logit", data = inoc_only,
        predictors = c("Polyculture", "Water"), family = "amf",
-       posthoc_rhs = "Water | Polyculture", display_group = "percent"),
+       posthoc_rhs = "Water | Polyculture", display_group = "percent",
+       plot_response = "arb_vesc_colonization"),
 
   # ---------------- Fava family: Inter-only subset, 2-way --------------------
   list(label = "Fava biomass",          response = "Fava_g",             data = inter_only,
@@ -211,7 +234,8 @@ battery_spec <- list(
 
   list(label = "Fava % of pot biomass", response = "Pot_pcent_fava_logit", data = inter_only,
        predictors = c("Inoculation", "Water"), family = "fava",
-       posthoc_rhs = "Water | Inoculation", display_group = "percent")
+       posthoc_rhs = "Water | Inoculation", display_group = "percent",
+       plot_response = "Pot_pcent_fava")
 
   # To add another variable: copy one list() entry, change the fields, and
   # add it to this list (comma-separated).
