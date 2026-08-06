@@ -1,0 +1,79 @@
+---
+title: "Significance grid - Intercropped only - DRAFT (for review)"
+author: "CLAUDE + Celeste Basken"
+date: "2026-08-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# READ ME FIRST
+
+Same grid as `Significance_Grid_DRAFT.Rmd`, restricted to **Inter (intercropped) pots
+only**. Everything about how a cell is built - the `Yes`/`Kinda (<.1)`/`No` label off
+BH-adjusted `p_adj`, the direction text, the thumbnail with its p-value/stars baked in -
+is identical; only the underlying models change, because of what dropping down to one
+polyculture does to the design:
+
+- **Polyculture is no longer a predictor.** Every pot here is Inter, so there's no
+  variation left for Polyculture to explain - the 3-way `Inoculation*Polyculture*Water`
+  models from the full-dataset grid become 2-way `Inoculation*Water` models. That means
+  there's no "Polyculture", "Poly:Inoc", "Poly:Water", or 3-way row in this grid at all -
+  they're not blank/`NA`, they simply don't exist as term rows here (`term_labels_for_scope
+  ("inter")` only has 3 possible terms: `AMF inoculation`, `Water (PPT)`, `Inoc:Water`).
+- **AMF colonization** is fit on Inoc-only Inter pots, with `Water` as the only predictor
+  (Polyculture is fixed by this doc's scope; Inoculation is fixed by the Inoc-only
+  subsetting - neither has any variation left to test).
+- **Fava columns are included** (unlike the Mono-only grid) - every Inter pot has a fava
+  plant, so `Fava biomass` and `Fava % of pot biomass` are still meaningful here, modeled
+  as `Inoculation*Water`.
+
+All of this comes from `build_battery_spec("inter")` in `battery_core.R` - nothing here is
+hand-adjusted per variable.
+
+```{r, message=FALSE}
+source("battery_core.R")   # combined/inoc_only/inter_only/mono_only, run_anova_check(),
+                             # build_battery_spec(), run_battery()
+source("grid_helpers.R")    # plot_cell(), direction_label(), build_cell_data(), render_grid()
+```
+
+```{r}
+# This scope's own spec + fitted battery - NOT the top-level battery_spec/
+# term_summary that battery_core.R also builds (those are scope = "full").
+battery_spec_inter <- build_battery_spec("inter")
+batt_inter          <- run_battery(battery_spec_inter)
+```
+
+```{r}
+# Own plot directory, separate from the full-dataset grid's, so identically-
+# named cells (e.g. a "Water" main-effect thumbnail exists in both grids)
+# don't overwrite each other on disk.
+plot_dir <- "significance_grid_plots_inter"
+dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+# 1. Build the cell data (one row per response variable x ANOVA term)
+
+```{r}
+cell_data <- build_cell_data(batt_inter$term_summary, batt_inter$spec_by_label, batt_inter$results_list, plot_dir)
+```
+
+# 2. Render the two grids (mass / percent)
+
+```{r}
+term_labels <- term_labels_for_scope("inter")
+```
+
+## 2.1 Mass variables (grams, per plant)
+
+```{r}
+render_grid("mass", cell_data, battery_spec_inter, term_labels)
+```
+
+## 2.2 Percent / allocation variables
+
+```{r}
+render_grid("percent", cell_data, battery_spec_inter, term_labels)
+```
