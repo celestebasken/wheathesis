@@ -1,0 +1,105 @@
+---
+title: "Significance grid - Hyphal colonization (continuous) - Full dataset - DRAFT (for review)"
+author: "CLAUDE + Celeste Basken"
+date: "2026-08-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# READ ME FIRST
+
+Same grid shape as `Significance_Grid_DRAFT.Rmd`, but with the binary `Inoculation`
+(Inoc/Strl) factor replaced by the **continuous** `hyphal_colonization` measurement -
+i.e. instead of "did you inoculate this pot," the predictor is "how much AMF colonization
+actually resulted." This is a different statistical question, not just a different
+column, so several things about the table are genuinely different:
+
+- **Only Inoc pots are used** (n=30 of the full 60), same reasoning already applied to the
+  AMF-colonization rows in the categorical grid: `hyphal_colonization` is ~0 for every
+  Strl pot by construction (nothing was inoculated), not a real measured value on the same
+  continuous scale - including Strl pots would just be re-detecting the Inoc/Strl split in
+  disguise, with noise added.
+- **Models are ANCOVA-style**, `response ~ hyphal_colonization * Polyculture * Water`, not
+  the categorical 3-way factorial. Type II sums-of-squares (`car::Anova`) work the same way
+  for a mix of continuous and categorical terms as for all-categorical ones.
+- **No "AMF family" rows.** `hyphal_colonization`/`arb_vesc_colonization` were response
+  variables in the categorical grid; here `hyphal_colonization` IS the predictor, so it
+  can't also be an outcome being predicted by itself.
+- **Post-hoc is `emtrends()`, not `emmeans()` pairwise comparisons.** There's no "group
+  mean" to compare for a continuous predictor - the equivalent question is "does the
+  SLOPE of hyphal_colonization on the response differ across Water/Polyculture levels,"
+  answered by comparing estimated slopes (trends) instead of estimated means.
+- **Direction text describes a slope**, not a ranking - e.g. `↑ hyphal colonization →
+  ↑ response (slope = 2.13)` for a main effect, or one slope per group for an interaction
+  (e.g. `Control: slope +1.8<br>Severe: slope -0.4`).
+- **Thumbnails are scatter + linear-regression-line plots**, not bar/line-of-means charts -
+  color/facet still follow the same "more levels → facet, fewer → color" convention as the
+  categorical grid's interaction plots.
+- **Levene's test only checks variance homogeneity across the categorical predictors**
+  (Water, Polyculture) - it can't group observations by a continuous variable, so it does
+  NOT check for a "fan-shaped" residual pattern across the range of hyphal_colonization
+  itself. Flagged rather than silently treated as equivalent to the categorical grid's
+  Levene check.
+
+**A real power caveat, not just a formality:** restricting to Inoc-only pots means every
+model here starts from n=30 - already half of what the categorical "full" grid uses -
+before even splitting into the 2×3 = 6 cells of Polyculture×Water (~5 pots/cell). Treat
+the 3-way interaction row's per-facet slopes here as exploratory. `assumption_summary`
+below shows the actual `n` per model so this isn't hidden.
+
+```{r, message=FALSE}
+source("battery_core.R")              # combined/inoc_only/inter_only/mono_only, run_battery()
+source("battery_core_continuous.R")   # build_battery_spec_continuous(), run_ancova_check()
+source("grid_helpers.R")              # sig_style(), apply_significance_subtitle(), build_cell_data(), render_grid()
+source("grid_helpers_continuous.R")   # direction_label_continuous(), plot_cell_continuous(), term_labels_for_scope_continuous()
+```
+
+```{r}
+battery_spec_hyphal_full <- build_battery_spec_continuous("full")
+batt_hyphal_full          <- run_battery(battery_spec_hyphal_full, model_fn = run_ancova_check)
+```
+
+```{r}
+# Assumption checks first, before the grid - small-n models are the main
+# thing worth actually reading here (see the power caveat above).
+knitr::kable(batt_hyphal_full$assumption_summary,
+             caption = "Assumption checks - Hyphal colonization (continuous), Full dataset")
+```
+
+```{r}
+# Own plot directory, separate from every other grid doc's.
+plot_dir <- "significance_grid_plots_hyphal_full"
+dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+# 1. Build the cell data (one row per response variable x ANOVA term)
+
+```{r}
+cell_data <- build_cell_data(
+  batt_hyphal_full$term_summary, batt_hyphal_full$spec_by_label, batt_hyphal_full$results_list,
+  plot_dir,
+  direction_fn = direction_label_continuous,
+  plot_fn      = plot_cell_continuous
+)
+```
+
+# 2. Render the two grids (mass / percent)
+
+```{r}
+term_labels <- term_labels_for_scope_continuous("full")
+```
+
+## 2.1 Mass variables (grams, per plant)
+
+```{r}
+render_grid("mass", cell_data, battery_spec_hyphal_full, term_labels)
+```
+
+## 2.2 Percent / allocation variables
+
+```{r}
+render_grid("percent", cell_data, battery_spec_hyphal_full, term_labels)
+```

@@ -1,0 +1,81 @@
+---
+title: "Significance grid - Hyphal colonization (continuous) - Intercropped only - DRAFT (for review)"
+author: "CLAUDE + Celeste Basken"
+date: "2026-08-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# READ ME FIRST
+
+Same as `Significance_Grid_Hyphal_Full_DRAFT.Rmd` (see that file's READ ME for the full
+explanation of what's different about a continuous predictor - ANCOVA models, `emtrends()`
+post-hoc, scatter+regression thumbnails, the adapted Levene check), restricted to **Inter
+(intercropped) pots that were also inoculated** (`Polyculture == "Inter" & Inoculation ==
+"Inoc"`). That's only **n=15 pots** - half of the categorical Inter-only grid's 30, since
+only Inoc pots have a real `hyphal_colonization` value to use as a predictor. Models here
+are `response ~ hyphal_colonization * Water` (Polyculture is constant within this subset,
+same as the categorical Inter-only grid).
+
+**Power caveat, more acute here than in the Full-dataset version:** n=15 total means only
+~5 pots per Water level - thin for any slope estimate, thinner still for the
+`hyphal_colonization:Water` interaction row (comparing 3 slopes, each drawn from ~5
+points). Read `assumption_summary` below before trusting any single cell here.
+
+Fava columns are included (every Inter pot has a fava plant, so "does colonization level
+predict fava biomass" is still a meaningful question); no AMF-family rows (colonization
+can't predict itself).
+
+```{r, message=FALSE}
+source("battery_core.R")              # combined/inoc_only/inter_only/mono_only, run_battery()
+source("battery_core_continuous.R")   # build_battery_spec_continuous(), run_ancova_check()
+source("grid_helpers.R")              # sig_style(), apply_significance_subtitle(), build_cell_data(), render_grid()
+source("grid_helpers_continuous.R")   # direction_label_continuous(), plot_cell_continuous(), term_labels_for_scope_continuous()
+```
+
+```{r}
+battery_spec_hyphal_inter <- build_battery_spec_continuous("inter")
+batt_hyphal_inter          <- run_battery(battery_spec_hyphal_inter, model_fn = run_ancova_check)
+```
+
+```{r}
+knitr::kable(batt_hyphal_inter$assumption_summary,
+             caption = "Assumption checks - Hyphal colonization (continuous), Inter only")
+```
+
+```{r}
+plot_dir <- "significance_grid_plots_hyphal_inter"
+dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+# 1. Build the cell data (one row per response variable x ANOVA term)
+
+```{r}
+cell_data <- build_cell_data(
+  batt_hyphal_inter$term_summary, batt_hyphal_inter$spec_by_label, batt_hyphal_inter$results_list,
+  plot_dir,
+  direction_fn = direction_label_continuous,
+  plot_fn      = plot_cell_continuous
+)
+```
+
+# 2. Render the two grids (mass / percent)
+
+```{r}
+term_labels <- term_labels_for_scope_continuous("inter")
+```
+
+## 2.1 Mass variables (grams, per plant)
+
+```{r}
+render_grid("mass", cell_data, battery_spec_hyphal_inter, term_labels)
+```
+
+## 2.2 Percent / allocation variables
+
+```{r}
+render_grid("percent", cell_data, battery_spec_hyphal_inter, term_labels)
+```
