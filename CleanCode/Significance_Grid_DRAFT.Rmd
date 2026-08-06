@@ -179,7 +179,23 @@ plot_cell <- function(data, response, term_vars, out_dir, cell_id, p_val) {
   # it's still self-labeled and doesn't depend on the surrounding table.
   subtitle_txt <- paste0(format_p(p_val), "  ", p_to_stars(p_val))
 
+  # `expand_limits(y = 0)` is the actual fix for "0 should always be at the
+  # bottom": geom_col() already anchors bars at 0 by default, but the
+  # interaction plots (geom_line/geom_point) don't - their y-axis just
+  # ranges over whatever the group means happen to span, which does NOT
+  # necessarily reach down to 0. This forces every panel's axis to include
+  # 0 as its floor, bar chart or line chart alike, so the baseline is
+  # consistent across the whole grid. (It only ever EXTENDS the range to
+  # reach 0 - it can't clip data - so nothing gets cut off.)
+  #
+  # NOTE: this is a real fix on top of the plot_response change in
+  # battery_core.R (drawing the natural 0-1 proportion scale instead of the
+  # logit scale used for the model) - that change is what stopped the
+  # percent-family panels from going negative in the first place, which was
+  # the actual root cause of "0 at the top" for some of them. This
+  # expand_limits() call is a belt-and-suspenders guarantee on top of that.
   p <- p +
+    ggplot2::expand_limits(y = 0) +
     labs(subtitle = subtitle_txt) +
     theme(
       axis.title      = element_blank(),
@@ -236,14 +252,42 @@ cell_data$direction <- purrr::map2_chr(
 # p_adj is now passed straight into plot_cell() too, so the number/stars
 # baked into the image are guaranteed to be the same p_adj driving `sig`
 # above - never a second, silently-different p-value.
+#
+# A figure is generated for EVERY cell, "No" included - per your call, you'd
+# rather always have the picture available to glance at than save the
+# render time. (An earlier draft skipped "No" cells here; reverted.)
+#
+# spec$plot_response is used instead of spec$response when it's set - that's
+# the natural 0-1 scale for the logit-transformed percent/AMF variables (see
+# battery_core.R comment on plot_response for why: plotting the raw logit
+# values put "0" at the top of the panel for some variables and the bottom
+# for others, entirely depending on which side of 0.5 that variable's mean
+# happened to fall on).
 cell_data$plot_path <- purrr::pmap_chr(
   list(cell_data$label, cell_data$term, cell_data$term_vars, cell_data$p_adj),
   function(lbl, trm, tv, p_val) {
-    spec    <- spec_by_label[[lbl]]
-    cell_id <- paste(gsub("[^A-Za-z0-9]", "_", lbl), gsub(":", "_", trm), sep = "__")
-    plot_cell(spec$data, spec$response, tv, out_dir = plot_dir, cell_id = cell_id, p_val = p_val)
+    spec           <- spec_by_label[[lbl]]
+    plot_response  <- if (is.null(spec$plot_response)) spec$response else spec$plot_response
+    cell_id        <- paste(gsub("[^A-Za-z0-9]", "_", lbl), gsub(":", "_", trm), sep = "__")
+    plot_cell(spec$data, plot_response, tv, out_dir = plot_dir, cell_id = cell_id, p_val = p_val)
   }
 )
+
+# ---- Styling per significance level ----
+# Yes/Kinda get a tinted cell background + colored bold label so they pop
+# out of the grid at a glance; No stays plain/muted so it visually recedes
+# instead of competing for attention. This is a plain if/else (not
+# dplyr::case_when) because it runs once per row inside the pmap below, on
+# a single scalar `sig` value each time - case_when is for vectorized use.
+sig_style <- function(sig) {
+  if (sig == "Yes") {
+    list(bg = "#e9f7ec", fg = "#1a7431", weight = "bold")     # green tint
+  } else if (sig == "Kinda (&lt;.1)") {
+    list(bg = "#fff8e1", fg = "#8a6100", weight = "bold")     # amber tint
+  } else {
+    list(bg = "transparent", fg = "#999999", weight = "normal")  # No: muted, no tint
+  }
+}
 
 # ---- Assemble the actual HTML that will go inside each table cell ----
 # knitr::image_uri() base64-encodes the PNG straight into the <img> tag, so
@@ -252,11 +296,19 @@ cell_data$plot_path <- purrr::pmap_chr(
 cell_data$cell_html <- purrr::pmap_chr(
   list(cell_data$sig, cell_data$direction, cell_data$plot_path),
   function(sig, dir, path) {
-    img_tag <- paste0('<img src="', knitr::image_uri(path), '" width="70">')
+    sty <- sig_style(sig)
+
+    # Every cell gets its image + direction text now, "No" included -
+    # only the background tint/label color (sig_style) distinguishes them.
+    img_html <- paste0('<img src="', knitr::image_uri(path), '" width="70"><br>')
+    dir_html <- paste0("<br><span style='font-size:85%;color:#555'>", dir, "</span>")
+
     paste0(
-      img_tag, "<br>",
-      "<b>", sig, "</b><br>",
-      "<span style='font-size:85%;color:#555'>", dir, "</span>"
+      "<div style='background-color:", sty$bg, "; padding:4px; border-radius:4px;'>",
+      img_html,
+      "<b style='color:", sty$fg, "; font-weight:", sty$weight, ";'>", sig, "</b>",
+      dir_html,
+      "</div>"
     )
   }
 )
