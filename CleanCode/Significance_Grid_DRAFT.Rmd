@@ -3,8 +3,8 @@ title: "Significance grid - Full dataset - DRAFT (for review)"
 author: "CLAUDE + Celeste Basken"
 date: "2026-08-05"
 output:
-  word_document: default
   html_document: default
+  word_document: default
 ---
 
 ```{r setup, include=FALSE}
