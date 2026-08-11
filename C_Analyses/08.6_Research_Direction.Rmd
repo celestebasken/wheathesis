@@ -1,8 +1,8 @@
 ---
-title: "Step 8.5 — Research Direction"
-subtitle: "AMF × Drought × Neighborhood in Hard Red Spring Wheat: what we asked, what the data show"
-author: "Celeste Basken"
-date: "`r Sys.Date()`"
+title: "Part 8.6 — What to do!"
+subtitle: "AMF × Drought × Neighborhood in Hard Red Spring Wheat"
+author: "Celeste + AI"
+date: "2026-08-09"
 output:
   html_document:
     toc: true
@@ -104,13 +104,13 @@ p_hyph_w <- p_of(m_hyph_q, "Water", test = "F")
 
 ---
 
-# Part 0 — The paper in brief
+# Part 1 — The paper in brief
 
 ## Central question
 
 **Does the plant neighborhood determine whether arbuscular mycorrhizal symbiosis is a benefit or a cost to wheat under drought?**
 
-Mycorrhizal outcomes are famously context-dependent, ranging from strongly beneficial to net
+Mycorrhizal outcomes are context-dependent, ranging from strongly beneficial to net
 costly along a mutualism–parasitism continuum. Nearly all of that literature varies *abiotic*
 context — water, phosphorus, light. This experiment asks whether the *biotic* neighborhood does
 the same work: whether having a legume neighbor changes where wheat falls on that continuum when
@@ -122,85 +122,13 @@ capacity), n = 5 pots per cell, 60 pots, harvested at Zadoks 92.
 
 ## Sub-questions and what the data show
 
-**Q1 — Under drought, does AMF change how wheat divides biomass between growth and grain?**
+### Q1 — Under drought, does AMF change how wheat divides biomass between growth and grain?
 
-Yes, and sharply. Reproductive allocation collapses in inoculated monoculture wheat under severe
+Yes, considerably. Reproductive allocation collapses in inoculated monoculture wheat under severe
 drought while the other three treatment combinations hold roughly steady. The three-way
 Poly × Inoc × Water interaction on berry allocation is significant in the primary beta regression
-(*p* = `r fmt_p(p_3way_beta)`). The effect is *confined* to one cell — monoculture under severe
-drought — which is not a weakness but exactly the localization a three-way interaction predicts.
-
-**Q2 — Is that a genuine allocation shift, or an artifact of AMF making plants bigger?**
-
-A genuine allocation shift. Adjusting for plant size does not weaken the result; it *strengthens*
-it (three-way interaction *p* = `r fmt_p(p_3way_unadj)` unadjusted → `r fmt_p(p_3way_adj)`
-size-adjusted). The reason is that inoculated plants under severe drought were the *larger* ones,
-and larger plants normally produce more grain — so size was masking the penalty rather than
-creating it. 
-
-**Q3 — Does total productivity change too, or only its division?**
-
-Only its division, and this is the cleanest statement the paper can make. The Inoc × Water
-interaction on total wheat NPP is null (*p* = `r fmt_p(p_npp_iw)`). Drought did not change how
-inoculation affected the *amount* of biomass wheat produced — it changed *where that biomass
-went*. Total growth is preserved; grain is not.
-
-**Q4 — Does a legume neighbor change the outcome?**
-
-Yes. The penalty is essentially absent in mixed stands. The pattern has the shape the stress
-gradient hypothesis predicts: monoculture and mixed stands are indistinguishable under control and
-moderate water and diverge only under severe drought. The novel twist is that the divergence
-appears **only in inoculated plants** — the mutualism itself generates the cost that the neighbor
-then offsets. At severe drought the difference-of-differences (Mono − Inter, of the Inoc − Sterile
-gap) is `r round(sev_est, 3)` allocation points, 95% CI [`r round(sev_cl[1], 3)`,
-`r round(sev_cl[2], 3)`].
-
-**Q5 — What does the symbiosis cost the neighbor?**
-
-Inoculation suppressed fava biomass in mixed stands, and that suppression *vanished* under severe
-drought (Inoc × Water on fava biomass, *p* = `r fmt_p(p_supp_iw)`). This is mutualist-mediated
-competition: the fungal partnership tilts the competitive hierarchy toward wheat when water is
-adequate, and stops doing so when it is not. Exploratory, but well powered relative to the other
-exploratory analyses and the strongest non-confirmatory result in the dataset.
-
-**Q6 — What is the mechanism?**
-
-Unresolved, and reported as such. The pre-specified structural test — whether the fungus shifted
-from exchange (arbuscules) toward storage (vesicles) under drought — returned no support
-(Poly × Water on the arbuscule:vesicle ratio, *p* = `r fmt_p(p_av_pw)`). That null is informative
-rather than empty: it rules out the most obvious structural explanation and constrains what the
-mechanism can be. See Figure 5 for what remains on the table.
-
-## The synthesis
-
-Reading Q3, Q4 and Q5 together gives a coherent account:
-
-> **AMF's competitive benefit to wheat is conditional on water; its cost is not.** Under adequate
-> water the partnership pays — visible as fava suppression in mixed stands. Under severe drought
-> the benefit disappears (fava suppression vanishes) while the carbon cost persists. Total growth
-> is unaffected either way; what changes is where the biomass is placed. In monoculture, with no
-> legume neighbor to offset the cost, wheat pays it out of grain. With fava present, it does not.
-
-This is a statement about **the biotic neighborhood setting position on the mutualism–parasitism
-continuum**, which is the paper's contribution. The agronomic implication — that inoculation
-decisions made at planting carry yield risk under drought in monoculture, and that legume
-intercropping may hedge it — follows from this but should be framed as a hypothesis for field
-testing, not a recommendation.
-
-## What the paper claims, and what it does not
-
-| Claims | Does **not** claim |
-|---|---|
-| The AMF effect on wheat reproductive allocation under severe drought depends on stand composition | That fava specifically, via N fixation, rescues wheat yield |
-| The effect is an allocation shift, not a size artifact | That the mechanism is known |
-| Total productivity is unaffected; only allocation shifts | That this predicts field yields |
-| AMF suppresses fava except under severe drought (exploratory) | That AMF alone, isolated from co-introduced microbiota, causes these effects |
-
----
-
-# Part 1 — The figures, explained
-
-## Figure 1. The central result: reproductive allocation
+(*p* = `r fmt_p(p_3way_beta)`). The effect is *confined* to one cell, monoculture under severe
+drought, as predicted by the three-way interaction.
 
 ```{r fig1, fig.width=8.5, fig.height=5.4}
 emm <- as.data.frame(emmeans(m1, ~ Inoc | Poly * Water, type = "response"))
@@ -229,25 +157,18 @@ ggplot(emm, aes(x = Water, y = response, color = Inoc, group = Inoc)) +
   theme(legend.position = "bottom", legend.title = element_blank())
 ```
 
-**What you are looking at.** The proportion of each wheat plant's total biomass that ended up as
+**Description** Figure shows the proportion of each wheat plant's total biomass that ended up as
 grain, across the three water treatments, split by whether the pot was inoculated (blue) or not
-(orange). The left panel is mixed stands; the right is monoculture.
-
-**What it shows.** Three of the four treatment trajectories are unremarkable — allocation drifts
-modestly downward as water declines. The fourth, inoculated monoculture, falls off a cliff at
-severe drought. Everything else in this document exists to establish that this drop is real, that
-it is not a size artifact, and that it is specific to the absence of a legume neighbor.
+(orange), left panel mixed stands and right panel monoculture. Three of the four treatment
+trajectories are unremarkable, as allocation drifts modestly downward while water declines. The fourth, inoculated monoculture, falls off a cliff at severe drought. Further SQs exist to establish that this drop is real (Q2), that it is not accompanied by a change in total 
+productivity (Q3), that it is specific to the absence of a legume neighbor (Q4), what it costs 
+that neighbor when present (Q5), and what mechanism might produce it (Q6).
 
 **The test.** Beta regression with a logit link on the proportion, dispersion allowed to vary by
 stand composition, water partitioned into two planned orthogonal contrasts (severe vs. the mean of
 control and moderate; control vs. moderate) rather than left as an unstructured 3-level factor.
-The designated test is the Poly × Inoc × Water interaction, *p* = `r fmt_p(p_3way_beta)`; the
-Inoc × Water interaction is *p* = `r fmt_p(p_2way_beta)`.
-
-**Why the annotated interval, not letters.** A compact letter display across all 12 cells means 66
-pairwise comparisons and near-zero power, and it would not actually state the claim. The
-difference-of-differences does: it is the amount by which the inoculation penalty is *larger in
-monoculture than in mixed stands*, under severe drought. That single interval is the result.
+The designated test is the Poly × Inoc × Water interaction shown above; the Inoc × Water
+interaction alone is *p* = `r fmt_p(p_2way_beta)`.
 
 **Caveats.** Beta regression is appropriate here because the response is a proportion bounded by 0
 and 1 and because allocation variance is not constant across the range; no values were at the
@@ -256,7 +177,46 @@ below-ground, grain) necessarily sum to one, so they are not independent — gra
 treated as the single primary response and the other two as descriptive, with a Dirichlet
 regression in the Step 8 supplement as a compositional robustness check.
 
-## Figure 2. The gate: is this just plant size?
+#### Supporting evidence: does the dose of colonization matter?
+
+If AMF causes the allocation penalty, more colonization should mean a larger penalty - a
+dose–response gradient would strengthen the causal reading considerably, on top of the randomized
+inoculation contrast above.
+
+```{r fig6, fig.width=8, fig.height=4.6}
+ggplot(col, aes(x = hyphal, y = berry_alloc, color = Water)) +
+  geom_point(size = 2.2, alpha = 0.85) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.7) +
+  facet_wrap(~Poly) +
+  labs(x = "Hyphal colonization (proportion)", y = "Berry allocation",
+       title = "Does more colonization mean a bigger penalty?",
+       subtitle = paste0("Inoculated pots only. One designated test - hyphal x Water: p = ",
+                         fmt_p(p_col_hw), ". \nEXPLORATORY, association only.")) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+```
+
+Restricted to inoculated pots because, across the full dataset, colonization is bimodal - values
+pile near 0 in sterile pots and near 1 in inoculated pots - so a regression on the full range
+would be an inoculation contrast appearing as a continuous-predictor, with the fit driven by
+leverage rather than any real gradient. One interaction test is reported here (*p* =
+`r fmt_p(p_col_hw)`), not three separate per-panel *p*-values - comparing "significant in this
+panel, not in that one" is the same inferential error as comparing separate subset analyses.
+
+The unavoidable caveat: colonization is a plant *response*, not a randomized treatment. Larger or
+healthier root systems can support more hyphae, so reverse causation is live and this figure can
+only ever support association language. The randomized inoculation factor above carries the causal
+claim; this is supporting texture, and here it is inconclusive rather than confirmatory.
+
+### Q2 — Is there a genuine allocation shift, or an artifact of AMF making plants bigger?
+
+A genuine allocation shift. Allocation measured as a ratio is confounded with plant size, because
+plants of different sizes allocate differently regardless of strategy - bigger plants are further
+along the same developmental trajectory, not necessarily following a different one. Both
+treatments here changed plant size, so "AMF reduced grain fraction" could in principle mean
+nothing more than "AMF made plants bigger, and bigger plants have different fractions." The fix is
+to stop comparing ratios and instead ask whether treatments shift the relationship between grain
+output and vegetative size.
 
 ```{r fig2, fig.width=8.5, fig.height=5.5}
 ggplot(wheat, aes(x = log_veg, y = log_berry, color = Inoc)) +
@@ -271,46 +231,42 @@ ggplot(wheat, aes(x = log_veg, y = log_berry, color = Inoc)) +
   theme(legend.position = "bottom", legend.title = element_blank())
 ```
 
-**Why this figure has to exist.** Allocation measured as a ratio is confounded with plant size,
-because plants of different sizes allocate differently regardless of strategy — bigger plants are
-further along the same developmental trajectory, not necessarily following a different one. Both
-treatments here changed plant size, so "AMF reduced grain fraction" could in principle mean nothing
-more than "AMF made plants bigger, and bigger plants have different fractions." The fix is to stop
-comparing ratios and instead ask whether treatments shift the relationship between grain output and
-vegetative size.
-
 **What it shows.** In the well-watered mixed-stand panels the relationship tilts upward: bigger
-plant, more grain, normal biology. In the bottom-right panel — monoculture under severe drought —
+plant, more grain, normal biology. In the bottom-right panel - monoculture under severe drought -
 the inoculated points (blue) sit noticeably to the *right* of the sterile points, meaning larger
-plants, while sitting well *below* them, meaning less grain. Bigger bodies, less wheat. That is the
-opposite of the allometric expectation, which is why size adjustment strengthens rather than
-weakens the result (`r fmt_p(p_3way_unadj)` → `r fmt_p(p_3way_adj)` for the three-way;
-`r fmt_p(p_2way_unadj)` → `r fmt_p(p_2way_adj)` for Inoc × Water).
+plants, while sitting well *below* them, meaning less grain. Larger wheat plants, fewer berries. 
+That is the opposite of the allometric expectation, which is why adjusting for size *strengthens* rather than weakens the result (`r fmt_p(p_3way_unadj)` → `r fmt_p(p_3way_adj)` for the three-way;
+`r fmt_p(p_2way_unadj)` → `r fmt_p(p_2way_adj)` for Inoc × Water). 
 
-**The important caveat.** In that bottom-right panel the two groups occupy **non-overlapping ranges
-on the x-axis** — sterile plants cluster small, inoculated plants cluster large, with no size at
-which both are represented. A size-adjusted contrast there is therefore an *extrapolation*: the
-estimated vertical gap depends on the assumed common slope, and the data cannot pin that slope down
-within the cell. The direction is stable across every plausible slope, and under the positive slope
-actually observed in the well-watered panels the effect gets larger — so the estimate is
-conservative. But the manuscript should report a sensitivity range rather than quoting a single
-fold-difference as though it were precisely identified.
+**The important caveat.** In that bottom-right panel the two groups occupy **non-overlapping
+ranges on the x-axis** - sterile plants cluster small, inoculated plants cluster large, with no
+size at which both are represented. A size-adjusted contrast there is therefore an
+*extrapolation*: the estimated vertical gap depends on the assumed common slope, and the data
+cannot pin that slope down within the cell. The direction is stable across every plausible slope,
+and under the positive slope actually observed in the well-watered panels the effect gets larger -
+so the estimate is conservative. But we should report a sensitivity range rather than
+quoting a single fold-difference as though it were precisely identified.
 
-**What rescues it.** In that cell the two groups appear completely separated on grain mass — every
-inoculated pot below every sterile pot. Complete separation means the finding survives without any
-model at all, and an exact distribution-free test confirms it (see Step 8 supplementary table,
-rows tagged Step 4b). An assumption-free test agreeing with the model is worth more here than a
-smaller *p*-value.
+**However, this is still strong.** In that cell the two groups appear completely separated on 
+grain mass - every inoculated pot below every sterile pot. Complete separation means the 
+finding survives without any model at all, and an exact distribution-free test confirms it (see
+Step 8 supplementary table, rows tagged Step 4b). An assumption-free test agreeing with the 
+model is worth more here than a smaller *p*-value.
 
 **Secondary observation worth reporting.** The fitted slopes are positive under adequate water and
 flat-to-negative in all three severe-drought panels. Severe drought appears to break the normal
 scaling of reproductive output with plant size. That is a publishable observation on its own, and
 it makes the main finding coherent: once extra growth stops converting into grain, a fungal partner
-that pushes carbon toward vegetative tissue becomes pure cost. Treat it as suggestive — with n = 5
+that pushes carbon toward vegetative tissue becomes pure cost. Treat it as suggestive - with n = 5
 and compressed x-ranges, individual panel slopes are unreliable, so any claim should rest on the
 pooled interaction term, not on the six fitted lines.
 
-## Figure 3. Allocation moves, productivity does not
+### Q3 — Does total productivity change too, or only its division?
+
+Only its division, and this is the cleanest statement the paper can make. The Inoc × Water
+interaction on total wheat NPP is null (*p* = `r fmt_p(p_npp_iw)`). Drought did not change how
+inoculation affected the *amount* of biomass wheat produced - it changed *where that biomass
+went*. Total growth is preserved; grain is not.
 
 ```{r fig3, fig.width=8, fig.height=7.5}
 prod_long <- wheat %>%
@@ -337,34 +293,42 @@ ggplot(summ, aes(x = Water, y = mean, color = Inoc, group = Inoc)) +
   facet_grid(metric ~ Poly, scales = "free_y") +
   scale_color_manual(values = c(Inoc = COL_INOC, Strl = COL_STRL)) +
   labs(y = NULL, x = NULL,
-       title = "Total productivity vs. grain: only one of them responds",
+       title = "Total productivity vs. grain: only reproduction is impacted",
        subtitle = paste0("Inoc x Water on wheat NPP: p = ", fmt_p(p_npp_iw),
-                         " (null) - contrast the top row against the bottom")) +
+                         " (null) - the bottom of of berry production shows the interaction")) +
   theme_minimal(base_size = 11) +
   theme(legend.position = "bottom", legend.title = element_blank(),
         strip.text.y = element_text(size = 8.5))
 ```
 
-**What it shows.** The top row is total wheat biomass per plant; the bottom row is grain per plant.
-Inoculated and sterile lines track each other closely in the top row — including in monoculture
-under severe drought, where the allocation effect is largest — while diverging sharply in the
-bottom row. The middle row is pot-level total productivity, the closest available system-level
-metric.
+**What it shows.** The top row is total wheat biomass per plant; the bottom row is grain per
+plant. Inoculated and sterile lines track each other closely in the top row - including in
+monoculture under severe drought, where the allocation effect is largest - while diverging sharply
+in the bottom row. The middle row is pot-level total productivity, the closest available
+system-level metric. If AMF had also reduced total productivity under drought, the story would be
+the familiar and less interesting "mycorrhizal benefit disappears under stress." Instead, the
+plants grew just as much; they simply did not turn it into grain. That distinction is the paper's
+actual contribution and it should lead the abstract.
 
-**Why this matters more than it looks.** This is the null that makes the paper clean. If AMF had
-also reduced total productivity under drought, the story would be the familiar and less interesting
-"mycorrhizal benefit disappears under stress." Instead, drought did not change how inoculation
-affected the *amount* of biomass produced (*p* = `r fmt_p(p_npp_iw)`) — it changed only where the
-biomass was placed. The plants grew just as much; they simply did not turn it into grain. That
-distinction is the paper's actual contribution and it should lead the abstract.
+**Caveat on the middle row.** Pot-level productivity cannot be compared cleanly across stand
+types, because the two stand types differ in planting density (see Part 1, "The density
+confound," below). It is reported for completeness and for the within-stand comparison, not as a
+system-level yield claim. A land equivalent ratio, which would be the proper agronomic metric,
+cannot be computed because the design includes no fava monoculture.
 
-**Caveat on the middle row.** Pot-level productivity cannot be compared cleanly across stand types,
-because the two stand types differ in planting density (see Part 2). It is reported for
-completeness and for the within-stand comparison, not as a system-level yield claim. A land
-equivalent ratio, which would be the proper agronomic metric, cannot be computed because the design
-includes no fava monoculture.
+### Q4 — Does a legume neighbor change the outcome?
 
-## Figure 4. What the symbiosis costs the neighbor
+Yes (Figure 1). The penalty is essentially absent in mixed stands: comparing the two panels 
+of that figure, the inoculated line in the left (Inter) panel declines only mildly under severe drought, while the same line in the right (Mono) panel collapses. The pattern has the shape the stress gradient hypothesis predicts: monoculture and mixed stands are indistinguishable under 
+control and moderate water and diverge only under severe drought. The novel twist is that the divergence appears **only in inoculated plants** - the mutualism itself generates the cost that 
+the neighbor then offsets. The difference-of-differences annotated on Figure 1 *is* this result: 
+at severe drought it is `r round(sev_est, 3)` allocation points (Mono − Inter, of the Inoc −
+Sterile gap), 95% CI [`r round(sev_cl[1], 3)`, `r round(sev_cl[2], 3)`].
+
+### Q5 — What does the symbiosis cost the neighbor?
+
+Inoculation suppressed fava biomass in mixed stands, and that suppression *vanished* under severe
+drought (Inoc × Water on fava biomass, *p* = `r fmt_p(p_supp_iw)`).
 
 ```{r fig4, fig.width=8, fig.height=4.8}
 inter <- wheat %>% filter(Poly == "Inter")
@@ -377,35 +341,38 @@ ggplot(inter, aes(x = Water, y = fava_npp, fill = Inoc)) +
   labs(x = NULL, y = "Fava biomass (g)",
        title = "Fava biomass by inoculation status, across water treatments",
        subtitle = paste0("All 30 mixed-stand pots. Inoc x Water: p = ", fmt_p(p_supp_iw),
-                         " - suppression disappears under severe drought. EXPLORATORY.")) +
+                         " - suppression disappears \nunder severe drought. EXPLORATORY.")) +
   theme_minimal(base_size = 12) +
   theme(legend.position = "bottom", legend.title = element_blank())
 ```
 
-**What it shows.** Where water is adequate, fava grown alongside inoculated wheat is markedly
-smaller than fava grown alongside sterile wheat. Under severe drought that gap closes.
+**What it shows and why it belongs in the paper.** Where water is adequate, fava grown alongside
+inoculated wheat is markedly smaller than fava grown alongside sterile wheat; under severe drought
+that gap closes. This is the other side of the same coin, and it converts a one-directional study
+into a bidirectional one - Q1 asks what the neighbor does to the symbiosis, this asks what the
+symbiosis does to the neighbor. The answer, that a shared mycorrhizal partner restructures the
+competitive hierarchy in favor of wheat and stops doing so under severe drought, is a recognizably
+ecological result that slots directly into the mutualist-mediated competition literature. It is
+also independent evidence for the synthesis below: the disappearance of fava suppression at severe
+drought is a second, separate signal that AMF stops delivering a competitive benefit to wheat at
+that water level, right where Q1's figure shows wheat starts paying a grain cost for it.
 
-**Why it belongs in the paper.** This is the other side of the same coin, and it converts a
-one-directional study into a bidirectional one. Figure 1 asks what the neighbor does to the
-symbiosis; this asks what the symbiosis does to the neighbor. The answer — that a shared mycorrhizal
-partner restructures the competitive hierarchy in favor of wheat, and stops doing so under severe
-drought — is a recognizably ecological result and it slots directly into the mutualist-mediated
-competition literature.
-
-**How it completes the synthesis.** The disappearance of fava suppression under severe drought is
-independent evidence that AMF stops delivering a competitive benefit to wheat at that water level.
-Combined with Figure 1, where wheat pays a grain cost precisely there, the reading is that the
-benefit is conditional on water while the cost is not.
-
-**Caveats.** Exploratory — not among the pre-specified confirmatory tests, and this analysis uses
+**Caveats.** Exploratory - not among the pre-specified confirmatory tests, and this analysis uses
 all 30 mixed-stand pots rather than a randomized fava manipulation. Fava roots were never stained,
-so fava's own colonization status is unmeasured and no claim is made about it; the analysis relates
-fava *performance* to wheat's inoculation treatment, which was randomized. Note also that the
-earlier version of this analysis — regressing fava biomass on continuous wheat hyphal colonization —
-was weak and has been dropped, because colonization is bimodal and not randomized. This version
-uses the randomized factor instead and is both better powered and better identified.
+so fava's own colonization status is unmeasured and no claim is made about it; the analysis
+relates fava *performance* to wheat's inoculation treatment, which was randomized. Note also that
+an earlier version of this analysis - regressing fava biomass on continuous wheat hyphal
+colonization - was weak and has been dropped, because colonization is bimodal and not randomized.
+This version uses the randomized factor instead and is both better powered and better identified.
 
-## Figure 5. The mechanism test that did not pan out
+### Q6 — What is the mechanism?
+
+Unresolved...??? The pre-specified structural test - whether the fungus shifted
+from exchange (arbuscules) toward storage (vesicles) under drought - returned no support.
+Arbuscules are where plant and fungus actually exchange resources; vesicles are fungal lipid
+storage, so the arbuscule:vesicle ratio is an index of whether the association is *trading* or
+*hoarding*. The prediction was that under severe drought in monoculture the ratio would fall,
+supplying a direct mechanism for the lost grain.
 
 ```{r fig5, fig.width=8, fig.height=4.4}
 av_summ <- inoc %>%
@@ -430,17 +397,11 @@ ggplot(av_summ, aes(x = Water, y = mean, color = Poly, group = Poly)) +
   theme(legend.position = "bottom", legend.title = element_blank())
 ```
 
-**The hypothesis being tested.** Arbuscules are where plant and fungus actually exchange resources;
-vesicles are fungal lipid storage. The arbuscule:vesicle ratio is therefore an index of whether the
-association is *trading* or *hoarding*. The prediction was that under severe drought in monoculture
-the ratio would fall — the fungus shifting from exchange to storage — supplying a direct mechanism
-for the lost grain.
-
 **What happened.** No support. The Poly × Water interaction is *p* = `r fmt_p(p_av_pw)` and the
-water main effect is *p* = `r fmt_p(p_av_w)`. Overall hyphal colonization intensity is likewise flat
-across water treatments (*p* = `r fmt_p(p_hyph_w)`), reproducing the earlier finding that
-colonization persists under drought — but the hoped-for shift in its functional *composition* is not
-there.
+water main effect is *p* = `r fmt_p(p_av_w)`. Overall hyphal colonization intensity is likewise
+flat across water treatments (*p* = `r fmt_p(p_hyph_w)`), reproducing the earlier finding that
+colonization persists under drought - but the hoped-for shift in its functional *composition* is
+not there.
 
 **Why this is worth showing rather than burying.** A pre-specified mechanistic test that returns a
 clean null constrains the explanation space, and reporting it is what separates a credible paper
@@ -452,52 +413,44 @@ plant's reproductive output collapsed.
 
 1. **Phenological delay.** If inoculation delayed flowering or senescence, plants harvested on a
    single common date would have had their grain filling truncated. This is now the leading
-   candidate and it is consistent with larger vegetative bodies and less grain. Per-pot Zadoks-92
-   timing was not recorded, so this cannot be tested in the existing data — it should be named as
-   the priority for follow-up.
-2. **Whole-plant carbon drain not visible in structure ratios.** Carbon flux to the fungus need not
-   change the arbuscule:vesicle ratio; a constant-composition symbiosis can still be expensive.
-   Testing this needs isotopic labelling or tissue chemistry.
-3. **Altered water relations.** AMF-mediated changes in stomatal behavior could sustain vegetative
-   tissue longer under stress, delaying or displacing reproductive investment.
+   candidate and it is consistent with larger vegetative bodies and less grain (Q2). Per-pot
+   Zadoks-92 timing was not recorded, so this cannot be tested in the existing data - it should be
+   named as the priority for follow-up.
+2. **Whole-plant carbon drain not visible in structure ratios.** Carbon flux to the fungus need
+   not change the arbuscule:vesicle ratio; a constant-composition symbiosis can still be
+   expensive. Testing this needs isotopic labelling or tissue chemistry.
+3. **Altered water relations.** AMF-mediated changes in stomatal behavior could sustain
+   vegetative tissue longer under stress, delaying or displacing reproductive investment.
 
-**Framing consequence.** Without a demonstrated mechanism this is a pattern paper with an unusually
-well-defended central pattern, not a mechanistic paper. That is publishable in the target journals,
-but the discussion must present mechanism as hypothesis, and the abstract must not imply one.
+**Framing consequence.** Without a demonstrated mechanism this is a pattern paper with an
+unusually well-defended central pattern, not a mechanistic paper. That is publishable in the
+target journals, but the discussion must present mechanism as hypothesis, and the abstract must
+not imply one.
 
-## Figure 6. Dose–response within inoculated pots
+## The synthesis
 
-```{r fig6, fig.width=8, fig.height=4.6}
-ggplot(col, aes(x = hyphal, y = berry_alloc, color = Water)) +
-  geom_point(size = 2.2, alpha = 0.85) +
-  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.7) +
-  facet_wrap(~Poly) +
-  labs(x = "Hyphal colonization (proportion)", y = "Berry allocation",
-       title = "Does more colonization mean a bigger penalty?",
-       subtitle = paste0("Inoculated pots only. One designated test - hyphal x Water: p = ",
-                         fmt_p(p_col_hw), ". EXPLORATORY, association only.")) +
-  theme_minimal(base_size = 12) +
-  theme(legend.position = "bottom")
-```
+Reading Q3, Q4 and Q5 together gives a coherent account:
 
-**What this asks.** If AMF causes the allocation penalty, more colonization should mean a larger
-penalty. A dose–response gradient would strengthen the causal reading considerably.
+> **AMF's competitive benefit to wheat is conditional on water; its cost is not.** Under adequate
+> water the partnership pays — visible as fava suppression in mixed stands. Under severe drought
+> the benefit disappears (fava suppression vanishes) while the carbon cost persists. Total growth
+> is unaffected either way; what changes is where the biomass is placed. In monoculture, with no
+> legume neighbor to offset the cost, wheat pays it out of grain. With fava present, it does not.
 
-**Why it is restricted to inoculated pots.** Across the full dataset, colonization is bimodal —
-values pile near zero in sterile pots and near one in inoculated pots — so a regression on the full
-range would be an inoculation contrast wearing a continuous-predictor costume, with the fit driven
-by leverage rather than by any gradient. Restricting to inoculated pots gives a genuinely continuous
-predictor.
+This is a statement about **the biotic neighborhood setting position on the mutualism–parasitism
+continuum**, which is the paper's contribution. The agronomic implication — that inoculation
+decisions made at planting carry yield risk under drought in monoculture, and that legume
+intercropping may hedge it — follows from this but should be framed as a hypothesis for field
+testing, not a recommendation.
 
-**How to read it, carefully.** One interaction test is reported (*p* = `r fmt_p(p_col_hw)`), not
-three separate per-panel *p*-values. Comparing "significant in this panel, not in that one" is the
-same inferential error as comparing separate subset analyses, and it is what an earlier version of
-this figure did.
+## What the paper claims, and what it does not
 
-**The unavoidable caveat.** Colonization is a plant *response*, not a randomized treatment. Larger
-or healthier root systems can support more hyphae, so reverse causation is live and this figure can
-only ever support association language. The randomized inoculation factor carries the causal claim;
-this figure is supporting texture.
+| Claims | Does **not** claim |
+|---|---|
+| The AMF effect on wheat reproductive allocation under severe drought depends on stand composition | That fava specifically, via N fixation, rescues wheat yield |
+| The effect is an allocation shift, not a size artifact | That the mechanism is known |
+| Total productivity is unaffected; only allocation shifts | That this predicts field yields |
+| AMF suppresses fava except under severe drought (exploratory) | That AMF alone, isolated from co-introduced microbiota, causes these effects |
 
 ---
 
@@ -530,11 +483,12 @@ from any artifact affecting only the wetter treatments.
 ## Confirmatory vs. exploratory
 
 Four tests were designated confirmatory in advance; roughly 150 tests exist across the full
-analysis. The confirmatory set is the size-adjusted three-way interaction on grain output, the
-Inoc × Water interaction on berry allocation in the primary beta regression, and the Inoc × Water
-interaction on total NPP. Everything else in this document — Figures 4, 5 and 6 in their entirety —
-is exploratory and labelled as such in every subtitle. The complete test record, generated from code
-rather than transcribed, is in the Step 8 supplement and `supplementary_test_table.csv`.
+analysis. The confirmatory set is the size-adjusted three-way interaction on grain output (Q2), the
+Inoc × Water interaction on berry allocation in the primary beta regression (Q1), and the Inoc × Water
+interaction on total NPP (Q3). Everything else in this document — the supporting dose-response figure
+under Q1, and Q5 and Q6 in their entirety — is exploratory and labelled as such throughout. The
+complete test record, generated from code rather than transcribed, is in the Step 8 supplement and
+`supplementary_test_table.csv`.
 
 ## The density confound
 
@@ -566,7 +520,7 @@ the response least mechanically distorted by density, which is fortunate.
   and nodules were seen at harvest; no counts or masses exist. The N-fixation mechanism is therefore
   plausible but undemonstrated.
 - **Senescence timing was not recorded per pot.** This now matters more than anticipated, because
-  phenological delay is the leading surviving mechanistic hypothesis (Figure 5).
+  phenological delay is the leading surviving mechanistic hypothesis (Q6).
 - **The central result rests on ten pots.** The effect is localized to monoculture under severe
   drought: five inoculated and five sterile. This is why the leave-one-out, permutation and
   distribution-free checks in Step 4b carry disproportionate weight, and why the manuscript should
