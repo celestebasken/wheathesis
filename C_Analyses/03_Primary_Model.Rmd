@@ -1,0 +1,250 @@
+---
+title: "Step 3 - Primary Model"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+Step 3 from `Instructions/AMF_intercropping_analysis_plan.md`. Step 2's gate passed - the
+Poly x Inoc x Water effect on berry allocation is a real allocation-strategy shift, not a
+size artifact, and survived a heteroscedasticity-robust refit. This step builds the actual
+primary model the paper reports.
+
+```{r}
+library(tidyverse)
+library(glmmTMB)
+library(car)
+library(emmeans)
+library(DHARMa)
+library(nlme)
+library(DirichletReg)
+
+wheat <- readRDS("wheat_audited.rds")
+
+# Planned contrasts (Section 3): Water kept as a 3-level factor, not a linear
+# covariate - the Moderate > Control > Severe hump in mass variables means
+# linearity would be the wrong assumption. Partitioned into two orthogonal,
+# pre-specified contrasts instead of an unplanned 2-df omnibus test:
+#   C1 "severe": Severe vs mean(Control, Moderate) - where the action is
+#   C2 "mild":   Control vs Moderate               - the leaching-artifact axis
+wheat_c <- wheat
+contrasts(wheat_c$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+```
+
+# 1. Primary model: berry allocation
+
+```{r}
+m1 <- glmmTMB(berry_alloc ~ Poly * Inoc * Water,
+              dispformula = ~ Poly,
+              family = beta_family(), data = wheat_c)
+```
+
+Beta regression (logit link), dispersion allowed to differ by stand composition, per the
+plan's exact specification. `berry_alloc` had no exact 0/1 values (confirmed in Step 1), so
+no Smithson-Verkuilen transform is needed.
+
+```{r}
+m1_tbl <- car::Anova(m1, type = 2) %>% broom::tidy() %>%
+  mutate(across(c(statistic, p.value), ~round(.x, 5)))
+knitr::kable(m1_tbl, caption = "Type II Wald tests - berry_alloc ~ Poly*Inoc*Water, dispersion ~ Poly")
+```
+
+**Primary test: `Poly:Inoc:Water`, p =
+`r m1_tbl$p.value[m1_tbl$term=="Poly:Inoc:Water"]`.**
+
+## Model diagnostics (DHARMa)
+
+Standard `lm`-style residual plots don't apply to a beta-regression GLM - DHARMa's simulated
+residuals are the appropriate tool here.
+
+```{r}
+sim <- simulateResiduals(m1, n = 1000)
+cat("Uniformity (KS test):", format.pval(testUniformity(sim, plot = FALSE)$p.value), "\n")
+cat("Dispersion test:     ", format.pval(testDispersion(sim, plot = FALSE)$p.value), "\n")
+cat("Outlier test:        ", format.pval(testOutliers(sim, plot = FALSE)$p.value), "\n")
+```
+
+All three pass cleanly - no robustness detour needed for this model (unlike Step 2's
+elevation-shift model, which needed one).
+
+## The primary contrast
+
+Per the plan: not a compact-letter-display across all 12 cells (66 comparisons, near-zero
+power at n=5/cell) - one pre-specified difference-of-differences, `(Inoc - Strl | Inter) -
+(Inoc - Strl | Mono)`, within each Water level, on the **response (proportion) scale** via
+`emmeans::regrid()` (the link-scale log-odds-ratio version is also shown for completeness,
+but the response-scale number is what the plan asks to report).
+
+```{r}
+emm_link <- emmeans(m1, ~ Inoc | Poly * Water)
+emm_resp <- regrid(emm_link)
+
+dd_link <- contrast(emm_link, interaction = c("revpairwise", "revpairwise"), by = "Water")
+dd_resp <- contrast(emm_resp, interaction = c("revpairwise", "revpairwise"), by = "Water")
+
+cat("=== log-odds-ratio scale ===\n")
+print(dd_link)
+cat("\n=== response (proportion) scale - THIS is the number to report ===\n")
+print(dd_resp)
+print(confint(dd_resp))
+```
+
+```{r}
+sev_row <- as.data.frame(confint(dd_resp)) %>% filter(Water == "Severe")
+```
+
+**The sentence the paper is built on:** under severe drought, the AMF penalty on berry
+allocation is
+`r round(sev_row$estimate, 3)` (95% CI [`r round(sev_row$asymp.LCL,3)`,
+`r round(sev_row$asymp.UCL,3)`]) percentage points **larger in monoculture than in
+intercropped stands** - i.e. a legume neighbor roughly halves the reproductive-allocation
+cost that AMF inoculation imposes under severe drought, on an absolute-proportion scale.
+
+## Cell means (response scale), for reference
+
+```{r}
+as.data.frame(emm_resp) %>%
+  mutate(across(c(response, SE, asymp.LCL, asymp.UCL), ~round(.x, 4))) %>%
+  knitr::kable(caption = "berry_alloc estimated marginal means by cell, back-transformed to the response scale")
+```
+
+# 2. Secondary responses
+
+Same `Poly*Inoc*Water` structure. Gaussian `lm` for each, EXCEPT where Levene's test (by
+`Poly`, per the plan - mono/inter are different systems, most likely to differ) flags
+heterogeneity, in which case refit as `nlme::gls` with `weights = varIdent(form = ~1|Poly)`
+instead of pooling variance across systems that don't share one.
+
+```{r}
+secondary_specs <- list(
+  list(label = "log(NPP per plant)",       var = "log_NPP"),
+  list(label = "log(ANPP per plant)",      var = "log_ANPP"),
+  list(label = "log(BNPP per plant)",      var = "log_BNPP"),
+  list(label = "log(berry mass per plant)",var = "log_berry"),
+  list(label = "ANPP % of wheat biomass",  var = "W_pcent_ANPP"),
+  list(label = "BNPP % of wheat biomass",  var = "W_pcent_BNPP"),
+  list(label = "Pot-level total productivity", var = "pot_productivity")
+)
+
+wheat_c <- wheat_c %>%
+  mutate(log_NPP = log(NPP), log_ANPP = log(ANPP), log_BNPP = log(BNPP), log_berry = log(berry))
+
+# NOTE on two real bugs caught here by actually rendering, not just reading
+# the code:
+#  1. An earlier version named the parameter `var`, shadowing R's base
+#     var() function for the whole function body.
+#  2. Fixing that still failed: `nlme::gls()` stores its call UNEVALUATED
+#     and re-evaluates it later (car::Anova.gls() does this internally) -
+#     in a scope where a *local function parameter* holding the data frame
+#     is no longer visible, however it's named. The fix isn't a better
+#     parameter name; it's not passing the data through a parameter at
+#     all for this function. It references the top-level `wheat_c` object
+#     directly instead, which stays resolvable for the life of the R
+#     session - sidestepping nlme's call-re-evaluation behavior entirely
+#     rather than fighting it. (The plain lm() branch never hit this,
+#     since car::Anova.lm doesn't re-evaluate the call this way - only the
+#     one variable needing the GLS branch, pot_productivity, exposed it.)
+run_secondary <- function(varname) {
+  lev_p <- car::leveneTest(as.formula(paste(varname, "~ Poly")), data = wheat_c)[1, "Pr(>F)"]
+  pooled_ok <- lev_p >= 0.05
+
+  if (pooled_ok) {
+    mod <- lm(as.formula(paste(varname, "~ Poly*Inoc*Water")), data = wheat_c)
+    tbl <- car::Anova(mod, type = 2) %>% broom::tidy() %>% filter(term != "Residuals")
+    method <- "OLS (variance pooled across Poly - Levene p >= .05)"
+  } else {
+    mod <- nlme::gls(as.formula(paste(varname, "~ Poly*Inoc*Water")),
+                      weights = nlme::varIdent(form = ~1 | Poly), data = wheat_c)
+    tbl <- car::Anova(mod, type = 2) %>% broom::tidy()
+    method <- "GLS + varIdent(Poly) - Levene flagged Poly variance heterogeneity"
+  }
+  tbl$method <- method
+  tbl$levene_p_poly <- round(lev_p, 4)
+  tbl
+}
+
+secondary_results <- purrr::map_dfr(secondary_specs, function(s) {
+  run_secondary(s$var) %>% mutate(label = s$label, .before = 1)
+})
+```
+
+```{r}
+secondary_results %>%
+  mutate(across(c(statistic, p.value), ~round(.x, 4))) %>%
+  select(label, term, df, statistic, p.value, levene_p_poly, method) %>%
+  knitr::kable(caption = "Secondary responses - full term tables (method noted per variable)")
+```
+
+```{r}
+key_terms <- secondary_results %>%
+  filter(term %in% c("Inoc:Water", "Poly:Inoc:Water")) %>%
+  mutate(p.value = round(p.value, 4)) %>%
+  select(label, term, p.value, method)
+knitr::kable(key_terms, caption = "Key interaction terms across all secondary responses, at a glance")
+```
+
+# 3. Compositional constraint robustness check
+
+`W_pcent_ANPP + W_pcent_BNPP + W_pcent_berries = 1` by construction, so the three separate
+ANOVAs above are three views of only two real degrees of freedom - a significant shift in
+one mechanically forces compensation in the others. `berry_alloc` (Section 1) is treated as
+**the** primary response for this reason; ANPP%/BNPP% above are descriptive. As the plan's
+prescribed robustness check: a joint Dirichlet regression across all three parts at once,
+testing whether `Poly:Inoc:Water` matters to the *composition as a whole* rather than to any
+one part viewed in isolation.
+
+```{r}
+wheat_dr <- wheat_c %>% filter(!is.na(W_pcent_ANPP))
+wheat_dr$Y <- DR_data(wheat_dr[, c("W_pcent_ANPP", "W_pcent_BNPP", "W_pcent_berries")])
+
+full_rhs    <- "Poly*Inoc*Water"
+reduced_rhs <- "Poly*Inoc+Inoc*Water+Poly*Water"   # Poly:Inoc:Water dropped from ALL THREE
+                                                      # DirichletReg formula parts - dropping
+                                                      # it from only one part (an easy mistake
+                                                      # given the `f | f | f` syntax) would
+                                                      # silently test the wrong hypothesis.
+
+m_dir_full    <- DirichReg(as.formula(paste("Y ~", full_rhs, "|", full_rhs, "|", full_rhs)), data = wheat_dr)
+m_dir_reduced <- DirichReg(as.formula(paste("Y ~", reduced_rhs, "|", reduced_rhs, "|", reduced_rhs)), data = wheat_dr)
+
+dir_lrt <- anova(m_dir_reduced, m_dir_full)
+print(dir_lrt)
+```
+
+**The compositional shift is real at the joint level too**
+(chi-sq = `r round(dir_lrt$Difference[2], 2)`, df = `r dir_lrt$df[2]`,
+p = `r format.pval(dir_lrt[["Pr(>Chi)"]][2])`) - consistent with, not contradicting, the
+univariate `berry_alloc` finding above.
+
+# Summary: the three confirmatory tests (Section 8 of the plan)
+
+```{r}
+confirmatory <- tibble::tribble(
+  ~test, ~p_value, ~note,
+  "Poly:Inoc:Water on berry allocation (size-adjusted, Step 2)", "0.0012 (elevation-shift model); 0.0039 (heteroscedasticity-robust GLS)", "HOLDS",
+  "Inoc:Water on berry allocation (primary model, this step)", as.character(m1_tbl$p.value[m1_tbl$term=="Inoc:Water"]), "HOLDS - beta regression, Type II Wald",
+  "Inoc:Water on wheat NPP per plant (this step)", as.character(secondary_results$p.value[secondary_results$label=="log(NPP per plant)" & secondary_results$term=="Inoc:Water"] %>% round(4)), "DOES NOT HOLD - log(NPP), OLS"
+)
+knitr::kable(confirmatory)
+```
+
+**Stated plainly, not left as a number in a table: one of the three pre-specified
+confirmatory tests does not reach significance.** `Inoc:Water` on wheat NPP per plant
+(p = 0.625) is close to null - AMF's effect on total plant size doesn't detectably depend on
+Water treatment in this dataset, even though its effect on *how that size gets allocated to
+grain* clearly does (the other two confirmatory tests, and every secondary response
+involving berry mass specifically). This isn't a contradiction - it's the paper's actual
+finding in sharper relief: **allocation, not overall productivity, is what shifts with
+drought.** Two of three pre-specified tests hold; this is reported as pre-specified either
+way, not reframed after the fact.
+
+Everything else in Section 2 above (ANPP%/BNPP%, other secondary responses) is
+**exploratory**, per the plan's pre-specification - reported in full, not because it's part
+of the confirmatory set.
+
+Proceeding to Step 4 (fragility gate).

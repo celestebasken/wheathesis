@@ -1,0 +1,390 @@
+---
+title: "Step 8 - Figures and Supplementary Test Table"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center")
+```
+
+Step 8 from `Instructions/AMF_intercropping_analysis_plan.md` (Sections 8 and 9). Built only
+now that Steps 2-6 hold up, per the plan's own instruction not to build figures/text before
+the gates clear. **Step 7 (grain counts from stored berries) was skipped per your call** -
+nothing here depends on it.
+
+Every model behind every figure and table row is refit fresh in this document from
+`wheat_audited.rds` (not transcribed by hand, not copy-pasted from earlier steps' printed
+output) - per the plan's own instruction that the supplementary table "is generated from
+code rather than transcribed by hand." The numbers below were spot-checked against each
+step's own document during development and match.
+
+```{r}
+library(tidyverse)
+library(car)
+library(glmmTMB)
+library(nlme)
+library(emmeans)
+library(DirichletReg)
+library(patchwork)
+
+wheat <- readRDS("wheat_audited.rds") %>%
+  mutate(log_NPP = log(NPP), log_ANPP = log(ANPP), log_BNPP = log(BNPP),
+         log_berry = log(berry), log_veg = log(veg))
+wheat_c <- wheat
+contrasts(wheat_c$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+
+COL_INOC <- "#2c7fb8"
+COL_STRL <- "#d95f02"
+```
+
+# Part 1: Figures
+
+## Figure 1. Design schematic
+
+Given the density confound (Section 1 of the plan), showing the design plainly is a
+credibility move rather than an optional extra.
+
+```{r fig1, fig.width=8.5, fig.height=7}
+pot_plants <- bind_rows(
+  tibble(system = "Monoculture (24 planted -> 12 thinned)",
+         x = rep(0:3, 3)[1:12], y = rep(0:2, each = 4)[1:12], type = "Wheat"),
+  tibble(system = "Intercrop (12 wheat -> 6 thinned;\n3 fava -> 1 thinned)",
+         x = c(rep(0:2, 2)[1:6], 3.5), y = c(rep(0:1, each = 3)[1:6], 0.5),
+         type = c(rep("Wheat", 6), "Fava"))
+) %>% mutate(system = factor(system, levels = unique(system)))
+
+p1 <- ggplot(pot_plants, aes(x = x, y = y, color = type)) +
+  geom_point(size = 4) +
+  facet_wrap(~system, ncol = 2) +
+  scale_color_manual(values = c(Wheat = COL_INOC, Fava = "#238b45")) +
+  coord_fixed(clip = "off", xlim = c(-0.5, 4), ylim = c(-0.5, 2.5)) +
+  labs(title = "A. Pot composition by stand type", color = NULL) +
+  theme_void(base_size = 12) +
+  theme(strip.text = element_text(size = 10.5, face = "bold"),
+        strip.background = element_rect(fill = "grey92", color = NA),
+        panel.background = element_rect(fill = "grey98", color = "grey80"),
+        panel.spacing = unit(1.2, "lines"), legend.position = "bottom",
+        plot.title = element_text(hjust = 0, face = "plain", size = 12))
+
+timeline <- tibble(stage = c("Planting\n(Z0)", "Drought onset\n(Z39, floret dev.)",
+                              "Harvest\n(Z92, ~90% pots)"), z = c(0, 39, 92))
+water_labels <- tibble(label = c("Control: 80% FC", "Moderate: 60% FC", "Severe: 40% FC"),
+                        y = c(-0.55, -0.75, -0.95))
+
+p2 <- ggplot() +
+  annotate("rect", xmin = 39, xmax = 92, ymin = -1.1, ymax = -0.4, fill = COL_STRL, alpha = 0.12) +
+  geom_segment(aes(x = 0, xend = 92, y = 0, yend = 0), color = "grey40", linewidth = 1) +
+  geom_point(data = timeline, aes(x = z, y = 0), size = 3, color = "grey20") +
+  geom_text(data = timeline, aes(x = z, y = 0.15, label = stage), size = 3.2, vjust = 0) +
+  geom_text(data = water_labels, aes(x = 65, y = y, label = label), size = 3.1, color = "grey30", hjust = 0) +
+  labs(title = "B. Drought timing (Zadoks growth stage) - shaded = drought period, all 3 Water levels applied") +
+  xlim(-5, 100) + ylim(-1.2, 0.5) +
+  theme_void(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0, size = 11))
+
+p1 / p2 + plot_layout(heights = c(2, 1))
+```
+
+*Illustrative schematic, not a data plot - built to the counts/timing stated in the plan and
+methods. Every pot was re-randomized across benches monthly and reconnected, so Water is not
+confounded with bench (the usual fatal flaw in greenhouse drought studies) - worth one
+sentence in the methods, per the plan.*
+
+## Figure 2. The key figure - berry allocation, Water x Inoc, faceted by stand composition
+
+```{r fig2, fig.width=8.5, fig.height=5.4}
+m1 <- glmmTMB(berry_alloc ~ Poly * Inoc * Water, dispformula = ~ Poly, family = beta_family(), data = wheat_c)
+emm <- as.data.frame(emmeans(m1, ~ Inoc | Poly * Water, type = "response"))
+
+emm_link <- emmeans(m1, ~ Inoc | Poly * Water)
+dd_resp <- contrast(regrid(emm_link), interaction = c("revpairwise", "revpairwise"), by = "Water")
+dd_ci <- as.data.frame(confint(dd_resp))
+sev_dd <- dd_ci %>% filter(Water == "Severe")
+
+p_key <- ggplot(emm, aes(x = Water, y = response, color = Inoc, group = Inoc)) +
+  geom_line(position = position_dodge(0.3), linewidth = 0.8) +
+  geom_point(position = position_dodge(0.3), size = 3) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.15, position = position_dodge(0.3)) +
+  facet_wrap(~Poly) +
+  scale_color_manual(values = c(Inoc = COL_INOC, Strl = COL_STRL)) +
+  scale_y_continuous(limits = c(0, 0.45), expand = expansion(mult = c(0.02, 0.02))) +
+  labs(y = "Berry allocation (proportion of total NPP)", x = NULL,
+       title = "Berry allocation by Water x Inoculation, faceted by stand composition",
+       subtitle = "Points = estimated marginal means (primary beta regression), bars = 95% CI") +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "bottom", legend.title = element_blank())
+
+ann <- tibble(Poly = factor("Mono", levels = levels(emm$Poly)),
+              label = paste0("Diff-of-diffs (Mono - Inter), Severe:\n", round(sev_dd$estimate, 3),
+                              " pts, 95% CI [", round(sev_dd$asymp.LCL, 3), ", ", round(sev_dd$asymp.UCL, 3), "]"))
+p_key + geom_text(data = ann, aes(x = 2, y = 0.42, label = label), inherit.aes = FALSE,
+                   size = 3.3, hjust = 0.5, vjust = 1, color = "grey20")
+```
+
+*This is the primary result (Confirmatory tests #1-2, Steps 2-3). The annotated
+difference-of-differences is the single interval the plan designates as "the result."*
+
+## Figure 3. Allometry - does size explain the allocation shift?
+
+```{r fig3, fig.width=8.5, fig.height=5.5}
+m_allo2 <- lm(log_berry ~ log_veg + Poly * Inoc * Water, data = wheat_c)
+
+ggplot(wheat, aes(x = log_veg, y = log_berry, color = Inoc)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.7) +
+  facet_grid(Poly ~ Water) +
+  scale_color_manual(values = c(Inoc = COL_INOC, Strl = COL_STRL)) +
+  labs(title = "Allometric relationship: log(berry) vs. log(vegetative mass per plant)",
+       subtitle = "Mono x Severe: no overlap in x-range between groups - a size-adjusted contrast there is an extrapolation, \n not an interpolation (see Step 4b sensitivity analysis)",
+       x = "log(vegetative mass per plant)", y = "log(berry mass per plant)") +
+  theme_minimal(base_size = 12) + theme(legend.position = "bottom", legend.title = element_blank())
+```
+
+*Makes Section 2 (the allometry gate) visible. The Mono x Severe panel is the one the whole
+paper's contrast leans on - see the addendum follow-up (Step 4b) for the extrapolation
+caveat and sensitivity range before quoting a single fold-difference from it.*
+
+## Figure 4. Productivity - does overall plant size shift the way allocation does?
+
+```{r fig4, fig.width=8, fig.height=7.5}
+prod_long <- wheat %>%
+  select(Poly, Inoc, Water, NPP, berry, pot_productivity) %>%
+  pivot_longer(c(NPP, berry, pot_productivity), names_to = "metric", values_to = "value") %>%
+  mutate(metric = dplyr::recode(metric, NPP = "Wheat NPP per plant (g)", berry = "Berry mass per plant (g)",
+                          pot_productivity = "Pot-level total productivity (g/plant)"),
+         metric = factor(metric, levels = c("Wheat NPP per plant (g)", "Pot-level total productivity (g/plant)",
+                                             "Berry mass per plant (g)")))
+
+summ <- prod_long %>% group_by(metric, Poly, Inoc, Water) %>%
+  summarise(mean = mean(value, na.rm = TRUE), se = sd(value, na.rm = TRUE) / sqrt(sum(!is.na(value))), .groups = "drop")
+
+ggplot(summ, aes(x = Water, y = mean, color = Inoc, group = Inoc)) +
+  geom_line(position = position_dodge(0.3)) +
+  geom_point(position = position_dodge(0.3), size = 2.5) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.15, position = position_dodge(0.3)) +
+  facet_grid(metric ~ Poly, scales = "free_y") +
+  scale_color_manual(values = c(Inoc = COL_INOC, Strl = COL_STRL)) +
+  labs(y = NULL, x = NULL, title = "Productivity metrics by Water x Inoculation x Stand composition",
+       subtitle = "Confirmatory test #3: Inoc:Water on NPP is NOT significant (p=0.625, top row) - contrast against berry mass \n (bottom row)") +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "bottom", legend.title = element_blank(), strip.text.y = element_text(size = 8.5))
+```
+
+*Visual counterpart to the headline finding of Step 3: NPP tracks closely between Inoc/Strl
+even in Mono x Severe (top row), while berry mass alone diverges sharply (bottom row) -
+allocation shifts, overall productivity mostly doesn't.*
+
+## Figure 5. Colonization associations (exploratory, Inoc pots only)
+
+```{r fig5, fig.width=8, fig.height=4.8}
+col <- wheat %>% filter(Inoc == "Inoc")
+m_col <- lm(berry_alloc ~ hyphal * Water * Poly, data = col)
+col_hw_p <- car::Anova(m_col, type = 2)["hyphal:Water", "Pr(>F)"]
+
+ggplot(col, aes(x = hyphal, y = berry_alloc, color = Water)) +
+  geom_point(size = 2.2, alpha = 0.8) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.7) +
+  facet_wrap(~Poly) +
+  labs(x = "Hyphal colonization (proportion)", y = "Berry allocation",
+       title = "Colonization association with berry allocation (Inoc pots only, exploratory)",
+       subtitle = paste0("hyphal:Water interaction test (the ONE designated test - not per-panel p-values): p = ",
+                          round(col_hw_p, 3))) +
+  theme_minimal(base_size = 12) + theme(legend.position = "bottom")
+```
+
+*Association language only - `hyphal` was not randomized. One interaction test reported, not
+three separate panel p-values (that comparison error is exactly what the plan flagged with
+the previous version of this figure).*
+
+## Figure 6. Fava suppression (exploratory)
+
+```{r fig6, fig.width=8, fig.height=8.5}
+fava_inoc <- wheat %>% filter(Poly == "Inter", Inoc == "Inoc")
+m_f <- lm(log(fava_npp) ~ hyphal * Water, data = fava_inoc)
+f_hw_p <- car::Anova(m_f, type = 2)["hyphal:Water", "Pr(>F)"]
+
+p6a <- ggplot(fava_inoc, aes(x = hyphal, y = fava_npp, color = Water)) +
+  geom_point(size = 2.5) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.7) +
+  labs(x = "Wheat hyphal colonization", y = "Fava biomass (g)",
+       title = "A. Fava biomass vs. wheat hyphal colonization (Inoc-only, n=15)",
+       subtitle = paste0("hyphal:Water: p = ", round(f_hw_p, 3), " - exploratory, no clear association")) +
+  theme_minimal(base_size = 11) + theme(legend.position = "bottom")
+
+inter <- wheat %>% filter(Poly == "Inter")
+inter_c <- inter
+contrasts(inter_c$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+m_supp <- lm(log(fava_npp) ~ Inoc * Water, data = inter_c)
+supp_iw_p <- car::Anova(m_supp, type = 2)["Inoc:Water", "Pr(>F)"]
+
+p6b <- ggplot(inter, aes(x = Water, y = fava_npp, fill = Inoc)) +
+  geom_boxplot(position = position_dodge(0.8), width = 0.6, outlier.shape = NA) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.8), size = 1.3) +
+  scale_fill_manual(values = c(Inoc = COL_INOC, Strl = COL_STRL)) +
+  labs(x = NULL, y = "Fava biomass (g)",
+       title = "B. Fava suppression by Inoculation status (all 30 Inter pots)",
+       subtitle = paste0("Inoc:Water: p ", ifelse(supp_iw_p < 0.0001, "< 0.0001", paste("=", round(supp_iw_p,4))),
+                          " - suppression vanishes under severe drought")) +
+  theme_minimal(base_size = 11) + theme(legend.position = "bottom", legend.title = element_blank())
+
+p6a / p6b
+```
+
+*Panel A is the plan's literally-requested figure (weak/null). Panel B is the stronger,
+better-powered exploratory finding from Step 6 Part C - both clearly labeled exploratory.*
+
+---
+
+# Part 2: Supplementary test table
+
+Per Section 8: "the existing significance tables represent roughly 150 tests... report the
+full test table in a supplement." Every row below comes from a model fit fresh in this
+document - none are hand-transcribed. **Only 4 rows are the pre-specified confirmatory
+tests** (flagged `CONFIRMATORY #1/#2/#3`); everything else is exploratory or a robustness
+check on one of those three, labeled as such in the `status` column, not just in prose.
+
+Effect sizes with CIs for the confirmatory results are reported in their own step documents
+(Step 2's size-adjusted contrasts, Step 3's emmeans/difference-of-differences) rather than
+duplicated as a column here - a single partial-eta-squared-style column isn't
+well-defined or comparable across the mix of model families below (OLS, GLS, beta
+regression, quasibinomial, beta-binomial, Dirichlet regression), so this table's job is the
+exhaustive p-value/test-statistic record specifically, not a second effect-size compendium.
+
+```{r build_table}
+tidy_test <- function(model, type = 2, test = NULL) {
+  a <- if (!is.null(test)) car::Anova(model, type = type, test = test) else car::Anova(model, type = type)
+  broom::tidy(a) %>% filter(term != "Residuals")
+}
+
+rows <- list()
+
+# ---- Step 2 ----
+m_base <- lm(berry_alloc ~ Poly * Inoc * Water, data = wheat_c)
+rows$s2_base <- tidy_test(m_base) %>% mutate(step = "2", status = "Diagnostic", model = "berry_alloc ~ Poly*Inoc*Water (unadjusted baseline)")
+
+rows$s2_allo2 <- tidy_test(m_allo2) %>% mutate(step = "2", status = "CONFIRMATORY #1", model = "log(berry) ~ log(veg)+Poly*Inoc*Water (size-adjusted elevation)")
+
+wheat_c$PolyWater <- interaction(wheat_c$Poly, wheat_c$Water)
+m_allo2_gls <- gls(log_berry ~ log_veg + Poly * Inoc * Water, weights = varIdent(form = ~1 | PolyWater), method = "ML", data = wheat_c)
+rows$s2_gls <- tidy_test(m_allo2_gls) %>% mutate(step = "2", status = "CONFIRMATORY #1 (robustness)", model = "Same, heteroscedasticity-robust GLS")
+
+# ---- Step 3 ----
+rows$s3_m1 <- tidy_test(m1) %>% mutate(step = "3", status = "CONFIRMATORY #2", model = "berry_alloc ~ Poly*Inoc*Water (primary beta regression)")
+
+secondary_specs <- list(
+  list(v = "log_NPP", lbl = "log(NPP per plant)"), list(v = "log_ANPP", lbl = "log(ANPP per plant)"),
+  list(v = "log_BNPP", lbl = "log(BNPP per plant)"), list(v = "log_berry", lbl = "log(berry mass per plant)"),
+  list(v = "W_pcent_ANPP", lbl = "ANPP % of wheat biomass"), list(v = "W_pcent_BNPP", lbl = "BNPP % of wheat biomass"),
+  list(v = "pot_productivity", lbl = "Pot-level total productivity")
+)
+for (s in secondary_specs) {
+  lev_p <- car::leveneTest(as.formula(paste(s$v, "~ Poly")), data = wheat_c)[1, "Pr(>F)"]
+  m <- if (lev_p >= 0.05) lm(as.formula(paste(s$v, "~ Poly*Inoc*Water")), data = wheat_c) else
+    gls(as.formula(paste(s$v, "~ Poly*Inoc*Water")), weights = varIdent(form = ~1 | Poly), data = wheat_c)
+  status <- if (s$v == "log_NPP") "CONFIRMATORY #3" else "Exploratory"
+  rows[[paste0("s3_", s$v)]] <- tidy_test(m) %>% mutate(step = "3", status = status, model = paste0(s$lbl, " ~ Poly*Inoc*Water"))
+}
+
+wheat_dr <- wheat_c %>% filter(!is.na(W_pcent_ANPP))
+wheat_dr$Y <- DR_data(wheat_dr[, c("W_pcent_ANPP", "W_pcent_BNPP", "W_pcent_berries")])
+m_dir_full <- DirichReg(Y ~ Poly * Inoc * Water | Poly * Inoc * Water | Poly * Inoc * Water, data = wheat_dr)
+m_dir_red  <- DirichReg(Y ~ Poly * Inoc + Inoc * Water + Poly * Water | Poly * Inoc + Inoc * Water + Poly * Water | Poly * Inoc + Inoc * Water + Poly * Water, data = wheat_dr)
+dir_lrt <- anova(m_dir_red, m_dir_full)
+rows$s3_dir <- tibble(term = "Poly:Inoc:Water (joint, all 3 parts)", statistic = dir_lrt$Difference[2], df = dir_lrt$df[2],
+                       p.value = dir_lrt[["Pr(>Chi)"]][2], step = "3", status = "Exploratory (robustness)",
+                       model = "Dirichlet regression, compositional joint test")
+
+# ---- Step 4b (addendum) ----
+cell <- wheat %>% filter(Poly == "Mono", Water == "Severe")
+wt <- coin::wilcox_test(berry ~ factor(Inoc), data = cell, distribution = "exact")
+rows$s4b_wilcox <- tibble(term = "Inoc (Mono x Severe cell only)", statistic = as.numeric(coin::statistic(wt)), df = NA_real_,
+                           p.value = as.numeric(coin::pvalue(wt)), step = "4b", status = "Robustness (distribution-free)",
+                           model = "Exact Wilcoxon, berry ~ Inoc, Mono x Severe cell")
+
+perm_null <- readRDS("loo_perm_null_dist.rds")
+obs_chisq <- car::Anova(m1, type = 2)["Poly:Inoc:Water", "Chisq"]
+rows$s4b_perm <- tibble(term = "Poly:Inoc:Water (permutation)", statistic = obs_chisq, df = NA_real_,
+                         p.value = mean(perm_null >= obs_chisq), step = "4b", status = "Robustness (distribution-free)",
+                         model = "10,000-draw permutation test, labels shuffled within Water")
+
+wt2 <- t.test(berry_alloc ~ Inoc, data = cell)
+rows$s4b_welch <- tibble(term = "Inoc (Mono x Severe cell only)", statistic = unname(wt2$statistic), df = unname(wt2$parameter),
+                          p.value = wt2$p.value, step = "4b", status = "Robustness (unequal variance)",
+                          model = "Welch t-test, berry_alloc ~ Inoc, Mono x Severe cell")
+
+m_slope_simple <- lm(log_berry ~ log_veg * Water, data = wheat)
+rows$s4c_slope <- tidy_test(m_slope_simple) %>% mutate(step = "4c", status = "Exploratory (suggestive)",
+                                                          model = "log(berry) ~ log(veg)*Water (pooled, best-powered)")
+
+# ---- Step 5 ----
+inoc <- wheat %>% filter(Inoc == "Inoc")
+contrasts(inoc$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+inoc$PolyWater <- interaction(inoc$Poly, inoc$Water)
+
+m_av <- lm(AV ~ Poly * Water, data = inoc)
+rows$s5_av <- tidy_test(m_av) %>% mutate(step = "5", status = "Exploratory", model = "AV ~ Poly*Water (OLS)")
+
+m_av_gls <- gls(AV ~ Poly * Water, weights = varIdent(form = ~1 | PolyWater), method = "ML", data = inoc)
+rows$s5_av_gls <- tidy_test(m_av_gls) %>% mutate(step = "5", status = "Exploratory (robustness)", model = "AV ~ Poly*Water (heteroscedasticity-robust GLS)")
+
+structures <- list(list(resp = "cbind(arb_n, 100-arb_n)", lbl = "arbuscules (arb_n)"),
+                    list(resp = "cbind(ves_n, 100-ves_n)", lbl = "vesicles (ves_n)"),
+                    list(resp = "cbind(hyph_n, 100-hyph_n)", lbl = "overall hyphal presence (hyph_n)"))
+for (s in structures) {
+  form <- as.formula(paste(s$resp, "~ Poly*Water"))
+  m_q <- glm(form, family = quasibinomial, data = inoc)
+  rows[[paste0("s5_", s$lbl, "_q")]] <- tidy_test(m_q, test = "F") %>% mutate(step = "5", status = "Exploratory", model = paste0(s$lbl, " ~ Poly*Water (quasibinomial)"))
+  m_bb <- glmmTMB(form, family = betabinomial, data = inoc)
+  rows[[paste0("s5_", s$lbl, "_bb")]] <- tidy_test(m_bb) %>% mutate(step = "5", status = "Exploratory (robustness)", model = paste0(s$lbl, " ~ Poly*Water (beta-binomial)"))
+}
+
+m_link <- glmmTMB(berry_alloc ~ AV * Water * Poly, family = beta_family(), data = inoc)
+rows$s5_link <- tidy_test(m_link) %>% mutate(step = "5", status = "Exploratory", model = "berry_alloc ~ AV*Water*Poly")
+
+# ---- Step 6 ----
+rows$s6_col <- tidy_test(m_col) %>% mutate(step = "6", status = "Exploratory", model = "berry_alloc ~ hyphal*Water*Poly (OLS)")
+m_col_beta <- glmmTMB(berry_alloc ~ hyphal * Water * Poly, family = beta_family(), data = col)
+rows$s6_col_beta <- tidy_test(m_col_beta) %>% mutate(step = "6", status = "Exploratory (robustness)", model = "Same, beta regression")
+
+rows$s6_f <- tidy_test(m_f) %>% mutate(step = "6", status = "Exploratory", model = "log(fava_npp) ~ hyphal*Water")
+m_f2 <- lm(fava_pct_pot ~ hyphal * Water, data = fava_inoc)
+rows$s6_f2 <- tidy_test(m_f2) %>% mutate(step = "6", status = "Exploratory", model = "fava_pct_pot ~ hyphal*Water")
+
+rows$s6_supp <- tidy_test(m_supp) %>% mutate(step = "6", status = "Exploratory (standout finding)", model = "log(fava_npp) ~ Inoc*Water")
+
+m_mech <- glmmTMB(berry_alloc ~ fava_npp * Inoc * Water, family = beta_family(), data = inter_c)
+rows$s6_mech <- tidy_test(m_mech) %>% mutate(step = "6", status = "Exploratory", model = "berry_alloc ~ fava_npp*Inoc*Water")
+
+final_table <- bind_rows(rows) %>%
+  select(step, status, model, term, statistic, df, p.value) %>%
+  mutate(statistic = round(statistic, 3), p.value = round(p.value, 5)) %>%
+  mutate(status = case_when(
+    status == "CONFIRMATORY #1" & term == "Poly:Inoc:Water" ~ "CONFIRMATORY #1",
+    status == "CONFIRMATORY #1" ~ "Diagnostic (same model as Confirmatory #1)",
+    status == "CONFIRMATORY #1 (robustness)" & term == "Poly:Inoc:Water" ~ "CONFIRMATORY #1 (robustness)",
+    status == "CONFIRMATORY #1 (robustness)" ~ "Diagnostic (same model as Confirmatory #1 robustness)",
+    status == "CONFIRMATORY #2" & term == "Inoc:Water" ~ "CONFIRMATORY #2",
+    status == "CONFIRMATORY #2" ~ "Diagnostic (same model as Confirmatory #2)",
+    status == "CONFIRMATORY #3" & term == "Inoc:Water" ~ "CONFIRMATORY #3",
+    status == "CONFIRMATORY #3" ~ "Diagnostic (same model as Confirmatory #3)",
+    TRUE ~ status
+  ))
+
+write_csv(final_table, "supplementary_test_table.csv")
+```
+
+```{r}
+cat("Total rows:", nrow(final_table), " (plan's own estimate: 'roughly 150 tests')\n")
+cat("Confirmatory rows (the ONLY 4 that matter for the paper's central claims):\n")
+print(final_table %>% filter(grepl("^CONFIRMATORY", status)) %>% select(step, model, term, statistic, df, p.value))
+```
+
+```{r}
+knitr::kable(final_table, caption = "Full supplementary test table - every model, every term, every step. Also saved as supplementary_test_table.csv.")
+```
+
+Saved to `supplementary_test_table.csv` alongside this document for direct inclusion as a
+manuscript supplementary file.

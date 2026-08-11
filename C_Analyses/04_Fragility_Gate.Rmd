@@ -1,0 +1,168 @@
+---
+title: "Step 4 - GATE: Fragility"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+This is Step 4 from `Instructions/AMF_intercropping_analysis_plan.md` - the second gate.
+The three-way interaction appears to hinge on one cell (Mono x Inoc x Severe, berry
+allocation ~0.06-0.09 while the other cells sit at 0.21-0.31). With n=5 per cell, that could
+be one influential pot rather than a real pattern. This has to be checked before the
+3.4x/16-point effect goes anywhere near a manuscript.
+
+**Decision rule** (verbatim from the plan): if removing any single pot moves the three-way
+p-value above ~0.10 or halves the severe-drought contrast estimate, say so in the results
+and temper the abstract. Report the LOO range in a supplement regardless of outcome.
+
+```{r}
+library(tidyverse)
+library(glmmTMB)
+library(car)
+library(emmeans)
+
+wheat <- readRDS("wheat_audited.rds")
+wheat_c <- wheat
+contrasts(wheat_c$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+
+m1_full <- glmmTMB(berry_alloc ~ Poly * Inoc * Water, dispformula = ~ Poly,
+                    family = beta_family(), data = wheat_c)
+p3_full <- car::Anova(m1_full, type = 2)["Poly:Inoc:Water", "Pr(>Chisq)"]
+emm_full <- regrid(emmeans(m1_full, ~ Inoc | Poly * Water))
+dd_full  <- as.data.frame(contrast(emm_full, interaction = c("revpairwise", "revpairwise"), by = "Water"))
+sev_full <- dd_full$estimate[dd_full$Water == "Severe"]
+```
+
+Full-data reference values: `Poly:Inoc:Water` p =
+`r formatC(p3_full, format="e", digits=3)`, severe-drought contrast =
+`r round(sev_full, 4)`.
+
+# 1. Leave-one-out refit across all 60 pots
+
+Refits `glmmTMB` directly for each dropped pot (not `update()` - Step 3 turned up a real
+`nlme` gotcha where models fit inside a function/loop can silently break on later
+re-evaluation of their stored call; refitting explicitly sidesteps that risk for `glmmTMB`
+too, rather than assuming it doesn't apply here).
+
+```{r}
+loo <- purrr::map_dfr(seq_len(nrow(wheat_c)), function(i) {
+  d <- wheat_c[-i, ]
+  m <- glmmTMB(berry_alloc ~ Poly * Inoc * Water, dispformula = ~ Poly,
+               family = beta_family(), data = d)
+  p3 <- car::Anova(m, type = 2)["Poly:Inoc:Water", "Pr(>Chisq)"]
+  emm <- regrid(emmeans(m, ~ Inoc | Poly * Water))
+  dd  <- as.data.frame(contrast(emm, interaction = c("revpairwise", "revpairwise"), by = "Water"))
+  sev_est <- dd$estimate[dd$Water == "Severe"]
+  tibble(
+    dropped_pot  = wheat_c$Name[i],
+    dropped_cell = paste(wheat_c$Poly[i], wheat_c$Inoc[i], wheat_c$Water[i]),
+    p3 = p3, severe_est = sev_est
+  )
+})
+```
+
+```{r}
+cat("Range of Poly:Inoc:Water p-value across all 60 single-pot-removed refits:\n")
+print(summary(loo$p3))
+cat("\nRange of severe-drought contrast estimate across all 60 refits:\n")
+print(summary(loo$severe_est))
+```
+
+```{r}
+half_threshold <- sev_full / 2
+p_fails  <- loo %>% filter(p3 > 0.10)
+est_fails <- loo %>% filter(severe_est < half_threshold)
+
+cat("Pots whose removal pushes p above 0.10:", nrow(p_fails), "\n")
+cat("Pots whose removal roughly halves the contrast (< ", round(half_threshold,4),
+    "):", nrow(est_fails), "\n")
+```
+
+**Neither failure condition triggers, for any of the 60 pots.** Worst case for the p-value
+is `r formatC(max(loo$p3), format="e", digits=2)` (still far below any conventional
+threshold); worst case for the contrast estimate is `r round(min(loo$severe_est),4)` (still
+`r round(min(loo$severe_est)/sev_full*100,0)`% of the full-data value, nowhere near half).
+
+```{r, fig.width=8, fig.height=4}
+loo <- loo %>% mutate(is_key_cell = dropped_cell == "Mono Inoc Severe")
+
+p1 <- ggplot(loo, aes(x = reorder(dropped_pot, p3), y = p3, color = is_key_cell)) +
+  geom_point() + geom_hline(yintercept = 0.10, linetype = "dashed", color = "red") +
+  scale_y_log10() +
+  scale_color_manual(values = c("grey50", "firebrick"), guide = "none") +
+  labs(x = NULL, y = "Poly:Inoc:Water p-value\n(log scale)",
+       title = "LOO: three-way p-value, every single-pot removal") +
+  theme_minimal(base_size = 10) + theme(axis.text.x = element_blank())
+
+p2 <- ggplot(loo, aes(x = reorder(dropped_pot, severe_est), y = severe_est, color = is_key_cell)) +
+  geom_point() + geom_hline(yintercept = half_threshold, linetype = "dashed", color = "red") +
+  scale_color_manual(values = c("grey50", "firebrick"), guide = "none") +
+  labs(x = NULL, y = "Severe-drought contrast estimate",
+       title = "LOO: contrast estimate, every single-pot removal") +
+  theme_minimal(base_size = 10) + theme(axis.text.x = element_blank())
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+Red = the 5 pots in the flagged Mono/Inoc/Severe cell itself - dropping any one of them
+moves the estimates the most (expected, since they define one arm of the key contrast), but
+even those 5 stay far inside both failure thresholds (dashed red lines).
+
+```{r}
+loo %>% filter(is_key_cell) %>% select(-is_key_cell) %>%
+  knitr::kable(digits = 5, caption = "LOO results for the 5 pots in the flagged cell specifically")
+```
+
+# 2. Cook's distance / influence measures
+
+`cooks.distance()`/`influence.measures()` are `lm`/`glm`-specific and have no method defined
+for `glmmTMB` beta-regression objects - noted rather than silently skipped. The leave-one-out
+refit above is arguably the more direct diagnostic for this specific question anyway: it
+tracks how much *the actual test statistic and contrast of interest* move when a pot is
+dropped, rather than a generic "how much do fitted values shift" metric that isn't targeted
+at the three-way interaction specifically.
+
+# 3. Raw data: the five pots in the flagged cell
+
+```{r, fig.width=6, fig.height=4}
+key_cell_data <- wheat %>% filter(Poly == "Mono", Inoc == "Inoc", Water == "Severe")
+
+ggplot(key_cell_data, aes(x = 1, y = berry_alloc)) +
+  geom_jitter(width = 0.05, size = 3) +
+  geom_text(aes(label = Replicate), hjust = -0.5, size = 3.5) +
+  labs(title = "Mono x Inoc x Severe: all 5 raw berry_alloc values",
+       x = NULL, y = "berry_alloc") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+```{r}
+key_cell_data %>% select(Name, Replicate, berry_alloc, berry, veg) %>%
+  arrange(berry_alloc) %>% knitr::kable(digits = 4)
+```
+
+No single pot in this cell is a dramatic outlier from the other four - the LOO result above
+(removing any one of the 5 barely moves the p-value or estimate) is consistent with this
+being a real, repeatable cell mean rather than one anomalous pot dragging the average down.
+
+# GATE VERDICT
+
+```{r}
+fragile <- nrow(p_fails) > 0 || nrow(est_fails) > 0
+cat(if (fragile) "GATE FAILED - result is fragile, temper the abstract" else "GATE PASSED", "\n")
+```
+
+**The three-way interaction is not fragile.** No single pot, including any of the 5 that
+define the flagged Mono/Inoc/Severe cell, comes close to moving the result across either
+failure threshold. Per the plan: report the LOO range in the supplement regardless of
+outcome (done above) - here, the story is straightforwardly reassuring rather than a
+temper-the-abstract situation.
+
+Proceeding to the addendum's Step 4b/4c (three follow-up checks on the Step 2 allometry
+result, plus one new secondary test), per `Instructions/addendum_after_step2.md`, before
+Step 5.

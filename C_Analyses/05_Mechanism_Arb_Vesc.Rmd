@@ -1,0 +1,238 @@
+---
+title: "Step 5 - Mechanism: Arbuscule:Vesicle Composition"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+Step 5 from `Instructions/AMF_intercropping_analysis_plan.md`, Section 10 Option A. The
+plan's hoped-for story: colonization *intensity* is flat across drought (a null the thesis
+already reported), but colonization *composition* - arbuscules (active exchange) vs.
+vesicles (fungal storage) - shifts toward storage under severe drought, and that shift is
+what explains the reproductive-allocation penalty. **Read the whole page before taking any
+single result at face value - the actual results substantially complicate this story, and
+that's reported plainly below rather than reframed to fit.**
+
+```{r}
+library(tidyverse)
+library(car)
+library(glmmTMB)
+library(DHARMa)
+library(nlme)
+
+wheat <- readRDS("wheat_audited.rds")
+inoc  <- wheat %>% filter(Inoc == "Inoc")
+contrasts(inoc$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+```
+
+Inoc-only pots, n = `r nrow(inoc)` (2 Poly x 3 Water x 5 reps, balanced).
+
+# Descriptive picture first
+
+```{r}
+desc <- inoc %>% group_by(Poly, Water) %>%
+  summarise(mean_AV = round(mean(AV), 3), mean_arb_pct = round(mean(arb_pct), 3),
+            mean_ves_pct = round(mean(ves_pct), 3), mean_hyphal = round(mean(hyphal), 3),
+            .groups = "drop")
+knitr::kable(desc, caption = "Mean AV ratio, arbuscule %, vesicle %, and overall hyphal % by cell")
+```
+
+**Worth flagging immediately:** Mono x Severe - the cell where the reproductive-allocation
+penalty is largest (Steps 2-4) - has the **highest** mean AV ratio (more arbuscules relative
+to vesicles), not the lowest. That's the opposite direction from "drought shifts the
+symbiosis toward storage." Whether that holds up formally is tested below.
+
+# Model 1: does functional composition (AV ratio) shift with drought and stand composition?
+
+```{r}
+m_av <- lm(AV ~ Poly * Water, data = inoc)
+av_tbl <- car::Anova(m_av, type = 2) %>% broom::tidy() %>% filter(term != "Residuals")
+knitr::kable(av_tbl %>% mutate(across(c(statistic, p.value), ~round(.x, 4))),
+             caption = "AV ~ Poly*Water (OLS)")
+```
+
+## Assumption check - and it matters here
+
+```{r}
+sw <- shapiro.test(residuals(m_av))
+lev <- car::leveneTest(AV ~ interaction(Poly, Water), data = inoc)
+cat("Shapiro-Wilk on residuals: p =", round(sw$p.value, 3), "(fine)\n")
+cat("Levene (6 cells): p =", round(lev[1, "Pr(>F)"], 4), "(flagged - checked below, not ignored)\n")
+```
+
+```{r}
+var_tbl <- inoc %>% group_by(Poly, Water) %>% summarise(sd_AV = round(sd(AV), 2), .groups = "drop")
+knitr::kable(var_tbl, caption = "SD of AV by cell - Mono x Severe is far more variable than the rest")
+```
+
+Same pattern as Step 2's allometry model: heteroscedasticity flagged, checked properly with
+a heteroscedasticity-robust refit rather than ignored or used to throw out the result either
+way.
+
+```{r}
+inoc$PolyWater <- interaction(inoc$Poly, inoc$Water)
+m_homo_ml   <- gls(AV ~ Poly * Water, method = "ML", data = inoc)
+m_hetero_ml <- gls(AV ~ Poly * Water, weights = varIdent(form = ~1 | PolyWater), method = "ML", data = inoc)
+lrt <- anova(m_homo_ml, m_hetero_ml)
+print(lrt)
+
+hetero_tbl <- car::Anova(m_hetero_ml, type = 2) %>% broom::tidy()
+knitr::kable(hetero_tbl %>% mutate(across(c(statistic, p.value), ~round(.x, 4))),
+             caption = "AV ~ Poly*Water, heteroscedasticity-weighted (varIdent by cell)")
+```
+
+The variance structure genuinely matters here too (LRT p =
+`r format.pval(lrt[["p-value"]][2])`) - once accounted for, a **Poly** main effect emerges
+that wasn't visible in the naive OLS (p =
+`r round(hetero_tbl$p.value[hetero_tbl$term=='Poly'],4)`), but **the term the plan actually
+designated as the test - `Poly:Water` - stays clearly non-significant either way** (OLS p =
+`r round(av_tbl$p.value[av_tbl$term=='Poly:Water'],3)`, heteroscedasticity-robust p =
+`r round(hetero_tbl$p.value[hetero_tbl$term=='Poly:Water'],3)`).
+
+**Model 1 does not find the hypothesized shift.** Composition (AV ratio) doesn't detectably
+depend on the Water x stand-composition interaction in this dataset.
+
+# Models 2: structures modeled separately (raw counts, binomial GLM)
+
+**Overdispersion check first - this was decisive.** Grid-intersect counts out of 100 are not
+simple binomial draws (adjacent intersects on the same root aren't independent), so a plain
+binomial GLM's standard errors are almost always too small here. Checked, not assumed:
+
+```{r}
+m_arb_naive <- glm(cbind(arb_n, 100 - arb_n) ~ Poly * Water, family = binomial, data = inoc)
+m_ves_naive <- glm(cbind(ves_n, 100 - ves_n) ~ Poly * Water, family = binomial, data = inoc)
+m_hyph_naive <- glm(cbind(hyph_n, 100 - hyph_n) ~ Poly * Water, family = binomial, data = inoc)
+
+phi <- function(m) sum(residuals(m, type = "pearson")^2) / df.residual(m)
+phi_tbl <- tibble(
+  response = c("arb_n", "ves_n", "hyph_n"),
+  overdispersion_phi = round(c(phi(m_arb_naive), phi(m_ves_naive), phi(m_hyph_naive)), 1)
+)
+knitr::kable(phi_tbl, caption = "Overdispersion factor (phi) - conventionally, phi > ~2 means the naive binomial SEs are not trustworthy")
+```
+
+**All three are severely overdispersed (phi = 9-17, several times the usual concern
+threshold).** The naive binomial p-values for all three responses are unusable as reported -
+refit two ways, per the plan's own instruction, as a cross-check against each other:
+quasibinomial (simple SE inflation) and beta-binomial via `glmmTMB` (models the actual
+variance structure rather than just inflating SEs post hoc).
+
+```{r}
+run_both <- function(response_expr, label) {
+  form_q  <- as.formula(paste(response_expr, "~ Poly*Water"))
+  m_q  <- glm(form_q, family = quasibinomial, data = inoc)
+  q_tbl <- car::Anova(m_q, type = 2, test = "F") %>% broom::tidy() %>%
+    filter(term != "Residuals") %>% mutate(method = "quasibinomial")
+
+  m_bb <- glmmTMB(form_q, family = betabinomial, data = inoc)
+  bb_tbl <- car::Anova(m_bb, type = 2) %>% broom::tidy() %>% mutate(method = "beta-binomial")
+
+  bind_rows(q_tbl %>% select(term, p.value, method),
+            bb_tbl %>% select(term, p.value, method)) %>%
+    mutate(response = label, .before = 1)
+}
+
+overdisp_results <- bind_rows(
+  run_both("cbind(arb_n, 100-arb_n)", "arbuscules (arb_n)"),
+  run_both("cbind(ves_n, 100-ves_n)", "vesicles (ves_n)"),
+  run_both("cbind(hyph_n, 100-hyph_n)", "overall hyphal presence (hyph_n)")
+)
+
+overdisp_results %>% mutate(p.value = round(p.value, 4)) %>%
+  pivot_wider(names_from = method, values_from = p.value) %>%
+  knitr::kable(caption = "Poly*Water term p-values, properly dispersion-corrected, both methods side by side")
+```
+
+**Arbuscules and vesicles individually: no significant Water, Poly, or Poly:Water effect by
+either method.** Composition doesn't shift in either component structure.
+
+**Overall hyphal presence (the thing the plan expected to be FLAT): this is the one where
+the two correction methods disagree at the margin** - quasibinomial finds Water and
+Poly:Water significant (p = 0.023, 0.012); beta-binomial finds them marginal (p = 0.072,
+0.050). Neither agrees with "flat" as confidently predicted - if anything, overall
+colonization intensity shows more evidence of shifting with treatment than composition does,
+which is **the reverse of the plan's hoped mechanism.**
+
+# Model 3 (per the plan's Model 3, folded into the table above): intensity vs. composition, directly compared
+
+```{r}
+compare_tbl <- overdisp_results %>%
+  filter(term == "Poly:Water") %>%
+  select(response, method, p.value) %>%
+  mutate(p.value = round(p.value, 4))
+knitr::kable(compare_tbl, caption = "Poly:Water term, all three structures, both methods")
+```
+
+**This is the headline result of Step 5, stated plainly rather than reshaped to match the
+plan's expectation:** the data does not support "intensity flat, composition shifts."
+Composition (arbuscules, vesicles, and their ratio) shows no detectable Poly:Water
+dependence by any method tested here; overall intensity shows marginal-to-significant
+evidence of one, depending on correction method. This is a real, reportable finding - just a
+different one than Section 10 of the plan was hoping to find before the data was actually
+modeled with dispersion handled correctly.
+
+# Model 4: does functional composition track the allocation penalty?
+
+```{r}
+m_link <- glmmTMB(berry_alloc ~ AV * Water * Poly, family = beta_family(), data = inoc)
+link_tbl <- car::Anova(m_link, type = 2) %>% broom::tidy()
+knitr::kable(link_tbl %>% mutate(across(c(statistic, p.value), ~round(.x, 4))),
+             caption = "berry_alloc ~ AV * Water * Poly")
+
+sim <- simulateResiduals(m_link, n = 1000)
+cat("DHARMa uniformity p:", round(testUniformity(sim, plot = FALSE)$p.value, 3),
+    "| dispersion p:", round(testDispersion(sim, plot = FALSE)$p.value, 3), "(both clean)\n")
+```
+
+**No detectable AV-allocation link.** `AV` itself and every `AV:...` interaction are
+non-significant (all p > 0.30) - the model diagnostics are clean, so this isn't a
+mis-specified-model artifact. Per the plan's own framing caution, this was always going to
+be association-only language even if it had come back significant (A:V wasn't randomized) -
+it doesn't reach even that bar here.
+
+```{r, fig.width=7, fig.height=4}
+ggplot(inoc, aes(x = AV, y = berry_alloc, color = Water)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  facet_wrap(~ Poly) +
+  labs(title = "Berry allocation vs. arbuscule:vesicle ratio - no consistent relationship",
+       x = "AV (log arbuscule:vesicle ratio)", y = "berry_alloc") +
+  theme_minimal(base_size = 12)
+```
+
+# Honest summary
+
+Every one of the four models in this section returns a null or an inverted result relative
+to what Section 10 of the plan hoped to find:
+
+```{r}
+summary_tbl <- tibble::tribble(
+  ~model, ~hoped_for, ~actual_result,
+  "1. AV ~ Poly*Water", "Composition shifts with drought/stand composition", "No - Poly:Water n.s. under both OLS and heteroscedasticity-robust refit",
+  "2. arb_n, ves_n (dispersion-corrected)", "Structures shift individually", "No - n.s. for both structures, both correction methods",
+  "3. hyph_n (should be flat)", "Overall intensity unchanged", "Marginal-to-significant evidence it DOES shift - opposite of expected",
+  "4. berry_alloc ~ AV*Water*Poly", "AV tracks the allocation penalty", "No detectable association, any term"
+)
+knitr::kable(summary_tbl)
+```
+
+**Likely explanation, stated as a limitation rather than explained away:** n=5/cell (n=30
+total) for a 6-cell design is thin for detecting anything but a large effect in count data
+this noisy, especially once properly dispersion-corrected (which necessarily widens
+confidence intervals relative to the naive, overdispersion-ignoring analysis). The
+descriptive table's Mono x Severe pattern (highest AV, highest variance) is suggestive but
+not statistically confirmed at this sample size - worth stating as an open question for
+future work with more replication, not as a finding.
+
+**What this means for the paper's framing:** Section 10's "positive mechanistic finding"
+framing (composition shift explains the allocation penalty) is not supported by this
+dataset as analyzed here. The allocation-strategy shift documented in Steps 2-4 remains
+robust and well-supported; the arbuscule:vesicle mechanism proposed to explain *why* it
+happens does not have direct support from these models. Recommend describing Section 10's
+motivating hypothesis in the discussion as a hypothesis for future work, not as a
+confirmed or even suggestive secondary result of this study.

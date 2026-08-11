@@ -1,0 +1,148 @@
+step,status,model,term,statistic,df,p.value
+2,Diagnostic,berry_alloc ~ Poly*Inoc*Water (unadjusted baseline),Poly,5.773,1,0.02019
+2,Diagnostic,berry_alloc ~ Poly*Inoc*Water (unadjusted baseline),Inoc,3.503,1,0.06736
+2,Diagnostic,berry_alloc ~ Poly*Inoc*Water (unadjusted baseline),Water,14.391,2,1e-5
+2,Diagnostic,berry_alloc ~ Poly*Inoc*Water (unadjusted baseline),Poly:Inoc,0.54,1,0.46585
+2,Diagnostic,berry_alloc ~ Poly*Inoc*Water (unadjusted baseline),Poly:Water,1.231,2,0.30119
+2,Diagnostic,berry_alloc ~ Poly*Inoc*Water (unadjusted baseline),Inoc:Water,4.994,2,0.0107
+2,Diagnostic,berry_alloc ~ Poly*Inoc*Water (unadjusted baseline),Poly:Inoc:Water,4.145,2,0.02185
+2,Diagnostic (same model as Confirmatory #1),log(berry) ~ log(veg)+Poly*Inoc*Water (size-adjusted elevation),log_veg,0.514,1,0.47687
+2,Diagnostic (same model as Confirmatory #1),log(berry) ~ log(veg)+Poly*Inoc*Water (size-adjusted elevation),Poly,36.558,1,0
+2,Diagnostic (same model as Confirmatory #1),log(berry) ~ log(veg)+Poly*Inoc*Water (size-adjusted elevation),Inoc,0.533,1,0.46909
+2,Diagnostic (same model as Confirmatory #1),log(berry) ~ log(veg)+Poly*Inoc*Water (size-adjusted elevation),Water,40.032,2,0
+2,Diagnostic (same model as Confirmatory #1),log(berry) ~ log(veg)+Poly*Inoc*Water (size-adjusted elevation),Poly:Inoc,1.03,1,0.31534
+2,Diagnostic (same model as Confirmatory #1),log(berry) ~ log(veg)+Poly*Inoc*Water (size-adjusted elevation),Poly:Water,3.532,2,0.03723
+2,Diagnostic (same model as Confirmatory #1),log(berry) ~ log(veg)+Poly*Inoc*Water (size-adjusted elevation),Inoc:Water,5.779,2,0.0057
+2,CONFIRMATORY #1,log(berry) ~ log(veg)+Poly*Inoc*Water (size-adjusted elevation),Poly:Inoc:Water,7.784,2,0.0012
+2,Diagnostic (same model as Confirmatory #1 robustness),"Same, heteroscedasticity-robust GLS",log_veg,13.736,1,2.1e-4
+2,Diagnostic (same model as Confirmatory #1 robustness),"Same, heteroscedasticity-robust GLS",Poly,25.04,1,0
+2,Diagnostic (same model as Confirmatory #1 robustness),"Same, heteroscedasticity-robust GLS",Inoc,0.016,1,0.89818
+2,Diagnostic (same model as Confirmatory #1 robustness),"Same, heteroscedasticity-robust GLS",Water,45.773,2,0
+2,Diagnostic (same model as Confirmatory #1 robustness),"Same, heteroscedasticity-robust GLS",Poly:Inoc,0.005,1,0.94211
+2,Diagnostic (same model as Confirmatory #1 robustness),"Same, heteroscedasticity-robust GLS",Poly:Water,5.938,2,0.05135
+2,Diagnostic (same model as Confirmatory #1 robustness),"Same, heteroscedasticity-robust GLS",Inoc:Water,7.581,2,0.02259
+2,CONFIRMATORY #1 (robustness),"Same, heteroscedasticity-robust GLS",Poly:Inoc:Water,11.105,2,0.00388
+3,Diagnostic (same model as Confirmatory #2),berry_alloc ~ Poly*Inoc*Water (primary beta regression),Poly,5.066,1,0.02439
+3,Diagnostic (same model as Confirmatory #2),berry_alloc ~ Poly*Inoc*Water (primary beta regression),Inoc,1.566,1,0.21084
+3,Diagnostic (same model as Confirmatory #2),berry_alloc ~ Poly*Inoc*Water (primary beta regression),Water,25.602,2,0
+3,Diagnostic (same model as Confirmatory #2),berry_alloc ~ Poly*Inoc*Water (primary beta regression),Poly:Inoc,0.81,1,0.36806
+3,Diagnostic (same model as Confirmatory #2),berry_alloc ~ Poly*Inoc*Water (primary beta regression),Poly:Water,3.199,2,0.20197
+3,CONFIRMATORY #2,berry_alloc ~ Poly*Inoc*Water (primary beta regression),Inoc:Water,11.106,2,0.00388
+3,Diagnostic (same model as Confirmatory #2),berry_alloc ~ Poly*Inoc*Water (primary beta regression),Poly:Inoc:Water,16.586,2,2.5e-4
+3,Diagnostic (same model as Confirmatory #3),log(NPP per plant) ~ Poly*Inoc*Water,Poly,64.25,1,0
+3,Diagnostic (same model as Confirmatory #3),log(NPP per plant) ~ Poly*Inoc*Water,Inoc,4.551,1,0.03803
+3,Diagnostic (same model as Confirmatory #3),log(NPP per plant) ~ Poly*Inoc*Water,Water,16.912,2,0
+3,Diagnostic (same model as Confirmatory #3),log(NPP per plant) ~ Poly*Inoc*Water,Poly:Inoc,2.011,1,0.16258
+3,Diagnostic (same model as Confirmatory #3),log(NPP per plant) ~ Poly*Inoc*Water,Poly:Water,1.061,2,0.35424
+3,CONFIRMATORY #3,log(NPP per plant) ~ Poly*Inoc*Water,Inoc:Water,0.474,2,0.62536
+3,Diagnostic (same model as Confirmatory #3),log(NPP per plant) ~ Poly*Inoc*Water,Poly:Inoc:Water,1.339,2,0.27172
+3,Exploratory,log(ANPP per plant) ~ Poly*Inoc*Water,Poly,36.72,1,0
+3,Exploratory,log(ANPP per plant) ~ Poly*Inoc*Water,Inoc,7.139,1,0.01027
+3,Exploratory,log(ANPP per plant) ~ Poly*Inoc*Water,Water,7.256,2,0.00176
+3,Exploratory,log(ANPP per plant) ~ Poly*Inoc*Water,Poly:Inoc,1.79,1,0.18726
+3,Exploratory,log(ANPP per plant) ~ Poly*Inoc*Water,Poly:Water,1.539,2,0.22503
+3,Exploratory,log(ANPP per plant) ~ Poly*Inoc*Water,Inoc:Water,1,2,0.37539
+3,Exploratory,log(ANPP per plant) ~ Poly*Inoc*Water,Poly:Inoc:Water,1.515,2,0.23015
+3,Exploratory,log(BNPP per plant) ~ Poly*Inoc*Water,Poly,23.306,1,1e-5
+3,Exploratory,log(BNPP per plant) ~ Poly*Inoc*Water,Inoc,1.777,1,0.18878
+3,Exploratory,log(BNPP per plant) ~ Poly*Inoc*Water,Water,1.808,2,0.17492
+3,Exploratory,log(BNPP per plant) ~ Poly*Inoc*Water,Poly:Inoc,1.274,1,0.26471
+3,Exploratory,log(BNPP per plant) ~ Poly*Inoc*Water,Poly:Water,0.374,2,0.69006
+3,Exploratory,log(BNPP per plant) ~ Poly*Inoc*Water,Inoc:Water,2.44,2,0.09791
+3,Exploratory,log(BNPP per plant) ~ Poly*Inoc*Water,Poly:Inoc:Water,0.925,2,0.40355
+3,Exploratory,log(berry mass per plant) ~ Poly*Inoc*Water,Poly,60.223,1,0
+3,Exploratory,log(berry mass per plant) ~ Poly*Inoc*Water,Inoc,1,1,0.32238
+3,Exploratory,log(berry mass per plant) ~ Poly*Inoc*Water,Water,45.095,2,0
+3,Exploratory,log(berry mass per plant) ~ Poly*Inoc*Water,Poly:Inoc,0.972,1,0.32902
+3,Exploratory,log(berry mass per plant) ~ Poly*Inoc*Water,Poly:Water,3.539,2,0.03684
+3,Exploratory,log(berry mass per plant) ~ Poly*Inoc*Water,Inoc:Water,5.954,2,0.0049
+3,Exploratory,log(berry mass per plant) ~ Poly*Inoc*Water,Poly:Inoc:Water,7.641,2,0.00131
+3,Exploratory,ANPP % of wheat biomass ~ Poly*Inoc*Water,Poly,6.472,1,0.01423
+3,Exploratory,ANPP % of wheat biomass ~ Poly*Inoc*Water,Inoc,4.724,1,0.03471
+3,Exploratory,ANPP % of wheat biomass ~ Poly*Inoc*Water,Water,6.083,2,0.00442
+3,Exploratory,ANPP % of wheat biomass ~ Poly*Inoc*Water,Poly:Inoc,0.192,1,0.66288
+3,Exploratory,ANPP % of wheat biomass ~ Poly*Inoc*Water,Poly:Water,1.651,2,0.20266
+3,Exploratory,ANPP % of wheat biomass ~ Poly*Inoc*Water,Inoc:Water,1.57,2,0.21846
+3,Exploratory,ANPP % of wheat biomass ~ Poly*Inoc*Water,Poly:Inoc:Water,2.77,2,0.07268
+3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Poly,0.167,1,0.68481
+3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Inoc,0.004,1,0.95292
+3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Water,8.265,2,8.2e-4
+3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Poly:Inoc,0.341,1,0.56181
+3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Poly:Water,0.035,2,0.96542
+3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Inoc:Water,4.219,2,0.02051
+3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Poly:Inoc:Water,1.019,2,0.36853
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly,64.256,1,0
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Inoc,5.552,1,0.01846
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Water,34.495,2,0
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly:Inoc,3.754,1,0.05267
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly:Water,4.489,2,0.10596
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Inoc:Water,1.873,2,0.39192
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly:Inoc:Water,2.401,2,0.30109
+3,Exploratory (robustness),"Dirichlet regression, compositional joint test","Poly:Inoc:Water (joint, all 3 parts)",19.933,6,0.00285
+4b,Robustness (distribution-free),"Exact Wilcoxon, berry ~ Inoc, Mono x Severe cell",Inoc (Mono x Severe cell only),-2.402,NA,0.01587
+4b,Robustness (distribution-free),"10,000-draw permutation test, labels shuffled within Water",Poly:Inoc:Water (permutation),16.586,NA,0.0165
+4b,Robustness (unequal variance),"Welch t-test, berry_alloc ~ Inoc, Mono x Severe cell",Inoc (Mono x Severe cell only),-4.481,5.219276202521234,0.00587
+4c,Exploratory (suggestive),"log(berry) ~ log(veg)*Water (pooled, best-powered)",log_veg,6.415,1,0.01425
+4c,Exploratory (suggestive),"log(berry) ~ log(veg)*Water (pooled, best-powered)",Water,14.043,2,1e-5
+4c,Exploratory (suggestive),"log(berry) ~ log(veg)*Water (pooled, best-powered)",log_veg:Water,2.446,2,0.09616
+5,Exploratory,AV ~ Poly*Water (OLS),Poly,0.043,1,0.83716
+5,Exploratory,AV ~ Poly*Water (OLS),Water,1.184,2,0.32341
+5,Exploratory,AV ~ Poly*Water (OLS),Poly:Water,0.903,2,0.41879
+5,Exploratory (robustness),AV ~ Poly*Water (heteroscedasticity-robust GLS),Poly,5.211,1,0.02245
+5,Exploratory (robustness),AV ~ Poly*Water (heteroscedasticity-robust GLS),Water,2.324,2,0.31285
+5,Exploratory (robustness),AV ~ Poly*Water (heteroscedasticity-robust GLS),Poly:Water,1.517,2,0.46839
+5,Exploratory,arbuscules (arb_n) ~ Poly*Water (quasibinomial),Poly,0.001,1,0.97412
+5,Exploratory,arbuscules (arb_n) ~ Poly*Water (quasibinomial),Water,2.279,2,0.12414
+5,Exploratory,arbuscules (arb_n) ~ Poly*Water (quasibinomial),Poly:Water,2.656,2,0.09075
+5,Exploratory (robustness),arbuscules (arb_n) ~ Poly*Water (beta-binomial),Poly,0.007,1,0.93166
+5,Exploratory (robustness),arbuscules (arb_n) ~ Poly*Water (beta-binomial),Water,3.984,2,0.13642
+5,Exploratory (robustness),arbuscules (arb_n) ~ Poly*Water (beta-binomial),Poly:Water,2.209,2,0.33138
+5,Exploratory,vesicles (ves_n) ~ Poly*Water (quasibinomial),Poly,1.959,1,0.17438
+5,Exploratory,vesicles (ves_n) ~ Poly*Water (quasibinomial),Water,1.376,2,0.27186
+5,Exploratory,vesicles (ves_n) ~ Poly*Water (quasibinomial),Poly:Water,0.226,2,0.7993
+5,Exploratory (robustness),vesicles (ves_n) ~ Poly*Water (beta-binomial),Poly,0.812,1,0.36744
+5,Exploratory (robustness),vesicles (ves_n) ~ Poly*Water (beta-binomial),Water,5.98,2,0.05028
+5,Exploratory (robustness),vesicles (ves_n) ~ Poly*Water (beta-binomial),Poly:Water,1.573,2,0.45533
+5,Exploratory,overall hyphal presence (hyph_n) ~ Poly*Water (quasibinomial),Poly,2.085,1,0.1617
+5,Exploratory,overall hyphal presence (hyph_n) ~ Poly*Water (quasibinomial),Water,4.447,2,0.02276
+5,Exploratory,overall hyphal presence (hyph_n) ~ Poly*Water (quasibinomial),Poly:Water,5.311,2,0.01231
+5,Exploratory (robustness),overall hyphal presence (hyph_n) ~ Poly*Water (beta-binomial),Poly,1.976,1,0.15986
+5,Exploratory (robustness),overall hyphal presence (hyph_n) ~ Poly*Water (beta-binomial),Water,5.274,2,0.07156
+5,Exploratory (robustness),overall hyphal presence (hyph_n) ~ Poly*Water (beta-binomial),Poly:Water,5.982,2,0.05023
+5,Exploratory,berry_alloc ~ AV*Water*Poly,AV,0.228,1,0.63334
+5,Exploratory,berry_alloc ~ AV*Water*Poly,Water,57.653,2,0
+5,Exploratory,berry_alloc ~ AV*Water*Poly,Poly,14.069,1,1.8e-4
+5,Exploratory,berry_alloc ~ AV*Water*Poly,AV:Water,1.337,2,0.51253
+5,Exploratory,berry_alloc ~ AV*Water*Poly,AV:Poly,1.062,1,0.30286
+5,Exploratory,berry_alloc ~ AV*Water*Poly,Water:Poly,40.883,2,0
+5,Exploratory,berry_alloc ~ AV*Water*Poly,AV:Water:Poly,1.023,2,0.59969
+6,Exploratory,berry_alloc ~ hyphal*Water*Poly (OLS),hyphal,0.003,1,0.95693
+6,Exploratory,berry_alloc ~ hyphal*Water*Poly (OLS),Water,27.712,2,0
+6,Exploratory,berry_alloc ~ hyphal*Water*Poly (OLS),Poly,10.183,1,0.00506
+6,Exploratory,berry_alloc ~ hyphal*Water*Poly (OLS),hyphal:Water,2.063,2,0.15612
+6,Exploratory,berry_alloc ~ hyphal*Water*Poly (OLS),hyphal:Poly,2.353,1,0.1424
+6,Exploratory,berry_alloc ~ hyphal*Water*Poly (OLS),Water:Poly,7.197,2,0.00505
+6,Exploratory,berry_alloc ~ hyphal*Water*Poly (OLS),hyphal:Water:Poly,0.7,2,0.50977
+6,Exploratory (robustness),"Same, beta regression",hyphal,0.019,1,0.89147
+6,Exploratory (robustness),"Same, beta regression",Water,56.438,2,0
+6,Exploratory (robustness),"Same, beta regression",Poly,10.083,1,0.0015
+6,Exploratory (robustness),"Same, beta regression",hyphal:Water,4.991,2,0.08246
+6,Exploratory (robustness),"Same, beta regression",hyphal:Poly,3.413,1,0.06469
+6,Exploratory (robustness),"Same, beta regression",Water:Poly,35.72,2,0
+6,Exploratory (robustness),"Same, beta regression",hyphal:Water:Poly,2.258,2,0.32342
+6,Exploratory,log(fava_npp) ~ hyphal*Water,hyphal,0.687,1,0.42858
+6,Exploratory,log(fava_npp) ~ hyphal*Water,Water,6.886,2,0.01534
+6,Exploratory,log(fava_npp) ~ hyphal*Water,hyphal:Water,0.169,2,0.84709
+6,Exploratory,fava_pct_pot ~ hyphal*Water,hyphal,0.032,1,0.86115
+6,Exploratory,fava_pct_pot ~ hyphal*Water,Water,5.858,2,0.02348
+6,Exploratory,fava_pct_pot ~ hyphal*Water,hyphal:Water,0.295,2,0.75152
+6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Inoc,68.743,1,0
+6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Water,1.194,2,0.32023
+6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Inoc:Water,15.975,2,4e-5
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp,13.513,1,2.4e-4
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Inoc,1.086,1,0.29738
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Water,0.685,2,0.70993
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp:Inoc,1.208,1,0.27167
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp:Water,6.262,2,0.04368
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Inoc:Water,2.52,2,0.2836
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp:Inoc:Water,2.476,2,0.28994

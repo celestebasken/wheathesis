@@ -1,0 +1,227 @@
+---
+title: "Step 1 - Data Audit"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+This is Step 1 from `Instructions/AMF_intercropping_analysis_plan.md`: assemble the full
+60-pot dataset, confirm balance, construct every derived variable the plan calls for, and
+check the beta-regression boundary condition - all **before** any modeling starts. Nothing
+below is a gate (those are Steps 2 and 4) - this is the groundwork those gates get built on.
+
+```{r}
+source("01_data_prep.R")
+```
+
+# 1. Row count and balance (n = 5 x 12 cells)
+
+```{r}
+cat("Total rows:", nrow(wheat), "(expected 60)\n\n")
+
+balance_tbl <- wheat %>%
+  count(Inoc, Poly, Water, name = "n") %>%
+  arrange(Inoc, Poly, Water)
+
+knitr::kable(balance_tbl, caption = "Pots per cell - every row should read n = 5")
+
+all_balanced <- all(balance_tbl$n == 5) && nrow(balance_tbl) == 12
+cat(if (all_balanced) "PASS" else "FAIL", "- balanced at n=5 across all 12 cells, no pot losses.\n")
+```
+
+# 2. Cross-file consistency check
+
+`Data/AMF_colonization.csv` is a new file (structure-level counts); `Data/full_dataset.csv`
+already had `hyphal_colonization`/`arb_vesc_colonization` computed from the same underlying
+scoring. Confirming the two files actually agree, rather than assuming it, since a silent
+mismatch here would propagate into every downstream model.
+
+```{r}
+check <- wheat %>%
+  mutate(
+    row_total       = Arbuscules + Vesicles + A_V + Hyphae_only + None,
+    hyphal_recomputed = (Arbuscules + Vesicles + A_V + Hyphae_only) / 100,
+    hyphal_diff       = abs(hyphal_colonization - hyphal_recomputed),
+    arb_vesc_recomputed = (Arbuscules + Vesicles + A_V) / 100,
+    arb_vesc_diff        = abs(arb_vesc_colonization - arb_vesc_recomputed)
+  )
+
+cat("Rows where the 5 structure counts don't sum to 100:",
+    sum(check$row_total != 100), "\n")
+cat("Max |hyphal_colonization - recomputed from counts|:  ",
+    round(max(check$hyphal_diff), 6), "\n")
+cat("Max |arb_vesc_colonization - recomputed from counts|:",
+    round(max(check$arb_vesc_diff), 6), "\n\n")
+
+consistent <- sum(check$row_total != 100) == 0 &&
+  max(check$hyphal_diff) < 1e-6 && max(check$arb_vesc_diff) < 1e-6
+cat(if (consistent) "PASS" else "FAIL",
+    "- structure counts sum to 100 for every pot, and match full_dataset.csv's",
+    "pre-computed percentages exactly.\n")
+```
+
+# 3. Missing data
+
+```{r}
+na_summary <- wheat %>%
+  summarise(across(c(ANPP, BNPP, berry, veg, NPP, berry_alloc, hyphal, arb_pct, ves_pct, AV,
+                      fava_npp, fava_pct_pot),
+                    ~sum(is.na(.x)))) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "n_missing") %>%
+  filter(n_missing > 0)
+
+if (nrow(na_summary) == 0) {
+  cat("No missing values outside the known BNPP gap below.\n")
+} else {
+  knitr::kable(na_summary)
+}
+
+wheat %>% filter(is.na(BNPP)) %>% select(Name, Inoc, Poly, Water) %>% knitr::kable(
+  caption = "The one pot missing a BNPP measurement (carries through to veg/NPP/berry_alloc's denominator for this row only)"
+)
+```
+
+`veg`, `NPP`, and `berry_alloc` are `NA` for this one pot as a direct consequence (their
+formulas all depend on BNPP) - every model in later steps will drop just this one row via
+`lm()`/`glmmTMB()`'s default `na.action`, not the whole dataset.
+
+# 4. Berry allocation: definition check + beta-regression boundary check
+
+**Definition** (Section 11 of the plan, "5.9% vs ~9%: resolved"): `berry_alloc = berry /
+(ANPP + BNPP + berry)`, i.e. berry mass as a fraction of *total* per-plant NPP. Recomputed
+directly from the raw per-plant masses here (not just trusted from a column label) and
+cross-checked against `full_dataset.csv`'s own `W_pcent_berries`.
+
+Tolerance is `1e-4`, not exact equality - `W_ANPP_g_pp`/`W_BNPP_g_pp`/`W_Berries_g_pp`/
+`W_NPP_pp` are each stored rounded to ~4-5 decimal places, so recomputing a ratio from
+already-rounded components necessarily disagrees with a ratio computed upstream (before
+rounding) by a small amount. Checked this is actually just rounding noise, not a real
+mismatch, before picking the threshold: max observed difference across all 59 non-missing
+rows is 3.1e-5 - two orders of magnitude below the `1e-4` cutoff, and nowhere near the
+size a genuine definitional disagreement would produce (that would show up as differences
+of 0.01-0.1+, not 0.00003).
+
+```{r}
+def_check <- wheat %>%
+  filter(!is.na(berry_alloc)) %>%
+  mutate(diff = abs(berry_alloc - W_pcent_berries))
+
+cat("Max |berry_alloc (recomputed) - W_pcent_berries (pre-existing column)|:",
+    round(max(def_check$diff), 8), "\n")
+cat(if (max(def_check$diff) < 1e-4) "PASS" else "FAIL",
+    "- W_pcent_berries already used this exact definition (difference is rounding noise",
+    "from already-rounded source columns, not a definitional mismatch); berry_alloc is",
+    "used as the canonical name for it from here on.\n\n")
+
+cat("berry_alloc range:", round(min(wheat$berry_alloc, na.rm=TRUE), 4), "-",
+    round(max(wheat$berry_alloc, na.rm=TRUE), 4), "\n")
+n_zero <- sum(wheat$berry_alloc == 0, na.rm = TRUE)
+n_one  <- sum(wheat$berry_alloc == 1, na.rm = TRUE)
+cat("Values exactly 0:", n_zero, " | Values exactly 1:", n_one, "\n\n")
+
+cat(if (n_zero == 0 && n_one == 0) "PASS" else "ACTION NEEDED",
+    "-", if (n_zero == 0 && n_one == 0)
+      "no boundary values; the beta regression in Step 3 can use berry_alloc as-is, no Smithson-Verkuilen transform needed."
+    else
+      "boundary value(s) present; apply the Smithson-Verkuilen transform ((y*(n-1)+0.5)/n) before fitting in Step 3, and say so in the methods, per the plan.")
+```
+
+# 5. Wheat-equivalent density (Inter pots) - Section 1 of the plan
+
+Fava biomass, converted into "how many additional wheat plants would have produced this
+much," using the mean per-plant wheat productivity of the 5 Inter pots sharing the same
+Inoculation x Water cell as the conversion rate (see `01_data_prep.R` for the exact
+reasoning behind that choice of denominator).
+
+```{r}
+wed_summary <- wheat %>%
+  filter(Poly == "Inter") %>%
+  summarise(
+    mean_wheat_equiv_density = mean(wheat_equiv_density, na.rm = TRUE),
+    mean_frac_of_mono        = mean(wheat_equiv_density_frac_of_mono, na.rm = TRUE),
+    min_frac                 = min(wheat_equiv_density_frac_of_mono, na.rm = TRUE),
+    max_frac                 = max(wheat_equiv_density_frac_of_mono, na.rm = TRUE)
+  )
+
+knitr::kable(wed_summary, digits = 3)
+
+cat("\nThe plan's own rough estimate from the figures was ~8 wheat-equivalents out of 12",
+    "(~two-thirds density). Computed value above is the actual per-pot figure across all 30",
+    "Inter pots, for comparison and for direct use/citation in the manuscript.\n")
+```
+
+```{r}
+ggplot(wheat %>% filter(Poly == "Inter"), aes(x = Water, y = wheat_equiv_density_frac_of_mono)) +
+  geom_boxplot(fill = "grey85") +
+  geom_jitter(width = 0.1, size = 2) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "grey50") +
+  labs(y = "Wheat-equivalent density\n(fraction of Mono's 12-plant density)",
+       title = "Inter pots sit well below Mono density, as expected",
+       subtitle = "Dashed line = Mono density (1.0)") +
+  theme_minimal(base_size = 12)
+```
+
+# 6. Arbuscule:vesicle structure counts - sanity ranges
+
+Quick look before Step 5 (the mechanism analysis) actually uses these, restricted to Inoc
+pots (Strl pots are ~0 by construction, same reasoning applied everywhere else in this
+project).
+
+```{r}
+wheat %>%
+  filter(Inoc == "Inoc") %>%
+  summarise(
+    n = n(),
+    mean_arb_n = mean(arb_n), range_arb_n = paste(range(arb_n), collapse = "-"),
+    mean_ves_n = mean(ves_n), range_ves_n = paste(range(ves_n), collapse = "-"),
+    mean_hyph_n = mean(hyph_n), range_hyph_n = paste(range(hyph_n), collapse = "-"),
+    n_zero_arb = sum(arb_n == 0), n_zero_ves = sum(ves_n == 0)
+  ) %>%
+  knitr::kable(caption = "Inoc pots only (n=30) - AV's +0.5 continuity correction matters if n_zero_arb/n_zero_ves > 0")
+```
+
+# 7. Phenology / senescence timing - RESOLVED
+
+The plan (Sections 10 and 11) asked whether senescence timing (days to Zadoks 92) differed
+by treatment, since that could confound the arbuscule:vesicle mechanism analysis
+(arbuscules decline naturally at senescence; if severe-drought pots were further past Z92
+at harvest, that alone could depress their arbuscule counts independent of any real AMF
+effect). Neither data file has a per-pot Z92 or harvest date on its own -
+`AMF_colonization.csv`'s `Date_assessed` is when colonization was *scored* (months after
+harvest), not when each pot reached Z92.
+
+**Confirmed directly: all 60 pots were harvested at the same Zadoks staging**, so there is
+no differential-senescence confound to control for at all - not just "the mono-vs-inter
+comparison within severe drought is sound" (the addendum's fallback for an *unresolved*
+version of this question), but no caveat needed anywhere in Step 5, including the
+across-water-level arbuscule comparisons the addendum specifically flagged as the
+vulnerable case if this had gone unresolved.
+
+# 8. Save the audited dataset
+
+```{r}
+saveRDS(wheat, "wheat_audited.rds")
+cat("Saved", nrow(wheat), "rows x", ncol(wheat), "columns to wheat_audited.rds -",
+    "this is what every later step reads, rather than re-deriving these variables per script.\n")
+```
+
+# Summary
+
+```{r}
+checks <- tibble::tribble(
+  ~item, ~status,
+  "Balanced n=5 across 12 cells, no pot losses", if (all_balanced) "PASS" else "FAIL",
+  "AMF_colonization.csv <-> full_dataset.csv consistent", if (consistent) "PASS" else "FAIL",
+  "Missing data understood (1 pot, BNPP only)", "PASS",
+  "berry_alloc definition fixed + matches existing column", if (max(def_check$diff) < 1e-4) "PASS" else "FAIL",
+  "berry_alloc has no exact 0/1 boundary values", if (n_zero == 0 && n_one == 0) "PASS" else "ACTION NEEDED",
+  "Wheat-equivalent density computed for Inter pots", "PASS",
+  "Senescence/Zadoks-92 timing data", "PASS - confirmed all pots harvested at same Zadoks stage"
+)
+knitr::kable(checks)
+```

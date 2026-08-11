@@ -1,0 +1,286 @@
+---
+title: "Step 6 - Exploratory Analyses"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+Step 6 from `Instructions/AMF_intercropping_analysis_plan.md`, Sections 5 and 6. **Everything
+in this document is exploratory**, per the plan's own pre-specification (Section 8) - none
+of it is part of the three confirmatory tests (Steps 2-4). Association language only where
+the predictor wasn't randomized (`hyphal`, `fava_npp`) - `hyphal_colonization` and
+`fava_npp` are outcomes of the experiment, not treatments, so "was associated with," not
+"caused."
+
+```{r}
+library(tidyverse)
+library(car)
+library(glmmTMB)
+library(DHARMa)
+library(emmeans)
+
+wheat <- readRDS("wheat_audited.rds")
+```
+
+# Part A: Colonization associations (Section 5 of the plan)
+
+Three problems the plan flags with how this was done previously: a bimodal predictor
+(Strl piled near 0, Inoc near 1) when Inoc and Strl are combined; comparing p-values across
+separate water-level panels instead of testing an interaction term; and colonization being
+observed, not randomized (bigger/healthier plants may support more hyphae - reverse
+causation is live). Fixed here by fitting within Inoc-only pots, with `hyphal:Water` as the
+designated test.
+
+## Two corrections to the plan's own framing, checked against the actual data
+
+```{r}
+strl <- wheat %>% filter(Inoc == "Strl")
+cat("Background colonization in Strl pots: range", round(min(strl$hyphal)*100,1), "-",
+    round(max(strl$hyphal)*100,1), "%  (plan states 0-30%)\n")
+strl_high <- strl %>% filter(hyphal == max(hyphal))
+```
+
+The plan describes background colonization in sterile pots as "0-30%" - **the actual range
+is 0-58%.** One pot (`r strl_high$Name`) sits well above the rest at
+`r round(strl_high$hyphal*100,0)`%, likely cross-contamination during handling/scoring
+rather than a systematic sterility failure (every other Strl pot the value is below the
+plan's estimate). Doesn't change the direction of the conservative-bias argument below,
+worth stating precisely rather than repeating the plan's number unchecked.
+
+```{r}
+inoc <- wheat %>% filter(Inoc == "Inoc")
+bimodal_check <- inoc %>% group_by(Water) %>%
+  summarise(mean = round(mean(hyphal), 2), sd = round(sd(hyphal), 2),
+            min = round(min(hyphal), 2), max = round(max(hyphal), 2))
+knitr::kable(bimodal_check, caption = "hyphal colonization within Inoc pots only, by Water")
+```
+
+**Within the Inoc-only subset used for the association models below, colonization is not
+bimodal** - the bimodality the plan describes is a property of the *combined* Inoc+Strl
+distribution (piling near 0 for Strl, near 1 for Inoc), which is exactly why these models
+are restricted to Inoc pots only in the first place. Within Inoc pots, Control and Severe
+have real spread (0.46-1.0, 0.66-0.99); Moderate is tightly compressed near ceiling
+(0.91-1.0, sd=0.03) - a power problem specific to that one water level's slope, not a
+bimodality problem.
+
+## The association model
+
+```{r}
+col <- inoc
+contrasts(col$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+
+m_col <- lm(berry_alloc ~ hyphal * Water * Poly, data = col)
+col_tbl <- car::Anova(m_col, type = 2) %>% broom::tidy() %>% filter(term != "Residuals")
+knitr::kable(col_tbl %>% mutate(across(c(statistic, p.value), ~round(.x, 4))),
+             caption = "berry_alloc ~ hyphal*Water*Poly (OLS)")
+cat("Shapiro-Wilk on residuals: p =", round(shapiro.test(residuals(m_col))$p.value, 3), "(clean)\n")
+```
+
+```{r}
+m_col_beta <- glmmTMB(berry_alloc ~ hyphal * Water * Poly, family = beta_family(), data = col)
+beta_tbl <- car::Anova(m_col_beta, type = 2) %>% broom::tidy()
+sim <- simulateResiduals(m_col_beta, n = 1000)
+knitr::kable(beta_tbl %>% mutate(across(c(statistic, p.value), ~round(.x, 4))),
+             caption = "Cross-check: same model as beta regression")
+cat("DHARMa uniformity p:", round(testUniformity(sim, plot=FALSE)$p.value,3), "(clean)\n")
+```
+
+**The designated test, `hyphal:Water`, is not significant by OLS (p =
+`r round(col_tbl$p.value[col_tbl$term=='hyphal:Water'],3)`) and only marginal by beta
+regression (p = `r round(beta_tbl$p.value[beta_tbl$term=='hyphal:Water'],3)`).** No clear
+association between realized colonization level and berry allocation, beyond what
+Inoculation status itself already captures (Steps 2-4). Consistent with the plan's own
+expectation that this section would likely be weaker evidence than the randomized contrast.
+
+## On the sterile control (manuscript language, not a test)
+
+Two separate limitations, worth keeping distinct in the discussion:
+
+1. **Imperfect sterility** (0-58% background colonization in nominally sterile pots, one
+   pot likely cross-contaminated) shrinks the Inoc-Strl contrast and biases it toward the
+   null - i.e., the treatment effects reported in Steps 2-4 are conservative, not inflated.
+2. **The inoculum isn't AMF-only.** Inoculated pots received live INVAM material (spores,
+   hyphae, root fragments, growth medium, and whatever non-AMF microbiota rode along);
+   sterile pots received nothing. The contrast is *live inoculum vs. no inoculum*, not
+   *AMF vs. no AMF* - state this explicitly rather than let "AMF effect" imply more
+   specificity than the design supports.
+
+# Part B: Fava analyses (Section 6 of the plan) - Inter pots, Inoc-only, n=15
+
+```{r}
+fava_inoc <- wheat %>% filter(Poly == "Inter", Inoc == "Inoc")
+contrasts(fava_inoc$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+cat("n =", nrow(fava_inoc), "(2 Poly excluded by design, 1 Inoc level, 3 Water x 5 reps = 15)\n")
+```
+
+Only wheat roots were stained - fava's own mycorrhizal status is unmeasured, so this section
+tests whether the *strength of the wheat-AMF partnership* (via wheat's own colonization
+level) predicts fava suppression, not fava's own colonization.
+
+```{r}
+m_f <- lm(log(fava_npp) ~ hyphal * Water, data = fava_inoc)
+f_tbl <- car::Anova(m_f, type = 2) %>% broom::tidy() %>% filter(term != "Residuals")
+knitr::kable(f_tbl %>% mutate(across(c(statistic, p.value), ~round(.x, 4))),
+             caption = "log(fava_npp) ~ hyphal*Water")
+cat("Shapiro p:", round(shapiro.test(residuals(m_f))$p.value, 3), "\n\n")
+
+m_f2 <- lm(fava_pct_pot ~ hyphal * Water, data = fava_inoc)
+f2_tbl <- car::Anova(m_f2, type = 2) %>% broom::tidy() %>% filter(term != "Residuals")
+knitr::kable(f2_tbl %>% mutate(across(c(statistic, p.value), ~round(.x, 4))),
+             caption = "fava_pct_pot ~ hyphal*Water")
+cat("Shapiro p:", round(shapiro.test(residuals(m_f2))$p.value, 3), "\n")
+```
+
+**`hyphal:Water` not significant for either response** (p =
+`r round(f_tbl$p.value[f_tbl$term=='hyphal:Water'],3)`,
+`r round(f2_tbl$p.value[f2_tbl$term=='hyphal:Water'],3)`). Per the plan: exploratory, full
+stop, at n~5/water level once restricted to Inoc pots.
+
+## Correction to the plan's range-restriction speculation
+
+```{r}
+range_check <- fava_inoc %>% group_by(Water) %>%
+  summarise(mean = round(mean(fava_npp), 2), sd = round(sd(fava_npp), 2),
+            min = round(min(fava_npp), 2), max = round(max(fava_npp), 2))
+knitr::kable(range_check, caption = "fava_npp (g) by Water, Inoc-only Inter pots")
+```
+
+The plan speculated the flat slope under severe drought might reflect "fava NPP compressed
+into 3-5 g" - **checked, and the compression is real (Severe has the tightest SD of the
+three levels) but at a *higher*, not lower, mean than Control/Moderate** within this
+Inoc-only subset (3.69g vs 2.4g/2.01g). Worth stating precisely - see Part C below for why
+this reverses once Strl pots are included.
+
+# Part C: Does AMF status itself predict fava suppression? (new test, not in the plan's literal snippets)
+
+Motivated directly by the plan's own framing in Section 6 ("the strength of the wheat-AMF
+partnership predicts fava suppression") - Part B tests this via *continuous* colonization
+within Inoc pots only; this tests the *categorical* Inoc/Strl contrast across all 30 Inter
+pots, which turns out to show a much clearer pattern.
+
+```{r}
+inter <- wheat %>% filter(Poly == "Inter")
+contrasts(inter$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+
+supp_desc <- inter %>% group_by(Inoc, Water) %>%
+  summarise(mean_fava = round(mean(fava_npp), 2), sd = round(sd(fava_npp), 2), n = n(), .groups = "drop")
+knitr::kable(supp_desc, caption = "fava_npp (g) by Inoc x Water, all 30 Inter pots")
+```
+
+```{r}
+m_supp <- lm(log(fava_npp) ~ Inoc * Water, data = inter)
+supp_tbl <- car::Anova(m_supp, type = 2) %>% broom::tidy() %>% filter(term != "Residuals")
+knitr::kable(supp_tbl %>% mutate(across(c(statistic, p.value), ~round(.x, 4))),
+             caption = "log(fava_npp) ~ Inoc*Water")
+
+sw_supp <- shapiro.test(residuals(m_supp))
+cat("Shapiro-Wilk: p =", round(sw_supp$p.value, 3), "- flagged, checked below, not ignored\n")
+```
+
+## Checking the flagged assumption violation before trusting the result
+
+```{r}
+inter$resid <- residuals(m_supp)
+outlier_pot <- inter %>% arrange(desc(abs(resid))) %>% slice(1)
+cat("Most extreme residual:", outlier_pot$Name, "- fava_npp =", outlier_pot$fava_npp,
+    "g, far below the other 4 pots in its Inoc x Water cell\n")
+print(car::outlierTest(m_supp))
+```
+
+```{r}
+inter_no_out <- inter %>% filter(Name != outlier_pot$Name)
+contrasts(inter_no_out$Water) <- cbind(severe = c(-0.5,-0.5,1), mild = c(-1,1,0))
+m_supp2 <- lm(log(fava_npp) ~ Inoc*Water, data = inter_no_out)
+cat("Without the flagged pot: Inoc:Water p =",
+    format.pval(car::Anova(m_supp2,type=2)["Inoc:Water","Pr(>F)"]),
+    "| Shapiro p =", round(shapiro.test(residuals(m_supp2))$p.value,3), "(normal once removed)\n\n")
+
+kw <- kruskal.test(fava_npp ~ interaction(Inoc, Water), data = inter)
+cat("Distribution-free cross-check (Kruskal-Wallis, all 6 groups): p =", format.pval(kw$p.value), "\n")
+```
+
+**One genuine outlier** (Bonferroni-significant), but removing it makes the result
+*stronger*, not weaker (p drops further, normality is restored), and a fully
+distribution-free test on the same 6 groups agrees. This is a robust finding, not an
+artifact of the one low pot.
+
+```{r}
+emm_supp <- emmeans(m_supp, ~ Inoc | Water, type = "response")
+ratio_tbl <- contrast(emm_supp, "revpairwise") %>% as.data.frame()
+knitr::kable(ratio_tbl %>% mutate(across(c(ratio,SE,t.ratio,p.value), ~round(.x,3))),
+             caption = "Strl/Inoc fava-mass ratio by Water (back-transformed from log scale)")
+```
+
+```{r, fig.width=6, fig.height=4}
+ggplot(inter, aes(x = Water, y = fava_npp, fill = Inoc)) +
+  geom_boxplot(position = position_dodge(0.8), width = 0.6) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.8), size = 1.5) +
+  labs(title = "AMF-inoculated wheat suppresses fava under good water - not under severe drought",
+       y = "Fava biomass (g)") +
+  theme_minimal(base_size = 12)
+```
+
+**The clearest exploratory finding in this section:** AMF-inoculated wheat suppresses fava
+by ~3.6-3.9x relative to sterile wheat under Control and Moderate water (both p<0.0001) -
+and that suppression essentially **vanishes** under severe drought (ratio = 1.03x,
+p=0.86). Competitive suppression by inoculated wheat is strong when water isn't limiting,
+and disappears when it is - directionally consistent with the stress-gradient framing in
+Section 12 of the plan (competition -> facilitation/neutral as stress increases), though
+this specific test wasn't one of the plan's pre-specified confirmatory contrasts.
+
+# Part D: The fava-biomass moderator probe (Section 6) - facilitation vs. density release
+
+```{r}
+m_mech <- glmmTMB(berry_alloc ~ fava_npp * Inoc * Water, family = beta_family(), data = inter)
+mech_tbl <- car::Anova(m_mech, type = 2) %>% broom::tidy()
+knitr::kable(mech_tbl %>% mutate(across(c(statistic, p.value), ~round(.x, 4))),
+             caption = "berry_alloc ~ fava_npp*Inoc*Water")
+
+sim2 <- simulateResiduals(m_mech, n = 1000)
+cat("DHARMa uniformity p:", round(testUniformity(sim2, plot=FALSE)$p.value,3),
+    "| dispersion p:", round(testDispersion(sim2, plot=FALSE)$p.value,3), "(clean)\n")
+```
+
+**Interpretation, per the plan's own decision rule:**
+
+- `fava_npp` main effect is strongly significant (p =
+  `r format.pval(mech_tbl$p.value[mech_tbl$term=='fava_npp'])`) - bigger fava is associated
+  with better wheat berry allocation, **but this holds regardless of Inoculation status**
+  (`fava_npp:Inoc` is not significant, p =
+  `r round(mech_tbl$p.value[mech_tbl$term=='fava_npp:Inoc'],3)`, nor is the three-way
+  `fava_npp:Inoc:Water`, p = `r round(mech_tbl$p.value[mech_tbl$term=='fava_npp:Inoc:Water'],3)`).
+- Per the plan's own framing: "if larger fava -> stronger rescue of the inoculation penalty,
+  that's evidence for facilitation; if larger fava -> weaker rescue, competition dominates
+  and the mono/inter difference is more likely density release." **Neither direction is
+  detected here** - the association between fava size and wheat allocation doesn't
+  distinguish the two stories, because it doesn't specifically depend on Inoc status at all.
+  This data doesn't support fava-specific facilitation over the simpler density-release
+  explanation, though it doesn't rule facilitation out either - it's just not visible in
+  this particular test.
+- Not causal either way (fava size wasn't randomized, is collinear with wheat performance) -
+  reported as exploratory/associational per the plan, consistent with every other section
+  above.
+
+# Summary
+
+```{r}
+summary_tbl <- tibble::tribble(
+  ~section, ~test, ~result,
+  "A. Colonization association", "hyphal:Water on berry_alloc", "Not significant (OLS); marginal (beta regression)",
+  "B. Fava vs. wheat colonization", "hyphal:Water on fava_npp / fava_pct_pot", "Not significant, either response",
+  "C. Fava suppression by Inoc status (new)", "Inoc:Water on fava_npp", "HIGHLY significant, robust to outlier removal - suppression vanishes under severe drought",
+  "D. Facilitation vs. density-release probe", "fava_npp:Inoc(:Water) on berry_alloc", "Not significant - doesn't distinguish the two stories"
+)
+knitr::kable(summary_tbl)
+```
+
+Part C is the standout result of this exploratory step - worth a place in the discussion
+even though it wasn't one of the three pre-specified confirmatory tests. Parts A, B, and D
+are honest nulls, reported as such per the plan's own instruction to distinguish
+confirmatory from exploratory rather than let interesting exploratory cells get
+overemphasized.

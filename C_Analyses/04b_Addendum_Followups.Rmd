@@ -1,0 +1,232 @@
+---
+title: "Step 4b/4c - Addendum follow-ups"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+From `Instructions/addendum_after_step2.md`, inserted at the position the addendum itself
+specifies: after Step 4 (fragility gate passed), before Step 5 (mechanism). Three follow-up
+checks on the Step 2/3 allometry and primary-model results, plus one new secondary test.
+
+```{r}
+library(tidyverse)
+library(car)
+library(emmeans)
+library(coin)
+
+wheat <- readRDS("wheat_audited.rds") %>% mutate(log_berry = log(berry), log_veg = log(veg))
+cell  <- wheat %>% filter(Poly == "Mono", Water == "Severe")
+```
+
+# 4b-i. Non-overlapping size ranges in the key cell
+
+```{r}
+overlap_check <- cell %>% select(Name, Inoc, log_veg) %>% arrange(Inoc, log_veg)
+knitr::kable(overlap_check, digits = 3, caption = "log(veg) by pot, Mono x Severe")
+
+inoc_range <- range(cell$log_veg[cell$Inoc == "Inoc"])
+strl_range <- range(cell$log_veg[cell$Inoc == "Strl"])
+```
+
+**Correction to the addendum's own framing, worth stating plainly:** it isn't quite complete
+non-overlap. Inoc pots span [`r round(inoc_range[1],2)`, `r round(inoc_range[2],2)`]; Strl
+pots span [`r round(strl_range[1],2)`, `r round(strl_range[2],2)`] - four of five Strl pots
+sit clearly below all five Inoc pots, but one Strl pot (57, log(veg) = 0.74) falls inside the
+Inoc range. Close to complete separation, not exact - the underlying concern (a size-adjusted
+contrast here leans heavily on the assumed common slope) still applies and is addressed
+below regardless.
+
+```{r}
+d_berry <- mean(cell$log_berry[cell$Inoc == "Inoc"]) - mean(cell$log_berry[cell$Inoc == "Strl"])
+d_veg   <- mean(cell$log_veg[cell$Inoc == "Inoc"])   - mean(cell$log_veg[cell$Inoc == "Strl"])
+cat("d_berry (Inoc - Strl):", round(d_berry, 3), "\n")
+cat("d_veg   (Inoc - Strl):", round(d_veg, 3), "\n")
+```
+
+## Sensitivity range across assumed common slopes
+
+```{r}
+sens <- tibble(assumed_slope = seq(-1, 1, by = 0.25)) %>%
+  mutate(fold_difference_Strl_over_Inoc = exp(-(d_berry - assumed_slope * d_veg)))
+knitr::kable(sens, digits = 2, caption = "Fold-difference (Strl/Inoc) at assumed common slope b")
+```
+
+```{r, fig.width=6, fig.height=4}
+ggplot(sens, aes(x = assumed_slope, y = fold_difference_Strl_over_Inoc)) +
+  geom_line() + geom_point(size = 2) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "grey60") +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "grey60") +
+  annotate("rect", xmin = 0.75, xmax = 0.95, ymin = -Inf, ymax = Inf, alpha = 0.1, fill = "steelblue") +
+  labs(title = "Sensitivity of the Mono x Severe fold-difference to the assumed common slope",
+       subtitle = "Shaded band = slope range actually observed in Inter/Control and Inter/Moderate panels",
+       x = "assumed common slope (b)", y = "fold-difference (Strl / Inoc)") +
+  theme_minimal(base_size = 12)
+```
+
+Under the biologically normal **positive** slope (the one actually observed in the
+well-watered panels, ~0.8-0.9 per Section 3's `m_slope` results below), the fold-difference
+is **larger** than the raw estimate, not smaller - a strongly negative slope is needed to
+shrink it much, and even at slope = -1 the effect stays a substantial ~1.8x.
+
+**Manuscript language, per the addendum:** report this range rather than a single point
+estimate, and note the estimate is conservative under the slope observed in well-watered
+panels - do not quote a single fold-difference as precisely identified from this
+particular cell alone.
+
+# 4b-ii. Distribution-free confirmation
+
+```{r}
+sorted_berry <- cell %>% select(Name, Inoc, berry) %>% arrange(berry)
+knitr::kable(sorted_berry, digits = 4, caption = "Raw berry mass, sorted - Mono x Severe")
+
+max_inoc <- max(cell$berry[cell$Inoc == "Inoc"])
+min_strl <- min(cell$berry[cell$Inoc == "Strl"])
+complete_sep <- max_inoc < min_strl
+```
+
+**Same correction as above, on the raw scale this time:** not quite complete separation on
+`berry` either - max(Inoc) = `r round(max_inoc,3)`, min(Strl) = `r round(min_strl,3)`, so one
+Inoc pot (30) sits above one Strl pot (57). Four of five rank cleanly; one pair crosses.
+
+```{r}
+wt <- coin::wilcox_test(berry ~ Inoc, data = cell, distribution = "exact")
+wt
+```
+
+Still a strong, assumption-free result (p = `r round(pvalue(wt),4)`, not the addendum's
+~0.008 floor for perfect separation, but nowhere near null either) - an exact test that
+doesn't depend on normality, variance homogeneity, or the allometric model at all agrees
+with the parametric primary model.
+
+## Permutation test of the three-way interaction itself
+
+Shuffles `Poly` and `Inoc` labels independently within each `Water` level (preserving the
+Water marginal structure, matching what's actually held fixed by design), refits the
+primary beta-regression model on each shuffle, and asks how extreme the observed
+`Poly:Inoc:Water` chi-sq is against that null distribution.
+
+```{r}
+perm_null <- readRDS("loo_perm_null_dist.rds")
+
+wheat_c <- wheat
+contrasts(wheat_c$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+m1 <- glmmTMB::glmmTMB(berry_alloc ~ Poly * Inoc * Water, dispformula = ~ Poly,
+                        family = glmmTMB::beta_family(), data = wheat_c)
+obs_chisq <- car::Anova(m1, type = 2)["Poly:Inoc:Water", "Chisq"]
+perm_p <- mean(perm_null >= obs_chisq)
+
+cat("Observed Poly:Inoc:Water chi-sq:", round(obs_chisq, 2), "\n")
+cat("Permutation draws:", length(perm_null), "\n")
+cat("Permutation p-value:", perm_p, "\n")
+```
+
+```{r, fig.width=6, fig.height=4}
+ggplot(tibble(chisq = perm_null), aes(x = chisq)) +
+  geom_histogram(bins = 40, fill = "grey70") +
+  geom_vline(xintercept = obs_chisq, color = "firebrick", linewidth = 1) +
+  labs(title = "Permutation null distribution vs. observed Poly:Inoc:Water chi-sq",
+       subtitle = paste0("Observed value (red line) - permutation p = ", round(perm_p, 4)),
+       x = "chi-sq", y = "count") +
+  theme_minimal(base_size = 12)
+```
+
+A fully assumption-free permutation test still finds this real - the observed value sits
+well into the tail of the shuffled-label null distribution.
+
+# 4b-iii. Variance heterogeneity
+
+```{r}
+cat("=== Welch's t-test (unequal variance), berry_alloc, Mono x Severe ===\n")
+wt2 <- t.test(berry_alloc ~ Inoc, data = cell)
+print(wt2)
+
+var_tbl <- cell %>% group_by(Inoc) %>%
+  summarise(sd_berry_alloc = sd(berry_alloc), sd_berry_raw = sd(berry), n = n())
+knitr::kable(var_tbl, digits = 4)
+```
+
+**A nuance worth flagging, not glossing over:** the addendum describes Inoc pots as "far
+more scattered... roughly a sevenfold spread" - true on **raw berry mass**
+(`r round(max(cell$berry[cell$Inoc=='Inoc'])/min(cell$berry[cell$Inoc=='Inoc']),1)`x spread
+within Inoc vs `r round(max(cell$berry[cell$Inoc=='Strl'])/min(cell$berry[cell$Inoc=='Strl']),1)`x
+within Strl), but **reversed on `berry_alloc`** (the SD is
+`r round(var_tbl$sd_berry_alloc[var_tbl$Inoc=='Strl']/var_tbl$sd_berry_alloc[var_tbl$Inoc=='Inoc'],1)`x
+higher in Strl than Inoc) - dividing by total NPP changes which group looks more variable,
+since Inoc plants in this cell are also the larger ones. `berry_alloc` is the paper's primary
+response, so this is the more decision-relevant direction, and it's the opposite of the raw-
+mass framing. Either way: Welch's test (which doesn't assume equal variance) still finds the
+group difference clearly significant (p = `r format.pval(wt2$p.value)`), so the substantive
+conclusion is unaffected - just correcting which group is "more scattered" on which scale.
+
+## Does scatter track colonization intensity? (dose-response probe)
+
+```{r}
+inoc_cell <- cell %>% filter(Inoc == "Inoc") %>% arrange(hyphal)
+knitr::kable(inoc_cell %>% select(Name, hyphal, berry_alloc, berry), digits = 4,
+             caption = "The 5 Inoc/Mono/Severe pots, ranked by colonization")
+
+ct <- cor.test(inoc_cell$hyphal, inoc_cell$berry_alloc)
+cat("Pearson r =", round(ct$estimate, 3), ", p =", round(ct$p.value, 3),
+    "(n = 5 - essentially no power; 95% CI [", round(ct$conf.int[1],2), ",",
+    round(ct$conf.int[2],2), "])\n")
+```
+
+**No detectable dose-response signal at this sample size**, and what pattern exists doesn't
+match the "least-colonized = best performer" story the addendum flagged as the interesting
+case: the single least-colonized pot (hyphal = 0.66) is actually the *worst* performer
+(berry_alloc = 0.025), and the best performer (0.107) sits at intermediate colonization
+(0.89), not the low end. With n=5 this is not strong evidence against a dose-response
+relationship either - just genuinely inconclusive. Noted for Step 5, not treated as a
+finding either way.
+
+# 4c. New secondary result: does drought decouple size from reproduction?
+
+```{r}
+m_slope_full <- lm(log_berry ~ log_veg * Water * Poly * Inoc, data = wheat)
+full_tbl <- car::Anova(m_slope_full, type = 2) %>% broom::tidy() %>%
+  filter(grepl("log_veg", term))
+knitr::kable(full_tbl %>% mutate(across(c(statistic,p.value), ~round(.x,4))),
+             caption = "Fully-saturated model - log_veg terms only")
+```
+
+```{r}
+# Better-powered version, per the addendum's own caution: individual per-panel
+# slopes are unreliable at n=5 with compressed x-ranges - the claim should come
+# from the interaction term itself, in the best-powered specification available,
+# not from eyeballing six separate fitted lines.
+m_slope_simple <- lm(log_berry ~ log_veg * Water, data = wheat)
+simple_tbl <- car::Anova(m_slope_simple, type = 2) %>% broom::tidy() %>% filter(term != "Residuals")
+knitr::kable(simple_tbl %>% mutate(across(c(statistic,p.value), ~round(.x,4))),
+             caption = "log(berry) ~ log(veg) * Water, pooled across Poly/Inoc (better powered: 54 residual df vs 36)")
+
+trends <- emmeans::emtrends(m_slope_simple, ~ Water, var = "log_veg")
+print(trends)
+```
+
+```{r, fig.width=7, fig.height=4}
+ggplot(wheat, aes(x = log_veg, y = log_berry, color = Water)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE) +
+  labs(title = "Allometric slope by Water level, pooled across Poly/Inoc",
+       x = "log(vegetative mass per plant)", y = "log(berry mass per plant)") +
+  theme_minimal(base_size = 12)
+```
+
+**Reported as suggestive, not confirmed - not oversold just because the pattern is visually
+clean.** The slope estimates move exactly the way the addendum's visual read predicted
+(Control +0.91, Moderate +0.78, Severe -0.12 - a clear flattening/reversal), and this is the
+better-powered of the two specifications tested. But the formal test for `log_veg:Water`
+lands at p = `r round(simple_tbl$p.value[simple_tbl$term=='log_veg:Water'],3)` here (and
+p = `r round(full_tbl$p.value[full_tbl$term=='log_veg:Water'],3)` in the fully-saturated
+model) - marginal, not clean. **This is not being added to the confirmatory set** (Section
+8's three tests are unchanged); it's a real, pre-specified-by-the-addendum pattern worth
+describing in the discussion as suggestive, with the actual p-value stated rather than
+rounded up to "significant."
+
+Proceeding to Step 5 (mechanism - arbuscule:vesicle analysis).
