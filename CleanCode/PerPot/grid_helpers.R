@@ -1,10 +1,10 @@
 # =============================================================================
 # grid_helpers.R  (PerPot version)
 # =============================================================================
-# Identical to ../grid_helpers.R - this file has no dependency on which mass
+# Identical to ../PerPlant/grid_helpers.R - this file has no dependency on which mass
 # columns (per-pot totals vs. per-plant "_pp" averages) battery_core.R fed
 # into the battery, so nothing here needed to change. It's copied into this
-# folder (rather than sourced from "../grid_helpers.R") purely so
+# folder (rather than sourced from "../PerPlant/grid_helpers.R") purely so
 # CleanCode/PerPot/ is self-contained and doesn't reach back up into
 # CleanCode/ for any of its pieces.
 #

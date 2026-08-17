@@ -1,16 +1,24 @@
 # =============================================================================
-# battery_core.R
+# battery_core.R  (PerPlant version - the "per plant", _pp-variable core)
 # =============================================================================
-# Shared setup + model-fitting logic used by ALL FOUR analysis docs:
-#   - ANOVA_battery_DRAFT.Rmd          (prints the full stats output, full dataset)
-#   - Significance_Grid_DRAFT.Rmd      (at-a-glance grid, full dataset)
+# Shared setup + model-fitting logic used by every doc in CleanCode/PerPlant/:
+#   - ANOVA_battery_DRAFT.Rmd           (prints the full stats output, full dataset)
+#   - Significance_Grid_DRAFT.Rmd       (at-a-glance grid, full dataset)
 #   - Significance_Grid_Inter_DRAFT.Rmd (at-a-glance grid, Inter pots only)
 #   - Significance_Grid_Mono_DRAFT.Rmd  (at-a-glance grid, Mono pots only)
+# ...plus, one directory down, every doc in CleanCode/PerPlant/AMF/ (the
+# hyphal-colonization-as-predictor grids + the intercropping-focused AMF doc),
+# via `source("../battery_core.R")` - see this file's find_data_file() helper
+# below for why sourcing it from a deeper folder still works.
 #
-# Pulling this out into one file means all four docs are guaranteed to be
+# Pulling this out into one file means every doc above is guaranteed to be
 # testing variables the same way with the same settings - there's no risk of
-# them quietly drifting apart if one gets edited and the others don't. Each
-# Rmd does `source("battery_core.R")` as its first real step.
+# them quietly drifting apart if one gets edited and the others don't.
+#
+# This is the "per plant" fork specifically - mass-family variables here are
+# density-adjusted per-plant averages (W_NPP_pp, W_ANPP_g_pp, etc.). The
+# sibling core at CleanCode/PerPot/battery_core.R uses the pot-total versions
+# instead (W_NPP, W_ANPP_g, etc.) - see that file's header comment.
 #
 # Sourcing this file always gives you the FULL-dataset battery already run,
 # under the usual top-level names (battery_spec, spec_by_label, results_list,
@@ -38,9 +46,28 @@ library(effectsize)       # partial eta-squared effect sizes
 # -----------------------------------------------------------------------------
 # 1. Load data
 # -----------------------------------------------------------------------------
-# Path is relative to whichever Rmd sources this file - both live in CleanCode/,
-# so both reach Data/full_dataset.csv the same way.
-combined <- read.csv("../Data/full_dataset.csv")
+# Walks UP from the current working directory (knitr's default working dir is
+# wherever the knitting .Rmd itself lives) until it finds Data/full_dataset.csv
+# - rather than a hardcoded "../Data/..." that silently breaks the moment a
+# doc that sources this file moves to a different folder depth (as happened
+# when PerPlant/AMF/ was added one level below where this file's docs
+# normally live). Depth-independent by construction, so this line never needs
+# to change again just because a doc gets reorganized into a subfolder.
+find_data_file <- function(rel_path = file.path("Data", "full_dataset.csv"),
+                            start = getwd(), max_up = 6) {
+  dir <- normalizePath(start, mustWork = FALSE)
+  for (i in seq_len(max_up + 1)) {
+    candidate <- file.path(dir, rel_path)
+    if (file.exists(candidate)) return(candidate)
+    parent <- dirname(dir)
+    if (identical(parent, dir)) break
+    dir <- parent
+  }
+  stop("Could not find ", rel_path, " by walking up from ", start,
+       " - are you knitting from somewhere inside the wheathesis project?")
+}
+
+combined <- read.csv(find_data_file())
 
 combined <- combined %>%
   mutate(

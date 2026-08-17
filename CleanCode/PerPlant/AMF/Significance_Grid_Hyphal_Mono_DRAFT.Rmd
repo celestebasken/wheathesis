@@ -32,9 +32,9 @@ to "Wheat total NPP per plant" with no fava biomass to add). No AMF-family rows 
 (colonization can't predict itself).
 
 ```{r, message=FALSE}
-source("battery_core.R")              # combined/inoc_only/inter_only/mono_only, run_battery()
+source("../battery_core.R")              # combined/inoc_only/inter_only/mono_only, run_battery()
 source("battery_core_continuous.R")   # build_battery_spec_continuous(), run_ancova_check()
-source("grid_helpers.R")              # sig_style(), apply_significance_subtitle(), build_cell_data(), render_grid()
+source("../grid_helpers.R")              # sig_style(), apply_significance_subtitle(), build_cell_data(), render_grid()
 source("grid_helpers_continuous.R")   # direction_label_continuous(), plot_cell_continuous(), term_labels_for_scope_continuous()
 ```
 

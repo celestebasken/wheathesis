@@ -30,7 +30,9 @@ library(WRS2)
 
 ```{r}
 # Combined data
-combined <- read.csv("../Data/full_dataset.csv")
+# (path has one extra "../" vs. the original CleanCode/ location - this file
+# now lives in CleanCode/PerPlant/, one folder deeper)
+combined <- read.csv("../../Data/full_dataset.csv")
 
 # need to remove the fourth row bc I'm missing data (the bnpp)
 combined <- combined[-4,]

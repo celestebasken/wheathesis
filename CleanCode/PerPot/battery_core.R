@@ -1,23 +1,22 @@
 # =============================================================================
 # battery_core.R  (PerPot version)
 # =============================================================================
-# Per-pot counterpart of ../battery_core.R. Everything about the modeling
-# approach is identical - same predictors, same families, same FDR
+# Per-pot counterpart of ../PerPlant/battery_core.R. Everything about the
+# modeling approach is identical - same predictors, same families, same FDR
 # correction - the ONLY difference is which mass-family columns get fit:
 # this version uses the raw pot-total biomass columns (W_NPP, W_ANPP_g,
 # W_BNPP_g, W_Berries_g, Pot_NPP_g) instead of the density-adjusted
 # "per plant" (_pp) columns (W_NPP_pp, W_ANPP_g_pp, W_BNPP_g_pp,
-# W_Berries_g_pp, Pot_NPP_g_pp) that ../battery_core.R uses.
+# W_Berries_g_pp, Pot_NPP_g_pp) that ../PerPlant/battery_core.R uses.
 #
 # Percent/allocation columns (W_pcent_*), AMF colonization, and Fava_g have
 # no "_pp" counterpart in the first place (see Data/Data_key_column_
 # definitions.csv - percentages and single-fava-plant biomass don't need a
-# density adjustment), so they're unchanged from ../battery_core.R.
+# density adjustment), so they're unchanged from ../PerPlant/battery_core.R.
 #
 # Used by: Significance_Grid_DRAFT.Rmd (this folder, full dataset, pot-total
-# mass variables). Sourced the same way as the original -
-# `source("battery_core.R")` - just from CleanCode/PerPot/ instead of
-# CleanCode/, which is why the data path below has one extra "../".
+# mass variables). Sourced the same way as the PerPlant version -
+# `source("battery_core.R")` - just from CleanCode/PerPot/.
 #
 # Nothing in this file prints/knits anything - it only builds objects.
 # =============================================================================
@@ -31,10 +30,28 @@ library(effectsize)       # partial eta-squared effect sizes
 # -----------------------------------------------------------------------------
 # 1. Load data
 # -----------------------------------------------------------------------------
-# Path is relative to whichever Rmd sources this file. This file lives in
-# CleanCode/PerPot/, one directory deeper than CleanCode/ - hence "../../"
-# instead of the original's "../" to still reach Data/full_dataset.csv.
-combined <- read.csv("../../Data/full_dataset.csv")
+# Walks UP from the current working directory until it finds
+# Data/full_dataset.csv, rather than a hardcoded "../../Data/..." that would
+# silently break if a doc sourcing this file ever moved to a different folder
+# depth - depth-independent by construction. Same helper as ../PerPlant/battery_core.R
+# (the PerPlant version); duplicated here (not shared) because PerPot's
+# response-variable differences already make this a genuinely separate file,
+# not just a path fix.
+find_data_file <- function(rel_path = file.path("Data", "full_dataset.csv"),
+                            start = getwd(), max_up = 6) {
+  dir <- normalizePath(start, mustWork = FALSE)
+  for (i in seq_len(max_up + 1)) {
+    candidate <- file.path(dir, rel_path)
+    if (file.exists(candidate)) return(candidate)
+    parent <- dirname(dir)
+    if (identical(parent, dir)) break
+    dir <- parent
+  }
+  stop("Could not find ", rel_path, " by walking up from ", start,
+       " - are you knitting from somewhere inside the wheathesis project?")
+}
+
+combined <- read.csv(find_data_file())
 
 combined <- combined %>%
   mutate(
@@ -252,7 +269,7 @@ build_battery_spec <- function(scope = c("full", "inter", "mono")) {
     # ---------------- Biomass family: raw grams, pot totals -----------------
     # (PerPot version: uses the pot-total columns - W_NPP, W_ANPP_g,
     # W_BNPP_g, W_Berries_g, Pot_NPP_g - NOT the density-adjusted "_pp"
-    # per-plant columns that ../battery_core.R uses.)
+    # per-plant columns that ../PerPlant/battery_core.R uses.)
     list(label = "Wheat total NPP",       response = "W_NPP",       data = base_data,
          predictors = base_predictors, family = "biomass", posthoc_rhs = base_posthoc, display_group = "mass"),
 
@@ -272,7 +289,7 @@ build_battery_spec <- function(scope = c("full", "inter", "mono")) {
     # (plot_response = the un-transformed 0-1 column, so the thumbnail shows
     # the natural proportion instead of the logit scale used for the model.)
     # No "_pp" counterpart exists for these - a percentage doesn't change
-    # when you density-adjust it - so they're identical to ../battery_core.R.
+    # when you density-adjust it - so they're identical to ../PerPlant/battery_core.R.
     list(label = "Aboveground allocation (%)", response = "W_pcent_ANPP_logit",    data = base_data,
          predictors = base_predictors, family = "allocation", posthoc_rhs = base_posthoc, display_group = "percent",
          plot_response = "W_pcent_ANPP"),
@@ -313,7 +330,7 @@ build_battery_spec <- function(scope = c("full", "inter", "mono")) {
   # Included for scope "full" and "inter" (fava biomass varies meaningfully
   # there); excluded entirely for scope "mono" (see the note above the
   # function for why). Fava_g has no "_pp" counterpart (one fava plant per
-  # Inter pot), so it's unchanged from ../battery_core.R.
+  # Inter pot), so it's unchanged from ../PerPlant/battery_core.R.
   if (include_fava) {
     spec <- c(spec, list(
       list(label = "Fava biomass",          response = "Fava_g",             data = fava_data,
@@ -406,7 +423,7 @@ run_battery <- function(battery_spec, model_fn = run_anova_check) {
 # Backward-compatible top-level objects (scope = "full")
 # -----------------------------------------------------------------------------
 # Significance_Grid_DRAFT.Rmd (this folder) expects these exact top-level
-# names, matching the convention used by ../battery_core.R.
+# names, matching the convention used by ../PerPlant/battery_core.R.
 battery_spec <- build_battery_spec("full")
 batt         <- run_battery(battery_spec)
 

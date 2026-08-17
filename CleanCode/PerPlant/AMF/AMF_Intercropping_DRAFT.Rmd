@@ -1,0 +1,178 @@
+---
+title: "AMF root colonization x intercropping (Polyculture) - DRAFT (for review)"
+author: "CLAUDE + Celeste Basken"
+date: "2026-08-17"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(scales)   # percent-format axis labels below
+```
+
+# READ ME FIRST
+
+This is a focused look at one question buried inside the AMF rows of
+`../Significance_Grid_DRAFT.Rmd`: **does intercropping (Polyculture: Inter vs. Mono)
+affect AMF root colonization** - `hyphal_colonization` and `arb_vesc_colonization`?
+
+It doesn't fit any new models - it reuses the exact same `Polyculture * Water` models
+already fit in the shared `../battery_core.R`'s "amf" family (on `inoc_only`, the
+Inoc-treatment subset - colonization is a structural zero for Strl pots, so Strl pots
+aren't part of this question in the first place), and just pulls out + re-presents the
+`Polyculture` piece of that with dedicated plots, instead of it being two rows spread
+across a 9-column grid.
+
+Lives in `PerPlant/AMF/` (not `PerPot/`) alongside the other AMF/hyphal-colonization
+analyses - `hyphal_colonization`/`arb_vesc_colonization` have no "per plant" (`_pp`)
+counterpart in the first place (see `Data/Data_key_column_definitions.csv`), so these
+results are identical whether they're run against the per-plant or per-pot core; this
+file sources `../battery_core.R`, the per-plant one, purely because that's the core
+this folder's other docs already share.
+
+```{r, message=FALSE}
+source("../battery_core.R")   # combined/inoc_only, battery_spec, spec_by_label,
+                             # results_list, term_summary (scope = "full")
+source("../grid_helpers.R")    # p_to_stars(), format_p(), direction_label(), build_cell_data()
+```
+
+```{r}
+plot_dir <- "amf_intercropping_plots"
+dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+# 1. The two models, side by side
+
+Both variables are logit-transformed for the model (`hyphal_colonization_logit`,
+`arb_vesc_colonization_logit`) but plotted here on their natural 0-100% scale. P-values
+are **BH-adjusted within the "amf" family** (these two variables' three terms each, six
+p-values total) - the same correction used in the grid doc, so these numbers match it
+exactly.
+
+```{r}
+amf_terms    <- term_summary %>% dplyr::filter(family == "amf")
+cell_data_amf <- build_cell_data(amf_terms, spec_by_label, results_list, plot_dir)
+```
+
+```{r}
+term_order <- c("Polyculture", "Water", "Polyculture:Water")
+term_labels_amf <- c(
+  "Polyculture"       = "Intercropping (Poly)",
+  "Water"             = "Water (PPT)",
+  "Polyculture:Water" = "Poly:Water"
+)
+
+grid_df <- cell_data_amf %>%
+  dplyr::mutate(term = factor(term, levels = term_order)) %>%
+  dplyr::select(term, label, cell_html) %>%
+  tidyr::pivot_wider(names_from = label, values_from = cell_html) %>%
+  dplyr::arrange(term) %>%
+  dplyr::mutate(term = term_labels_amf[as.character(term)])
+
+grid_df %>%
+  knitr::kable(format = "html", escape = FALSE, col.names = c("", names(grid_df)[-1])) %>%
+  kableExtra::kable_styling(full_width = FALSE, font_size = 11) %>%
+  kableExtra::column_spec(1, bold = TRUE, background = "#f0f0f0")
+```
+
+# 2. The intercropping (Polyculture) main effect, specifically
+
+```{r}
+poly_rows <- amf_terms %>% dplyr::filter(term == "Polyculture")
+
+hyphal_row   <- poly_rows %>% dplyr::filter(label == "Hyphal colonization (%)")
+arbvesc_row  <- poly_rows %>% dplyr::filter(label == "Arbuscular/vesicular colonization (%)")
+
+means_tbl <- inoc_only %>%
+  dplyr::group_by(Polyculture) %>%
+  dplyr::summarise(
+    hyphal   = mean(hyphal_colonization,   na.rm = TRUE),
+    arb_vesc = mean(arb_vesc_colonization, na.rm = TRUE),
+    .groups  = "drop"
+  )
+```
+
+- **Hyphal colonization**: F(`r hyphal_row$df`) = `r round(hyphal_row$statistic, 2)`,
+  `r format_p(hyphal_row$p.value)` raw / `r format_p(hyphal_row$p_adj)` BH-adjusted
+  (`r p_to_stars(hyphal_row$p_adj)`), partial eta2 = `r round(hyphal_row$eta2_partial, 2)`.
+  Mono mean = `r scales::percent(means_tbl$hyphal[means_tbl$Polyculture == "Mono"], accuracy = 0.1)`,
+  Inter mean = `r scales::percent(means_tbl$hyphal[means_tbl$Polyculture == "Inter"], accuracy = 0.1)`.
+
+- **Arbuscular/vesicular colonization**: F(`r arbvesc_row$df`) = `r round(arbvesc_row$statistic, 2)`,
+  `r format_p(arbvesc_row$p.value)` raw / `r format_p(arbvesc_row$p_adj)` BH-adjusted
+  (`r p_to_stars(arbvesc_row$p_adj)`), partial eta2 = `r round(arbvesc_row$eta2_partial, 2)`.
+  Mono mean = `r scales::percent(means_tbl$arb_vesc[means_tbl$Polyculture == "Mono"], accuracy = 0.1)`,
+  Inter mean = `r scales::percent(means_tbl$arb_vesc[means_tbl$Polyculture == "Inter"], accuracy = 0.1)`.
+
+Both point the same direction (Mono > Inter) and both land in "Kinda (<.1)" territory
+after correction, not "Yes" - worth flagging, not worth calling a confirmed effect yet.
+
+# 3. Raw data: colonization by Polyculture (Water pooled)
+
+```{r}
+amf_long <- inoc_only %>%
+  dplyr::select(Pot, Polyculture, Water, hyphal_colonization, arb_vesc_colonization) %>%
+  tidyr::pivot_longer(
+    cols      = c(hyphal_colonization, arb_vesc_colonization),
+    names_to  = "colonization_type",
+    values_to = "pct"
+  ) %>%
+  dplyr::mutate(colonization_type = dplyr::recode(colonization_type,
+    hyphal_colonization   = "Hyphal (%)",
+    arb_vesc_colonization = "Arbuscular/vesicular (%)"
+  ))
+
+ggplot(amf_long, aes(x = Polyculture, y = pct)) +
+  geom_boxplot(outlier.shape = NA, width = 0.5, fill = "grey90") +
+  geom_jitter(width = 0.08, height = 0, alpha = 0.6, size = 1.8) +
+  facet_wrap(~ colonization_type) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, NA)) +
+  labs(
+    title = "AMF root colonization by intercropping treatment",
+    x     = "Polyculture",
+    y     = "Root colonization (%)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(strip.text = element_text(face = "bold"))
+```
+
+# 4. Does Water change the intercropping effect? (Polyculture x Water)
+
+The grid's "Kinda"/"No" for `Polyculture:Water` (Section 1) says: only weakly for hyphal,
+not really for arbuscular/vesicular. Plotted out:
+
+```{r}
+amf_summary <- amf_long %>%
+  dplyr::group_by(colonization_type, Polyculture, Water) %>%
+  dplyr::summarise(
+    mean_pct = mean(pct, na.rm = TRUE),
+    se_pct   = sd(pct, na.rm = TRUE) / sqrt(dplyr::n()),
+    .groups  = "drop"
+  )
+
+ggplot(amf_summary, aes(x = Water, y = mean_pct, color = Polyculture, group = Polyculture)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  geom_errorbar(aes(ymin = mean_pct - se_pct, ymax = mean_pct + se_pct), width = 0.1) +
+  facet_wrap(~ colonization_type) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, NA)) +
+  labs(
+    title = "Polyculture x Water interaction",
+    x     = "Water (PPT)",
+    y     = "Root colonization (%)",
+    color = "Polyculture"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom", strip.text = element_text(face = "bold"))
+```
+
+# 5. What this doesn't do (yet)
+
+This only isolates + re-plots the AMF-family Polyculture results that
+`Significance_Grid_DRAFT.Rmd` already computes - it doesn't add pairwise post-hoc tests
+(not needed here: Polyculture only has 2 levels, so the ANOVA F-test above already IS the
+Inter-vs-Mono comparison) and it doesn't touch the Inter-only/Mono-only scoped grids,
+since Polyculture is constant within either of those and this question doesn't apply
+there.

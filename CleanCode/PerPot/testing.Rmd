@@ -61,3 +61,30 @@ p <- ggplot(summary_df, aes(x = Polyculture, y = mean_y,
 p
 ```
 
+```{r}
+# 3. Same plot, cleaned up as a standalone figure (not a grid thumbnail) -
+# real axis titles instead of the blank ones needed to keep the grid's
+# thumbnails compact, and sized up to be legible on its own.
+p_clean <- ggplot(summary_df, aes(x = Polyculture, y = mean_y,
+                                   color = Inoculation, group = Inoculation)) +
+  theme_minimal(base_size = 12) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  geom_errorbar(aes(ymin = mean_y - se_y, ymax = mean_y + se_y), width = 0.1) +
+  expand_limits(y = 0) +
+  labs(
+    title    = "Total pot productivity",
+    subtitle = "p = 0.068  .",
+    x        = "Polyculture",
+    y        = "Total pot productivity (g)",
+    color    = "Inoculation"
+  ) +
+  theme(
+    legend.position = "bottom",
+    plot.title      = element_text(face = "bold", size = 13),
+    plot.subtitle   = element_text(colour = "grey40", size = 10)
+  )
+
+p_clean
+```
+

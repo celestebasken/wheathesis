@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # READ ME FIRST
 
-Same grid shape as `Significance_Grid_DRAFT.Rmd`, but with the binary `Inoculation`
+Same grid shape as `../Significance_Grid_DRAFT.Rmd`, but with the binary `Inoculation`
 (Inoc/Strl) factor replaced by the **continuous** `hyphal_colonization` measurement -
 i.e. instead of "did you inoculate this pot," the predictor is "how much AMF colonization
 actually resulted." This is a different statistical question, not just a different
@@ -51,9 +51,9 @@ the 3-way interaction row's per-facet slopes here as exploratory. `assumption_su
 below shows the actual `n` per model so this isn't hidden.
 
 ```{r, message=FALSE}
-source("battery_core.R")              # combined/inoc_only/inter_only/mono_only, run_battery()
+source("../battery_core.R")              # combined/inoc_only/inter_only/mono_only, run_battery()
 source("battery_core_continuous.R")   # build_battery_spec_continuous(), run_ancova_check()
-source("grid_helpers.R")              # sig_style(), apply_significance_subtitle(), build_cell_data(), render_grid()
+source("../grid_helpers.R")              # sig_style(), apply_significance_subtitle(), build_cell_data(), render_grid()
 source("grid_helpers_continuous.R")   # direction_label_continuous(), plot_cell_continuous(), term_labels_for_scope_continuous()
 ```
 
