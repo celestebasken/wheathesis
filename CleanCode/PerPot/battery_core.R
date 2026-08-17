@@ -1,0 +1,416 @@
+# =============================================================================
+# battery_core.R  (PerPot version)
+# =============================================================================
+# Per-pot counterpart of ../battery_core.R. Everything about the modeling
+# approach is identical - same predictors, same families, same FDR
+# correction - the ONLY difference is which mass-family columns get fit:
+# this version uses the raw pot-total biomass columns (W_NPP, W_ANPP_g,
+# W_BNPP_g, W_Berries_g, Pot_NPP_g) instead of the density-adjusted
+# "per plant" (_pp) columns (W_NPP_pp, W_ANPP_g_pp, W_BNPP_g_pp,
+# W_Berries_g_pp, Pot_NPP_g_pp) that ../battery_core.R uses.
+#
+# Percent/allocation columns (W_pcent_*), AMF colonization, and Fava_g have
+# no "_pp" counterpart in the first place (see Data/Data_key_column_
+# definitions.csv - percentages and single-fava-plant biomass don't need a
+# density adjustment), so they're unchanged from ../battery_core.R.
+#
+# Used by: Significance_Grid_DRAFT.Rmd (this folder, full dataset, pot-total
+# mass variables). Sourced the same way as the original -
+# `source("battery_core.R")` - just from CleanCode/PerPot/ instead of
+# CleanCode/, which is why the data path below has one extra "../".
+#
+# Nothing in this file prints/knits anything - it only builds objects.
+# =============================================================================
+
+library(tidyverse)   # dplyr/tidyr/purrr for data wrangling + functional loops, ggplot2 for later plotting
+library(broom)        # tidy() turns base-R model/ANOVA objects into data frames we can bind together
+library(car)            # Anova() for Type II sums of squares, leveneTest() for variance homogeneity
+library(emmeans)         # post-hoc pairwise comparisons (estimated marginal means)
+library(effectsize)       # partial eta-squared effect sizes
+
+# -----------------------------------------------------------------------------
+# 1. Load data
+# -----------------------------------------------------------------------------
+# Path is relative to whichever Rmd sources this file. This file lives in
+# CleanCode/PerPot/, one directory deeper than CleanCode/ - hence "../../"
+# instead of the original's "../" to still reach Data/full_dataset.csv.
+combined <- read.csv("../../Data/full_dataset.csv")
+
+combined <- combined %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Water       = factor(Water),   # alphabetical sort already gives
+                                     # Control, Moderate, Severe - the
+                                     # sensible low-to-high stress order.
+    Group       = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+# No manual NA-row removal here (unlike the old combined[-4,] approach) -
+# lm() below drops rows missing whatever variable IT needs, per model, via
+# its default na.action. That means the one pot with a missing BNPP value
+# only gets dropped from BNPP-involving models, not from every model.
+
+# -----------------------------------------------------------------------------
+# 2. Logit-transform every proportion column, up front
+# -----------------------------------------------------------------------------
+logit_transform_prop <- function(p) {
+  # qlogis() = log(p / (1 - p)); undefined at exactly 0/1, so nudge boundary
+  # values slightly inward first. Matters for hyphal/arbuscular colonization
+  # and Pot_pcent_fava, which legitimately hit exactly 0 for Strl/Mono pots.
+  p_clamped <- pmin(pmax(p, 0.001), 0.999)
+  qlogis(p_clamped)
+}
+
+combined <- combined %>%
+  mutate(
+    W_pcent_ANPP_logit          = logit_transform_prop(W_pcent_ANPP),
+    W_pcent_BNPP_logit          = logit_transform_prop(W_pcent_BNPP),
+    W_pcent_berries_logit       = logit_transform_prop(W_pcent_berries),
+    hyphal_colonization_logit   = logit_transform_prop(hyphal_colonization),
+    arb_vesc_colonization_logit = logit_transform_prop(arb_vesc_colonization),
+    Pot_pcent_fava_logit        = logit_transform_prop(Pot_pcent_fava)
+  )
+
+# -----------------------------------------------------------------------------
+# 3. Subsets
+# -----------------------------------------------------------------------------
+# AMF colonization is a structural zero for Strl pots, and fava biomass is a
+# structural zero for Mono pots - so those outcomes are modeled on subsets
+# that exclude the treatment level that determines the zero, rather than
+# including a predictor that's really just re-detecting the subsetting rule.
+inoc_only  <- combined %>% filter(Inoculation == "Inoc")
+inter_only <- combined %>% filter(Polyculture == "Inter")
+mono_only  <- combined %>% filter(Polyculture == "Mono")   # kept in case needed later
+
+# -----------------------------------------------------------------------------
+# 4. The reusable ANOVA-battery function
+# -----------------------------------------------------------------------------
+run_anova_check <- function(data,             # data frame to fit on (already subsetted if needed)
+                             response,         # string: name of the response column (raw or _logit)
+                             predictors,       # character vector of predictor column names
+                             label,            # human-readable name for this variable
+                             family,           # correction family: "biomass"/"allocation"/"amf"/"fava"
+                             posthoc_rhs = NULL  # optional emmeans right-hand-side spec
+                             ) {
+
+  # ---- Step 1: build the model formula dynamically ----
+  rhs  <- paste(predictors, collapse = " * ")
+  form <- stats::as.formula(paste(response, "~", rhs))
+
+  # ---- Step 2: fit with lm(), not aov() ----
+  # car::Anova() (Step 3) needs an lm object; lm()/aov() give identical
+  # fitted values/residuals for a factorial design like this one anyway.
+  mod <- stats::lm(form, data = data)
+
+  # ---- Step 3: Type II ANOVA table ----
+  # Type II doesn't depend on term order, unlike base aov()'s Type I - matters
+  # here because one response variable has a missing value (breaks perfect
+  # balance for just that model) and because we want one consistent rule
+  # applied to every variable rather than deciding per-chunk.
+  anova_raw <- car::Anova(mod, type = 2)
+
+  anova_tbl <- anova_raw %>%
+    broom::tidy() %>%
+    dplyr::filter(term != "Residuals")
+
+  # ---- Step 4a: normality check ----
+  shapiro_p <- stats::shapiro.test(stats::residuals(mod))$p.value
+
+  # ---- Step 4b: variance-homogeneity check ----
+  # Built dynamically from ALL predictors passed in, not hardcoded to two
+  # of three factors.
+  group_formula <- stats::as.formula(
+    paste(response, "~", paste0("interaction(", paste(predictors, collapse = ", "), ")"))
+  )
+  levene_p <- car::leveneTest(group_formula, data = data)[1, "Pr(>F)"]
+
+  # ---- Step 5: effect size (partial eta-squared) ----
+  # Fed the car::Anova() object directly (not `type = 2` as an argument to
+  # eta_squared() itself - that collides with eta_squared()'s own internal
+  # `type` argument, which picks eta/omega/epsilon-squared, not SS type).
+  eta_tbl <- effectsize::eta_squared(anova_raw, partial = TRUE) %>%
+    as.data.frame()
+
+  # For a one-predictor (one-way) model - which only ever happens for the
+  # AMF-colonization variables once Polyculture is fixed by an Inter-only or
+  # Mono-only scope, leaving just `Water` to test - partial eta-squared is
+  # mathematically identical to plain eta-squared, and effectsize() labels
+  # the column "Eta2" instead of "Eta2_partial" to reflect that. Normalize
+  # both cases to one column name here, so run_battery() (which joins on
+  # "Eta2_partial") doesn't need to know which flavor of model produced this
+  # particular table.
+  if ("Eta2" %in% names(eta_tbl) && !("Eta2_partial" %in% names(eta_tbl))) {
+    eta_tbl <- eta_tbl %>% dplyr::rename(Eta2_partial = Eta2)
+  }
+
+  # ---- Step 6: optional post-hoc pairwise comparisons ----
+  posthoc <- NULL
+  if (!is.null(posthoc_rhs)) {
+    posthoc <- emmeans::emmeans(
+      mod,
+      specs  = stats::as.formula(paste("pairwise ~", posthoc_rhs)),
+      adjust = "tukey"
+    )
+  }
+
+  # ---- Step 7: return everything ----
+  list(
+    label     = label,
+    family    = family,
+    model     = mod,
+    anova     = anova_tbl,
+    shapiro_p = shapiro_p,
+    levene_p  = levene_p,
+    eta2      = eta_tbl,
+    posthoc   = posthoc
+  )
+}
+
+# -----------------------------------------------------------------------------
+# 5. The battery spec: one row per response variable, per scope
+# -----------------------------------------------------------------------------
+# `display_group` and `plot_response` are cosmetic (not a stats decision):
+# `display_group` tells the grid docs which of the two output grids ("mass"
+# columns in raw grams, vs "percent" columns) a variable belongs in.
+# `plot_response` tells the thumbnail plots which column to actually draw,
+# separate from `response` (what the model is fit on) - every _logit
+# variable needs the logit scale to be a valid model, but a bar chart of
+# logit values goes negative whenever the underlying proportion is below
+# 0.5, which put "0" at the TOP of the panel for some variables and the
+# BOTTOM for others, purely depending on which side of 0.5 that variable's
+# mean happened to sit. Plotting the original 0-1 proportion instead keeps
+# every percent-family thumbnail non-negative, so 0 is always at the bottom.
+# Variables without a `plot_response` just fall back to `response` (see the
+# grid docs) - that covers the mass-family variables, never transformed and
+# already non-negative grams.
+#
+# `scope` controls which pots are being modeled, and it changes more than
+# just "which data frame": once you subset to only Inter or only Mono pots,
+# Polyculture is constant - it can't be a predictor anymore (zero variation
+# left for it to explain) - so those models are a 2-way Inoculation*Water,
+# not the full dataset's 3-way Inoculation*Polyculture*Water. AMF variables
+# similarly drop from `Polyculture * Water` to just `Water` once Polyculture
+# is fixed by the scope, on top of already dropping Inoculation as a
+# predictor (it's fixed at "Inoc" by the Inoc-only subsetting, same as the
+# full-dataset version). Fava_g / Pot_pcent_fava are dropped ENTIRELY for
+# scope = "mono" - they're exactly 0 for every Mono pot by definition (no
+# fava plant present), so there's zero variance for an ANOVA to test; fitting
+# one would only ever be able to report "no effect" on a constant.
+build_battery_spec <- function(scope = c("full", "inter", "mono")) {
+  scope <- match.arg(scope)
+
+  if (scope == "full") {
+    base_data       <- combined
+    base_predictors <- c("Inoculation", "Polyculture", "Water")
+    base_posthoc    <- "Water | Inoculation * Polyculture"
+
+    amf_data       <- inoc_only
+    amf_predictors <- c("Polyculture", "Water")
+    amf_posthoc    <- "Water | Polyculture"
+
+    include_fava      <- TRUE
+    fava_data         <- inter_only
+    fava_predictors   <- c("Inoculation", "Water")
+    fava_posthoc      <- "Water | Inoculation"
+
+    include_total_pot <- TRUE   # meaningfully different from wheat-only NPP (includes fava biomass)
+
+  } else if (scope == "inter") {
+    base_data       <- inter_only
+    base_predictors <- c("Inoculation", "Water")
+    base_posthoc    <- "Water | Inoculation"
+
+    amf_data       <- inter_only %>% dplyr::filter(Inoculation == "Inoc")
+    amf_predictors <- c("Water")
+    amf_posthoc    <- "Water"
+
+    include_fava      <- TRUE   # every Inter pot has a fava plant - meaningful here
+    fava_data         <- inter_only
+    fava_predictors   <- c("Inoculation", "Water")
+    fava_posthoc      <- "Water | Inoculation"
+
+    include_total_pot <- TRUE   # still meaningfully different here too (wheat + fava)
+
+  } else { # scope == "mono"
+    base_data       <- mono_only
+    base_predictors <- c("Inoculation", "Water")
+    base_posthoc    <- "Water | Inoculation"
+
+    amf_data       <- mono_only %>% dplyr::filter(Inoculation == "Inoc")
+    amf_predictors <- c("Water")
+    amf_posthoc    <- "Water"
+
+    include_fava      <- FALSE   # see the note above the function
+    include_total_pot <- FALSE   # identical to "Wheat total NPP" for Mono pots
+                                  # (no fava biomass to add) - per your call, dropped rather
+                                  # than kept as a redundant column.
+  }
+
+  spec <- list(
+
+    # ---------------- Biomass family: raw grams, pot totals -----------------
+    # (PerPot version: uses the pot-total columns - W_NPP, W_ANPP_g,
+    # W_BNPP_g, W_Berries_g, Pot_NPP_g - NOT the density-adjusted "_pp"
+    # per-plant columns that ../battery_core.R uses.)
+    list(label = "Wheat total NPP",       response = "W_NPP",       data = base_data,
+         predictors = base_predictors, family = "biomass", posthoc_rhs = base_posthoc, display_group = "mass"),
+
+    list(label = "Wheat aboveground NPP", response = "W_ANPP_g",   data = base_data,
+         predictors = base_predictors, family = "biomass", posthoc_rhs = base_posthoc, display_group = "mass"),
+
+    list(label = "Wheat belowground NPP", response = "W_BNPP_g",  data = base_data,
+         predictors = base_predictors, family = "biomass", posthoc_rhs = base_posthoc, display_group = "mass"),
+    # ^ n may be one less than the rest of this scope's variables - one pot
+    # is missing a BNPP measurement (see Section 1) - lm()'s default
+    # na.action drops it only from models that actually use this column.
+
+    list(label = "Wheat berry biomass",   response = "W_Berries_g", data = base_data,
+         predictors = base_predictors, family = "biomass", posthoc_rhs = base_posthoc, display_group = "mass"),
+
+    # ---------------- Allocation family: logit-transformed % ----------------
+    # (plot_response = the un-transformed 0-1 column, so the thumbnail shows
+    # the natural proportion instead of the logit scale used for the model.)
+    # No "_pp" counterpart exists for these - a percentage doesn't change
+    # when you density-adjust it - so they're identical to ../battery_core.R.
+    list(label = "Aboveground allocation (%)", response = "W_pcent_ANPP_logit",    data = base_data,
+         predictors = base_predictors, family = "allocation", posthoc_rhs = base_posthoc, display_group = "percent",
+         plot_response = "W_pcent_ANPP"),
+
+    list(label = "Belowground allocation (%)", response = "W_pcent_BNPP_logit",   data = base_data,
+         predictors = base_predictors, family = "allocation", posthoc_rhs = base_posthoc, display_group = "percent",
+         plot_response = "W_pcent_BNPP"),
+
+    list(label = "Berry allocation (%)",       response = "W_pcent_berries_logit", data = base_data,
+         predictors = base_predictors, family = "allocation", posthoc_rhs = base_posthoc, display_group = "percent",
+         plot_response = "W_pcent_berries"),
+    # W_pcent_vegetative deliberately left out - it's just 1 - W_pcent_berries.
+
+    # ---------------- AMF family: Inoc-only subset ---------------------------
+    list(label = "Hyphal colonization (%)",        response = "hyphal_colonization_logit",   data = amf_data,
+         predictors = amf_predictors, family = "amf", posthoc_rhs = amf_posthoc, display_group = "percent",
+         plot_response = "hyphal_colonization"),
+
+    list(label = "Arbuscular/vesicular colonization (%)", response = "arb_vesc_colonization_logit", data = amf_data,
+         predictors = amf_predictors, family = "amf", posthoc_rhs = amf_posthoc, display_group = "percent",
+         plot_response = "arb_vesc_colonization")
+  )
+
+  # ---------------- Total pot productivity ------------------------------------
+  # Excluded entirely for scope = "mono" - per your call, since it's
+  # numerically identical to "Wheat total NPP" there (max
+  # difference ~5e-5 g, i.e. rounding): a Mono pot's total biomass IS its
+  # wheat biomass, with no fava plant to add. Kept for "full" and "inter",
+  # where it's a genuinely different quantity (wheat + fava).
+  if (include_total_pot) {
+    spec <- c(spec, list(
+      list(label = "Total pot productivity", response = "Pot_NPP_g", data = base_data,
+           predictors = base_predictors, family = "biomass", posthoc_rhs = base_posthoc, display_group = "mass")
+    ))
+  }
+
+  # ---------------- Fava family: Inter-only subset ---------------------------
+  # Included for scope "full" and "inter" (fava biomass varies meaningfully
+  # there); excluded entirely for scope "mono" (see the note above the
+  # function for why). Fava_g has no "_pp" counterpart (one fava plant per
+  # Inter pot), so it's unchanged from ../battery_core.R.
+  if (include_fava) {
+    spec <- c(spec, list(
+      list(label = "Fava biomass",          response = "Fava_g",             data = fava_data,
+           predictors = fava_predictors, family = "fava", posthoc_rhs = fava_posthoc, display_group = "mass"),
+
+      list(label = "Fava % of pot biomass", response = "Pot_pcent_fava_logit", data = fava_data,
+           predictors = fava_predictors, family = "fava", posthoc_rhs = fava_posthoc, display_group = "percent",
+           plot_response = "Pot_pcent_fava")
+    ))
+  }
+
+  # To add another variable: copy one list() entry above, change the fields,
+  # and add it to `spec` (or one of the conditional blocks above, if it
+  # should be excluded from a particular scope for a structural reason).
+  spec
+}
+
+# -----------------------------------------------------------------------------
+# 6-8. Run a battery: fit every model, build the assumption-check summary and
+#      the term-level (FDR-corrected) summary
+# -----------------------------------------------------------------------------
+# Takes a battery_spec (from build_battery_spec()) and returns everything
+# downstream code needs, bundled in one list.
+run_battery <- function(battery_spec, model_fn = run_anova_check) {
+
+  # A named-by-label version, so downstream code can look up "what data/
+  # response goes with this label" without re-scanning the whole list.
+  spec_by_label <- setNames(battery_spec, purrr::map_chr(battery_spec, "label"))
+
+  results_list <- list()
+  for (spec in battery_spec) {
+    results_list[[spec$label]] <- model_fn(
+      data        = spec$data,
+      response    = spec$response,
+      predictors  = spec$predictors,
+      label       = spec$label,
+      family      = spec$family,
+      posthoc_rhs = spec$posthoc_rhs
+    )
+  }
+
+  assumption_summary <- purrr::map_dfr(results_list, function(r) {
+    tibble::tibble(
+      family         = r$family,
+      label          = r$label,
+      n              = stats::nobs(r$model),
+      shapiro_p      = round(r$shapiro_p, 4),
+      levene_p       = round(r$levene_p, 4),
+      normality_flag = ifelse(r$shapiro_p < 0.05, "check", "ok"),
+      variance_flag  = ifelse(r$levene_p  < 0.05, "check", "ok")
+    )
+  })
+
+  term_summary <- purrr::map_dfr(results_list, function(r) {
+    r$anova %>%
+      dplyr::mutate(label = r$label, family = r$family) %>%
+      dplyr::select(family, label, term, df, statistic, p.value)
+  })
+
+  eta_summary <- purrr::map_dfr(results_list, function(r) {
+    r$eta2 %>%
+      dplyr::rename(term = Parameter, eta2_partial = Eta2_partial) %>%
+      dplyr::mutate(label = r$label) %>%
+      dplyr::select(label, term, eta2_partial)
+  })
+
+  term_summary <- term_summary %>%
+    dplyr::left_join(eta_summary, by = c("label", "term"))
+
+  # Multiple-comparison correction done WITHIN family (biomass / allocation /
+  # amf / fava), not across the whole table at once - see the design writeup
+  # in ANOVA_battery_DRAFT.Rmd Section 8 for the full reasoning. Grouping by
+  # `family` here means this is correcting within THIS scope's battery only,
+  # the right behavior since each grid doc is its own self-contained set of
+  # tests.
+  term_summary <- term_summary %>%
+    dplyr::group_by(family) %>%
+    dplyr::mutate(p_adj = stats::p.adjust(p.value, method = "BH")) %>%
+    dplyr::ungroup()
+
+  list(
+    spec_by_label      = spec_by_label,
+    results_list       = results_list,
+    assumption_summary = assumption_summary,
+    term_summary       = term_summary
+  )
+}
+
+# -----------------------------------------------------------------------------
+# Backward-compatible top-level objects (scope = "full")
+# -----------------------------------------------------------------------------
+# Significance_Grid_DRAFT.Rmd (this folder) expects these exact top-level
+# names, matching the convention used by ../battery_core.R.
+battery_spec <- build_battery_spec("full")
+batt         <- run_battery(battery_spec)
+
+spec_by_label      <- batt$spec_by_label
+results_list       <- batt$results_list
+assumption_summary <- batt$assumption_summary
+term_summary       <- batt$term_summary

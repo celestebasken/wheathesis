@@ -1,0 +1,63 @@
+---
+title: "testing"
+output: html_document
+---
+
+Okay okay I know this folder is supposedly "clean code" but whateva
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r}
+data <- read.csv("../../Data/full_dataset.csv")
+
+data <- data %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Water       = factor(Water),   # alphabetical sort already gives
+                                     # Control, Moderate, Severe - the
+                                     # sensible low-to-high stress order.
+    Group       = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+# This is "Total pot productivity" (Pot_NPP_g, the per-pot version) x the
+# Inoculation:Polyculture interaction - p_adj = 0.0685, "Kinda (<.1)".
+# Flipped orientation: x = Polyculture, color = Inoculation.
+
+# 1. group means + standard error
+summary_df <- data %>%
+  group_by(Polyculture, Inoculation) %>%
+  summarise(
+    mean_y = mean(Pot_NPP_g, na.rm = TRUE),
+    se_y   = sd(Pot_NPP_g, na.rm = TRUE) / sqrt(sum(!is.na(Pot_NPP_g))),
+    .groups = "drop"
+  )
+
+# 2. the plot itself
+p <- ggplot(summary_df, aes(x = Polyculture, y = mean_y,
+                             color = Inoculation, group = Inoculation)) +
+  theme_minimal(base_size = 6) +
+  geom_line(linewidth = 0.5) +
+  geom_point(size = 1) +
+  geom_errorbar(aes(ymin = mean_y - se_y, ymax = mean_y + se_y), width = 0.15) +
+  theme(legend.position = "bottom",
+        legend.title    = element_blank(),
+        legend.text     = element_text(size = 5),
+        legend.key.size = unit(3, "mm"),
+        legend.margin   = margin(t = -4)) +
+  expand_limits(y = 0) +
+  labs(subtitle = "p = 0.068  .") +
+  theme(
+    axis.title    = element_blank(),
+    plot.margin   = margin(1, 1, 1, 1),
+    plot.subtitle = element_text(size = 5.5, face = "plain", colour = "grey40",
+                                  hjust = 0.5, margin = margin(b = 1))
+  )
+
+p
+```
+

@@ -83,11 +83,3 @@ render_grid("mass", cell_data, battery_spec, term_labels)
 render_grid("percent", cell_data, battery_spec, term_labels)
 ```
 
-# 3. What this doesn't do (yet)
-
-This only rebuilds grids 1+2 from your PDF (the significance codes + figures-with-
-direction). It does **not** rebuild grid 3 (the literature-comparison table with the
-yellow "significant in my data" highlighting) - that one is much more a matter of you
-reading papers and writing summaries than something to generate from the model output,
-though the yellow highlighting itself could be driven off `cell_data$sig == "Yes"` if you
-want that layered on top of a literature table later.

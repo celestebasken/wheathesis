@@ -1,0 +1,85 @@
+---
+title: "Significance grid - Full dataset, per-pot variables - DRAFT (for review)"
+author: "CLAUDE + Celeste Basken"
+date: "2026-08-17"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# READ ME FIRST
+
+This is the **per-pot** counterpart of `../Significance_Grid_DRAFT.Rmd`: same grid
+layout (rows = ANOVA terms, columns = response variables, one grid for raw-gram "mass"
+variables and one for "percent" variables), same **full dataset** scope (Inter + Mono
+pots together, Polyculture as a 3-way factor), same everything - except the mass-family
+variables are fit on the **pot-total** biomass columns (`W_NPP`, `W_ANPP_g`, `W_BNPP_g`,
+`W_Berries_g`, `Pot_NPP_g`) instead of the density-adjusted, "per plant" (`_pp`) columns
+(`W_NPP_pp`, `W_ANPP_g_pp`, `W_BNPP_g_pp`, `W_Berries_g_pp`, `Pot_NPP_g_pp`) that the
+original doc uses. Percent/allocation and AMF-colonization variables have no `_pp`
+counterpart in the first place (see `Data/Data_key_column_definitions.csv`), so those
+columns and results are unchanged from the original.
+
+As with the original:
+
+- **cell label** (`Yes` / `Kinda (<.1)` / `No` / blank-`NA`) based on the **BH-adjusted**
+  p-value (`p_adj`) from `term_summary`, not a raw per-test p-value.
+- **direction text** (e.g. `Inter > Mono`, or per-slice text for interactions like
+  `Inter: Inoc > Strl<br>Mono: Strl > Inoc`) computed automatically from group means.
+- **a small thumbnail plot** embedded directly in every cell (`No` included), generated
+  from the same data used to fit the model, with the p-value and significance stars
+  (`***`/`**`/`*`/`.`/`ns`) printed as a subtitle directly on the plot - bolded and
+  darkened when p_adj < .05.
+
+A blank/`NA` cell here means the term literally isn't in that variable's model, same as
+the original - this happens automatically from the model structure in `battery_core.R`,
+nothing is being special-cased here to produce it.
+
+This doc sources this folder's own `battery_core.R` and `grid_helpers.R` (not the ones in
+`CleanCode/`) - see the header comments in each for exactly what differs (only
+`battery_core.R`'s mass-family response columns; `grid_helpers.R` is an unchanged copy).
+
+```{r, message=FALSE}
+source("battery_core.R")   # combined/inoc_only/inter_only/mono_only, battery_spec,
+                             # spec_by_label, results_list, term_summary (scope = "full",
+                             # per-pot mass variables)
+source("grid_helpers.R")    # plot_cell(), direction_label(), build_cell_data(), render_grid()
+```
+
+```{r}
+# Where the per-cell PNG thumbnails get saved. Created fresh each knit. This
+# folder's own directory, separate from CleanCode/significance_grid_plots/,
+# so same-named cells (e.g. this doc's "Total_pot_productivity__Water.png")
+# never collide with the per-plant version's files.
+plot_dir <- "significance_grid_plots"
+dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+# 1. Build the cell data (one row per response variable x ANOVA term)
+
+```{r}
+cell_data <- build_cell_data(term_summary, spec_by_label, results_list, plot_dir)
+```
+
+# 2. Render the two grids (mass / percent), matching the old table's layout
+
+```{r}
+term_labels <- term_labels_for_scope("full")
+```
+
+## 2.1 Mass variables (grams, per pot)
+
+```{r}
+render_grid("mass", cell_data, battery_spec, term_labels)
+```
+
+## 2.2 Percent / allocation variables
+
+```{r}
+render_grid("percent", cell_data, battery_spec, term_labels)
+```
+
