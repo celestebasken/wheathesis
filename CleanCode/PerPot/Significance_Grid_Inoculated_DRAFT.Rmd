@@ -88,3 +88,191 @@ render_grid("mass", cell_data, battery_spec_inoc, term_labels)
 ```{r}
 render_grid("percent", cell_data, battery_spec_inoc, term_labels)
 ```
+
+# 3. Focused figure: Fava biomass & Fava % of pot biomass, by Water
+
+Pulls the "Fava biomass" and "Fava % of pot biomass" x `Water` grid cells above (Section
+2) into one combined, labeled, full-size figure instead of reading the two tiny
+thumbnails separately - same underlying data and `~ Water` model as the grid (Inoc Inter
+pots only), nothing refit here, just replotted bigger and side by side for direct
+comparison.
+
+```{r, message=FALSE}
+library(patchwork)   # combines the two ggplots into one labeled figure
+library(scales)      # percent-format y-axis for the second panel
+```
+
+```{r}
+# One mean +/- SE bar plot by Water, full-size (real axis titles, not the
+# blank ones the grid's compact thumbnails use) - same p-value/stars
+# convention as the grid (format_p()/p_to_stars() from grid_helpers.R),
+# keyed off this variable's BH-adjusted p_adj for the Water term specifically.
+fava_water_plot <- function(label, y_var, y_lab, percent_axis = FALSE) {
+  spec  <- batt_inoc$spec_by_label[[label]]
+  p_val <- batt_inoc$term_summary %>%
+    dplyr::filter(label == !!label, term == "Water") %>%
+    dplyr::pull(p_adj)
+
+  summary_df <- spec$data %>%
+    dplyr::group_by(Water) %>%
+    dplyr::summarise(
+      mean_y = mean(.data[[y_var]], na.rm = TRUE),
+      se_y   = sd(.data[[y_var]], na.rm = TRUE) / sqrt(sum(!is.na(.data[[y_var]]))),
+      .groups = "drop"
+    )
+
+  p <- ggplot(summary_df, aes(x = Water, y = mean_y)) +
+    theme_minimal(base_size = 12) +
+    geom_col(fill = "grey30", width = 0.6) +
+    geom_errorbar(aes(ymin = mean_y - se_y, ymax = mean_y + se_y), width = 0.15) +
+    expand_limits(y = 0) +
+    labs(
+      title    = label,
+      subtitle = paste0(format_p(p_val), "  ", p_to_stars(p_val)),
+      x        = "Water (PPT)",
+      y        = y_lab
+    ) +
+    theme(
+      plot.title    = element_text(face = "bold", size = 13),
+      plot.subtitle = element_text(
+        colour = ifelse(p_val < 0.05, "black", "grey40"),
+        face   = ifelse(p_val < 0.05, "bold", "plain")
+      )
+    )
+
+  if (percent_axis) p <- p + scale_y_continuous(labels = scales::percent)
+  p
+}
+
+fava_biomass_plot <- fava_water_plot("Fava biomass", "Fava_g", "Fava biomass (g)")
+fava_pcent_plot   <- fava_water_plot("Fava % of pot biomass", "Pot_pcent_fava",
+                                      "Fava % of pot biomass", percent_axis = TRUE)
+
+fava_biomass_plot + fava_pcent_plot +
+  patchwork::plot_annotation(
+    title    = "Inoculated pots only, per-pot variables",
+    tag_levels = "A"
+  )
+```
+
+# 4. Focused figure: Wheat berry biomass & Berry allocation (%), by Polyculture:Water
+
+Pulls the "Wheat berry biomass" and "Berry allocation (%)" x `Polyculture:Water` grid
+cells above (Section 2) into one combined, labeled, full-size figure - same underlying
+data and interaction model as the grid (Inoc pots only), nothing refit. Each panel adds
+a **pairwise Inter-vs-Mono comparison within each Water level**, shown as letters next
+to each point: the same letter on both lines at a given Water level means Inter and
+Mono are *not* significantly different there (p >= .05); different letters mean they
+are (p < .05). These within-Water contrasts come from slicing the same fitted
+`Polyculture*Water` model via `emmeans::emmeans(model, pairwise ~ Polyculture | Water)`
+- the model-based equivalent of the grid's own `Polyculture:Water` term, just broken out
+one Water level at a time instead of read off the omnibus interaction p-value (which is
+what the panel subtitle still shows).
+
+```{r}
+# Full-size Polyculture x Water interaction plot (real axis titles + legend,
+# not the grid's blank-axis thumbnail), with Inter-vs-Mono significance
+# letters layered on top at each Water level.
+#   - label:         battery_spec label, e.g. "Wheat berry biomass"
+#   - plot_response: which column to actually PLOT (raw scale) - matches
+#     spec$plot_response in battery_core.R, e.g. the untransformed
+#     proportion for Berry allocation (%), whose model is fit on the logit
+#     column instead.
+poly_water_panel <- function(label, plot_response, y_lab, percent_axis = FALSE) {
+  spec  <- batt_inoc$spec_by_label[[label]]
+  model <- batt_inoc$results_list[[label]]$model
+  data  <- spec$data
+
+  p_val <- batt_inoc$term_summary %>%
+    dplyr::filter(label == !!label, term == "Polyculture:Water") %>%
+    dplyr::pull(p_adj)
+
+  summary_df <- data %>%
+    dplyr::group_by(Water, Polyculture) %>%
+    dplyr::summarise(
+      mean_y = mean(.data[[plot_response]], na.rm = TRUE),
+      se_y   = sd(.data[[plot_response]], na.rm = TRUE) / sqrt(sum(!is.na(.data[[plot_response]]))),
+      .groups = "drop"
+    )
+
+  # Inter-vs-Mono contrast, sliced to each Water level, off the model itself
+  # (whatever scale it was fit on - logit for percent-family, raw grams for
+  # biomass) - suppressMessages() for the same harmless emmeans NOTE noted
+  # elsewhere in this project ("Results may be misleading due to involvement
+  # in interactions"), expected here since that's exactly why we're slicing.
+  emm_contrasts <- suppressMessages(
+    emmeans::emmeans(model, pairwise ~ Polyculture | Water)
+  )$contrasts %>%
+    as.data.frame()
+
+  # With exactly two Polyculture levels, a compact letter display collapses
+  # to: same letter if that Water level's contrast isn't significant,
+  # different letters (higher raw mean = "a") if it is.
+  letters_df <- summary_df %>%
+    dplyr::group_by(Water) %>%
+    dplyr::group_modify(function(sub, key) {
+      sig <- emm_contrasts$p.value[emm_contrasts$Water == key$Water] < 0.05
+      sub <- sub %>% dplyr::arrange(dplyr::desc(mean_y))
+      sub$letter <- if (isTRUE(sig)) c("a", "b") else c("a", "a")
+      sub
+    }) %>%
+    dplyr::ungroup()
+
+  # Letters sit just above each point's own error bar - padding is a fixed
+  # fraction of this panel's y-range so it scales sensibly whether the axis
+  # is raw grams or a 0-1 proportion.
+  y_span <- diff(range(c(summary_df$mean_y - summary_df$se_y, summary_df$mean_y + summary_df$se_y)))
+  pad    <- y_span * 0.08
+
+  # Small horizontal dodge so the two Polyculture series (and their letters)
+  # don't sit exactly on top of each other at a given Water level - without
+  # this, a letter for one line can visually collide with the OTHER line's
+  # error bar whenever the two means are close together.
+  dodge <- ggplot2::position_dodge(width = 0.15)
+
+  p <- ggplot(summary_df, aes(x = Water, y = mean_y, color = Polyculture, group = Polyculture)) +
+    theme_minimal(base_size = 12) +
+    geom_line(position = dodge, linewidth = 0.8) +
+    geom_point(position = dodge, size = 2.5) +
+    geom_errorbar(aes(ymin = mean_y - se_y, ymax = mean_y + se_y), position = dodge, width = 0.1) +
+    geom_text(
+      data        = letters_df,
+      aes(x = Water, y = mean_y + se_y + pad, label = letter, color = Polyculture),
+      position    = dodge,
+      fontface    = "bold",
+      size        = 4,
+      show.legend = FALSE
+    ) +
+    expand_limits(y = c(0, max(summary_df$mean_y + summary_df$se_y) + 2 * pad)) +
+    labs(
+      title    = label,
+      subtitle = paste0(format_p(p_val), "  ", p_to_stars(p_val)),
+      x        = "Water (PPT)",
+      y        = y_lab,
+      color    = "Polyculture"
+    ) +
+    theme(
+      legend.position = "bottom",
+      plot.title      = element_text(face = "bold", size = 13),
+      plot.subtitle   = element_text(
+        colour = ifelse(p_val < 0.05, "black", "grey40"),
+        face   = ifelse(p_val < 0.05, "bold", "plain")
+      )
+    )
+
+  if (percent_axis) p <- p + scale_y_continuous(labels = scales::percent)
+  p
+}
+
+berry_biomass_panel    <- poly_water_panel("Wheat berry biomass", "W_Berries_g",
+                                            "Wheat berry biomass (g)")
+berry_allocation_panel <- poly_water_panel("Berry allocation (%)", "W_pcent_berries",
+                                            "Berry allocation (% of wheat biomass)",
+                                            percent_axis = TRUE)
+
+berry_biomass_panel + berry_allocation_panel +
+  patchwork::plot_annotation(
+    title      = "Inoculated pots only, per-pot variables",
+    tag_levels = "A"
+  )
+```
