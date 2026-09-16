@@ -51,11 +51,8 @@ source("grid_helpers.R")    # plot_cell(), direction_label(), build_cell_data(),
 ```
 
 ```{r}
-# Where the per-cell PNG thumbnails get saved. Created fresh each knit. This
-# folder's own directory, separate from CleanCode/PerPlant/significance_grid_plots/,
-# so same-named cells (e.g. this doc's "Total_pot_productivity__Water.png")
-# never collide with the per-plant version's files.
-plot_dir <- "significance_grid_plots"
+
+plot_dir <- "plots/significance_grid_plots"
 dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
 ```
 
@@ -81,5 +78,110 @@ render_grid("mass", cell_data, battery_spec, term_labels)
 
 ```{r}
 render_grid("percent", cell_data, battery_spec, term_labels)
+```
+
+# 3. Focused question: at Control irrigation, how does inoculation affect berry allocation?
+
+Pulls one specific slice out of the "Berry allocation (%)" x `Inoculation` grid cell
+above (Section 2.2) instead of reading it off the 3-way thumbnail: restricted to
+**Control-water pots only**, does AMF inoculation change the percent of wheat biomass
+allocated to berries? Reuses the exact same fitted model as the grid
+(`results_list[["Berry allocation (%)"]]$model`, fit on `W_pcent_berries_logit ~
+Inoculation * Polyculture * Water`) - nothing is refit here.
+
+```{r, message=FALSE}
+library(scales)   # percent-format display below
+
+berry_spec  <- spec_by_label[["Berry allocation (%)"]]
+berry_model <- results_list[["Berry allocation (%)"]]$model
+```
+
+## 3.1 The data: every Control-water pot
+
+```{r}
+berry_control_data <- berry_spec$data %>%
+  dplyr::filter(Water == "Control") %>%
+  dplyr::select(Pot, Inoculation, Polyculture, W_pcent_berries) %>%
+  dplyr::arrange(Inoculation, Polyculture, Pot) %>%
+  dplyr::mutate(`Berry allocation` = scales::percent(W_pcent_berries, accuracy = 0.1)) %>%
+  dplyr::select(-W_pcent_berries)
+
+berry_control_data %>%
+  knitr::kable(caption = "Control-water pots: berry allocation (%), by pot")
+```
+
+## 3.2 Group means (raw % scale)
+
+```{r}
+berry_control_summary <- berry_spec$data %>%
+  dplyr::filter(Water == "Control") %>%
+  dplyr::group_by(Inoculation) %>%
+  dplyr::summarise(
+    n        = dplyr::n(),
+    mean_pct = mean(W_pcent_berries, na.rm = TRUE),
+    se_pct   = sd(W_pcent_berries, na.rm = TRUE) / sqrt(n),
+    .groups  = "drop"
+  ) %>%
+  dplyr::mutate(
+    `Mean berry allocation` = scales::percent(mean_pct, accuracy = 0.1),
+    `± SE`                  = scales::percent(se_pct, accuracy = 0.1)
+  ) %>%
+  dplyr::select(Inoculation, n, `Mean berry allocation`, `± SE`)
+
+berry_control_summary %>%
+  knitr::kable(caption = "Control-water pots: berry allocation (%) by Inoculation, pooled over Polyculture")
+```
+
+## 3.3 Formal test: Inoculation effect, sliced to Water = Control
+
+Slices the fitted 3-way model's `Inoculation` comparison at `Water = "Control"` (averaged
+over Polyculture) via `emmeans` - this is the model-based version of the raw means above,
+i.e. it uses all 60 pots to estimate residual variance, not just the ~20 Control-water
+ones. Test statistic/p-value are on the logit scale the model was fit on (valid for
+significance); estimated marginal means are back-transformed to % via `plogis()` for
+readability.
+
+```{r, message=FALSE}
+# suppressMessages() because emmeans() prints a console NOTE ("Results may be
+# misleading due to involvement in interactions") any time the model it's
+# slicing has interaction terms - expected and harmless here (that's exactly
+# why we're slicing to Water = Control instead of reading the marginal
+# Inoculation row), not something to surface as if it were a warning about
+# this specific result.
+berry_emm <- suppressMessages(emmeans::emmeans(berry_model, pairwise ~ Inoculation | Water))
+
+berry_control_emmeans <- as.data.frame(berry_emm$emmeans) %>%
+  dplyr::filter(Water == "Control") %>%
+  dplyr::mutate(`Estimated mean` = scales::percent(plogis(emmean), accuracy = 0.1)) %>%
+  dplyr::select(Inoculation, Water, `Estimated mean`)
+
+berry_control_contrast <- as.data.frame(berry_emm$contrasts) %>%
+  dplyr::filter(Water == "Control") %>%
+  dplyr::mutate(
+    estimate = round(estimate, 3),
+    t.ratio  = round(t.ratio, 3),
+    p.value  = format_p(p.value)
+  )
+
+knitr::kable(berry_control_emmeans, caption = "Model-estimated mean berry allocation, Control water")
+knitr::kable(berry_control_contrast, caption = "Inoc vs. Strl contrast (logit scale), Control water")
+```
+
+## 3.4 Plot: raw data, Control-water pots only
+
+```{r}
+ggplot(berry_spec$data %>% dplyr::filter(Water == "Control"),
+       aes(x = Inoculation, y = W_pcent_berries)) +
+  geom_boxplot(outlier.shape = NA, width = 0.5, fill = "grey90") +
+  geom_jitter(aes(color = Polyculture), width = 0.08, height = 0, size = 2) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, NA)) +
+  labs(
+    title = "Berry allocation by inoculation, Control-water pots",
+    x     = "Inoculation",
+    y     = "Berry allocation (% of wheat biomass)",
+    color = "Polyculture"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
 ```
 

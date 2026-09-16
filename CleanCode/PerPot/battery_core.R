@@ -15,8 +15,10 @@
 # density adjustment), so they're unchanged from ../PerPlant/battery_core.R.
 #
 # Used by: Significance_Grid_DRAFT.Rmd (this folder, full dataset, pot-total
-# mass variables). Sourced the same way as the PerPlant version -
-# `source("battery_core.R")` - just from CleanCode/PerPot/.
+# mass variables), Significance_Grid_Sterile_DRAFT.Rmd (Sterile-only pots,
+# via build_battery_spec("sterile")), and Significance_Grid_Inoculated_DRAFT.Rmd
+# (Inoc-only pots, via build_battery_spec("inoc")). Sourced the same way as
+# the PerPlant version - `source("battery_core.R")` - just from CleanCode/PerPot/.
 #
 # Nothing in this file prints/knits anything - it only builds objects.
 # =============================================================================
@@ -96,9 +98,10 @@ combined <- combined %>%
 # structural zero for Mono pots - so those outcomes are modeled on subsets
 # that exclude the treatment level that determines the zero, rather than
 # including a predictor that's really just re-detecting the subsetting rule.
-inoc_only  <- combined %>% filter(Inoculation == "Inoc")
-inter_only <- combined %>% filter(Polyculture == "Inter")
-mono_only  <- combined %>% filter(Polyculture == "Mono")   # kept in case needed later
+inoc_only    <- combined %>% filter(Inoculation == "Inoc")
+sterile_only <- combined %>% filter(Inoculation == "Strl")
+inter_only   <- combined %>% filter(Polyculture == "Inter")
+mono_only    <- combined %>% filter(Polyculture == "Mono")   # kept in case needed later
 
 # -----------------------------------------------------------------------------
 # 4. The reusable ANOVA-battery function
@@ -214,8 +217,25 @@ run_anova_check <- function(data,             # data frame to fit on (already su
 # scope = "mono" - they're exactly 0 for every Mono pot by definition (no
 # fava plant present), so there's zero variance for an ANOVA to test; fitting
 # one would only ever be able to report "no effect" on a constant.
-build_battery_spec <- function(scope = c("full", "inter", "mono")) {
+#
+# `scope = "sterile"` is the mirror image of "inter"/"mono": it subsets on
+# Inoculation instead of Polyculture (Strl pots only, both Polyculture
+# levels kept), so the model becomes the full dataset's OTHER 2-way slice,
+# Polyculture*Water instead of Inoculation*Water. AMF colonization variables
+# are dropped ENTIRELY here (not just re-subsetted) - they're a structural
+# zero for every Strl pot, so there's no Inoc subset left within this scope
+# to fit them on at all.
+#
+# `scope = "inoc"` is the OTHER half of that same Inoculation split (Inoc
+# pots only) - same Polyculture*Water 2-way design as "sterile", but AMF
+# colonization is kept rather than dropped: those two variables were already
+# Inoc-only in every other scope (see `amf_data` above), so restricting to
+# Inoc pots here doesn't lose any data for them - `amf_data` is just
+# `base_data` itself, with no further subsetting needed.
+build_battery_spec <- function(scope = c("full", "inter", "mono", "sterile", "inoc")) {
   scope <- match.arg(scope)
+
+  include_amf <- TRUE   # overridden below for scope = "sterile"
 
   if (scope == "full") {
     base_data       <- combined
@@ -249,7 +269,7 @@ build_battery_spec <- function(scope = c("full", "inter", "mono")) {
 
     include_total_pot <- TRUE   # still meaningfully different here too (wheat + fava)
 
-  } else { # scope == "mono"
+  } else if (scope == "mono") {
     base_data       <- mono_only
     base_predictors <- c("Inoculation", "Water")
     base_posthoc    <- "Water | Inoculation"
@@ -262,6 +282,43 @@ build_battery_spec <- function(scope = c("full", "inter", "mono")) {
     include_total_pot <- FALSE   # identical to "Wheat total NPP" for Mono pots
                                   # (no fava biomass to add) - per your call, dropped rather
                                   # than kept as a redundant column.
+
+  } else if (scope == "sterile") {
+    base_data       <- sterile_only
+    base_predictors <- c("Polyculture", "Water")
+    base_posthoc    <- "Water | Polyculture"
+
+    # AMF colonization is a structural zero for every Strl pot by definition
+    # (there's no inoculum to colonize with) - unlike "full"/"inter"/"mono",
+    # which each still have an Inoc subset to fit on, sterile_only has NONE,
+    # so there's no data left for these two variables at all. Dropped
+    # entirely rather than fit on an empty/constant-zero column.
+    include_amf <- FALSE
+
+    include_fava      <- TRUE   # every Inter pot has a fava plant regardless of inoculation
+    fava_data         <- inter_only %>% dplyr::filter(Inoculation == "Strl")
+    fava_predictors   <- c("Water")   # Polyculture fixed by Inter subsetting, Inoculation fixed by this scope
+    fava_posthoc      <- "Water"
+
+    include_total_pot <- TRUE   # still meaningfully different for Inter-Strl pots (wheat + fava)
+
+  } else { # scope == "inoc"
+    base_data       <- inoc_only
+    base_predictors <- c("Polyculture", "Water")
+    base_posthoc    <- "Water | Polyculture"
+
+    # Already the full Inoc population these two variables ever get fit on
+    # (see amf_data in every other scope above) - no further subsetting.
+    amf_data       <- inoc_only
+    amf_predictors <- c("Polyculture", "Water")
+    amf_posthoc    <- "Water | Polyculture"
+
+    include_fava      <- TRUE   # every Inter pot has a fava plant regardless of inoculation
+    fava_data         <- inter_only %>% dplyr::filter(Inoculation == "Inoc")
+    fava_predictors   <- c("Water")   # Polyculture fixed by Inter subsetting, Inoculation fixed by this scope
+    fava_posthoc      <- "Water"
+
+    include_total_pot <- TRUE   # still meaningfully different for Inter-Inoc pots (wheat + fava)
   }
 
   spec <- list(
@@ -300,18 +357,24 @@ build_battery_spec <- function(scope = c("full", "inter", "mono")) {
 
     list(label = "Berry allocation (%)",       response = "W_pcent_berries_logit", data = base_data,
          predictors = base_predictors, family = "allocation", posthoc_rhs = base_posthoc, display_group = "percent",
-         plot_response = "W_pcent_berries"),
+         plot_response = "W_pcent_berries")
     # W_pcent_vegetative deliberately left out - it's just 1 - W_pcent_berries.
-
-    # ---------------- AMF family: Inoc-only subset ---------------------------
-    list(label = "Hyphal colonization (%)",        response = "hyphal_colonization_logit",   data = amf_data,
-         predictors = amf_predictors, family = "amf", posthoc_rhs = amf_posthoc, display_group = "percent",
-         plot_response = "hyphal_colonization"),
-
-    list(label = "Arbuscular/vesicular colonization (%)", response = "arb_vesc_colonization_logit", data = amf_data,
-         predictors = amf_predictors, family = "amf", posthoc_rhs = amf_posthoc, display_group = "percent",
-         plot_response = "arb_vesc_colonization")
   )
+
+  # ---------------- AMF family: Inoc-only subset -------------------------------
+  # Excluded entirely for scope = "sterile" (see the note above the function) -
+  # every other scope still has an Inoc subset to fit these on.
+  if (include_amf) {
+    spec <- c(spec, list(
+      list(label = "Hyphal colonization (%)",        response = "hyphal_colonization_logit",   data = amf_data,
+           predictors = amf_predictors, family = "amf", posthoc_rhs = amf_posthoc, display_group = "percent",
+           plot_response = "hyphal_colonization"),
+
+      list(label = "Arbuscular/vesicular colonization (%)", response = "arb_vesc_colonization_logit", data = amf_data,
+           predictors = amf_predictors, family = "amf", posthoc_rhs = amf_posthoc, display_group = "percent",
+           plot_response = "arb_vesc_colonization")
+    ))
+  }
 
   # ---------------- Total pot productivity ------------------------------------
   # Excluded entirely for scope = "mono" - per your call, since it's

@@ -292,7 +292,7 @@ build_cell_data <- function(term_summary, spec_by_label, results_list, plot_dir,
 # -----------------------------------------------------------------------------
 # The full dataset's 3-way models produce up to 7 distinct ANOVA terms
 # (including Polyculture and everything it interacts with).
-term_labels_for_scope <- function(scope = c("full", "inter", "mono")) {
+term_labels_for_scope <- function(scope = c("full", "inter", "mono", "sterile", "inoc")) {
   scope <- match.arg(scope)
   if (scope == "full") {
     c(
@@ -303,6 +303,15 @@ term_labels_for_scope <- function(scope = c("full", "inter", "mono")) {
       "Polyculture:Water"             = "Poly:Water",
       "Inoculation:Water"             = "Inoc:Water",
       "Inoculation:Polyculture:Water" = "Poly:Inoc:Water (all 3)"
+    )
+  } else if (scope %in% c("sterile", "inoc")) {
+    # Inoculation is fixed (at "Strl" or "Inoc" respectively) by these two
+    # scopes, so it drops out as a predictor entirely - the remaining 2-way
+    # design is Polyculture*Water for both.
+    c(
+      "Polyculture"       = "Polyculture",
+      "Water"             = "Water (PPT)",
+      "Polyculture:Water" = "Poly:Water"
     )
   } else {
     c(
