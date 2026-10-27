@@ -1,0 +1,591 @@
+---
+title: "Berries_Basic"
+author: "Celeste Basken"
+date: "2026-01-27"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+```
+# Berries 
+
+```{r}
+# Loading in data to explore
+berries <- read.csv("../Biomass/Berry_Weights.csv")
+combined <- read.csv("../../Cross_compare/NPP_AMF_combined.csv")
+
+berries <- berries %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+# Adding a column for continuous water volumes: based on the assumption that the emitters are 2 gal/hr 
+
+berries <- berries %>%
+  mutate(
+    Water_gal_per_wk = case_when(
+      Water == "Control"  ~ 48,
+      Water == "Moderate" ~ 32,
+      Water == "Severe"   ~ 16,
+      TRUE ~ NA_real_
+    )
+  )
+
+# Adding a column which is ppt per plant (continuous)
+
+berries <- berries %>%
+  mutate(
+    Water_gal_per_plant_wk = Water_gal_per_wk / Num_wheat_pot
+  )
+
+```
+
+Parts 1-4 were the first pass
+
+## Part 1: Pretty basic figures
+
+Clustering without regard to PPT:
+
+* Just a note here: I'm using Biomass_g_pp, which is grams per plant of wheat berries. THIS IS IMPORTANT because I forgot to do it at first which meant half the treatments were doubled since this should be considered per capita. Alas.
+
+```{r pressure, echo=FALSE}
+# Without sorting by ppt at all
+
+ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Group)) + 
+  geom_col()
+
+```
+
+* In the most basic analysis, the monoculture was about half as productive
+
+The same data is below, but with each pot plotted so you can see the variation within the treatments:
+
+```{r, echo=FALSE}
+# With each bar individual; as you can see there is a lot of variation, hopefully due to ppt
+
+berries <- berries %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_"),
+    Rep = factor(row_number())
+  )
+
+ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Group)) +
+  geom_col(aes(group = Rep), position = position_dodge(width = 0.8)) +
+  ggtitle("Berry weights by treatment group")
+
+```
+
+## Part 2: Looking at PPT and what the general behavior is
+
+To begin, here's what I would EXPECT the graph to look like:
+
+```{r}
+knitr::include_graphics("Biomass/Berries/expected.png")
+```
+Here's the actual figure with the data:
+
+```{r, echo=FALSE}
+# With each bar individual and ppt
+
+berries <- berries %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+ggplot(berries, aes(x = Group, y = Biomass_g_pp, fill = Water)) +
+  geom_col(position = "dodge") +
+  ggtitle("Berry biomass by PPT and treatments")
+
+```
+Takeaways
+
+* The Inoc_inter and strl_inter groups are behaving as expected, but the inoc_mono and strl_mono are not (especially strl_mono, which is interesting since it is to an extreme of our treatments)
+* This may be explained by intercropping vs monocropping, potentially
+* Inoculation seems less significant than intercropping at first pass.
+* This kind of makes sense, since that factor is less straightforward. Plus, intercropped plants probably had more room, since the faba didn't do so well.
+
+## Part 3: Analysis using boxplots to look for significant behavior
+
+All of the treatments together looking at water: both as a bar graph and boxplot
+
+```{r}
+
+# Bar graph looking at water with the individual points plotted on trop
+ggplot(berries, aes(x = Water, y = Biomass_g_pp)) +
+  stat_summary(fun = mean, geom = "col", width = 0.6) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  ggtitle("Berry biomass by PPT, all treatments")
+
+
+```
+
+```{r}
+# The same thing (kind of) but as a boxplot with the scattered points
+
+#This code is redundant but good for copy paste later?
+berries <- berries %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  )
+
+# The plot
+ggplot(berries, aes(x = Water, y = Biomass_g_pp)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  ggtitle("Berry biomass by PPT, all treatments")
+```
+
+Takeaways
+
+* There is a difference between severe compared to control and moderate, but not really within control and moderate
+* Can I average the control and moderate somehow? Should I? Or should I just remove moderate and have 2 levels of PPT.
+
+## Part 4: Focusing on crop diversity: inter vs mono
+
+Since the main difference in expectation vs data for the berry biomass was in the monocropped treatments, I decided to break down these boxplots by cropping diversity. Here are the individual boxplots, and then side by side:
+
+These first figures combine inoc and strl. First, just monocropped:
+
+```{r}
+# Looking at just monocropped
+
+berries <- berries %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture)
+  )
+
+berries_inter <- berries %>%
+  filter(Polyculture == "Mono")
+
+ggplot(berries_inter, aes(x = Water, y = Biomass_g_pp)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  ggtitle("Berry biomass by PPT, Monocropped treatments only")
+
+```
+
+And looking at intercropped
+
+```{r}
+# Looking at just intercropped
+
+berries <- berries %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture)
+  )
+
+berries_inter <- berries %>%
+  filter(Polyculture == "Inter")
+
+ggplot(berries_inter, aes(x = Water, y = Biomass_g_pp)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) + 
+  ggtitle("Berry biomass by PPT, Intercropped treatments only")
+```
+
+Let's see that side by side and broken down by inoculation status as well
+
+```{r}
+# Splitting it by crop treatment
+
+berries <- berries %>%
+  mutate(
+    Water       = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation, levels = c("Strl", "Inoc")),
+    Polyculture = factor(Polyculture, levels = c("Inter", "Mono"))
+  )
+
+ggplot(berries, aes(x = Water, y = Biomass_g_pp, fill = Inoculation)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    position = position_dodge(width = 0.8)
+  ) +
+  geom_point(
+    aes(color = Inoculation),
+    alpha = 0.6,
+    size = 1.8,
+    position = position_dodge(width = 0.8)
+  ) +
+  facet_wrap(~ Polyculture) +
+  theme_bw() +
+  labs(
+    x = "Water treatment",
+    y = "Biomass (g)"
+  ) +
+  ggtitle("Both Intercropped and Monoculture Berry biomass by PPT")
+
+
+```
+
+Takeaways
+
+* The intercropped treatments behave more like I expected (confirming first graph)
+* In no treatment is there a real difference between control and moderate PPT. It may have to be dropped, if that’s allowed? Unless there is another solution.
+* On the bright side, the severe drought worked!
+
+## Part 5 (new day): Continuous ppt
+
+This is generating figures based on total weekly ppt per pot
+
+```{r}
+
+berries_sum <- berries %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_wk) %>%
+  summarise(mean_biomass = mean(Biomass_g, na.rm = TRUE), .groups = "drop")
+
+# Really basic with a line connecting treatment means
+ggplot(
+  berries_sum,
+  aes(
+    x = Water_gal_per_wk,
+    y = mean_biomass,
+    color = interaction(Inoculation, Polyculture),
+    group = interaction(Inoculation, Polyculture)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Berry biomass by PPT (gallons per week) of all treatment types")
+
+# Slightly less basic, line connecting treatment means but split by polyculture status
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Polyculture) +
+  ggtitle("Berry biomass by PPT (gallons per week), by polyculture status")
+
+# Slightly less basic, line connecting treatment means but split by AMF status
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Polyculture, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Inoculation) +
+  ggtitle("Berry biomass by PPT (gallons per week), by AMF status")
+
+```
+Takeaways:
+
+* As continuous, it still looks like there is a significant difference between low and medium/high, but not within medium/high
+* Interesting that within the monoculture, the impact of inoculation seems to have shifted
+* Same with when you look at it sorted by inoculation status first
+
+```{r}
+# Basic with a smoothed regression line connecting treatment means
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g,
+           color = interaction(Inoculation, Polyculture))) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle("Berry biomass by PPT (gallons per week) of all treatment types") +
+  xlab("Gallons of water per week") +
+  ylab("Mean berry biomass (g)")
+
+# Basic with a smoothed regression line connecting treatment means, separated by intercropping status
+
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Inoculation)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ Polyculture) +
+  ggtitle("Berry biomass by PPT (gallons per week), by intercropping status") +
+  xlab("Gallons of water per week") +
+  ylab("Mean berry biomass (g)")
+
+# Basic with a smoothed regression line connecting treatment means, separated by AMF status
+
+ggplot(berries,
+       aes(x = Water_gal_per_wk, y = Biomass_g, color = Polyculture)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ Inoculation) +
+  ggtitle("Berry biomass by PPT (gallons per week), by AMF status") +
+  xlab("Gallons of water per week") +
+  ylab("Mean berry biomass (g)")
+
+```
+
+Takeaways
+
+* Deeply confused
+
+## Part 6: Ppt adjusted by planting density
+
+This section is the same as #5 BUT...
+
+The plan now is to adjust the PPT continuous variable (gallons per minute) to also be per plant. This was done at the top of this doc by adding a new column, which I will now use.
+
+### 6A: Generating with berry weights combined
+
+```{r}
+berries_sum <- berries %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_plant_wk) %>%
+  summarise(mean_biomass = mean(Biomass_g, na.rm = TRUE), .groups = "drop")
+
+# Really basic with a line connecting treatment means
+ggplot(
+  berries_sum,
+  aes(
+    x = Water_gal_per_plant_wk,
+    y = mean_biomass,
+    color = interaction(Inoculation, Polyculture),
+    group = interaction(Inoculation, Polyculture)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Berry biomass by PPT (gallons per week) of all treatment types", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean berry biomass (g)")
+
+# Slightly less basic, line connecting treatment means but split by polyculture status
+ggplot(berries,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Polyculture) +
+  ggtitle("Berry biomass by PPT (gallons per week), by polyculture status", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean berry biomass (g)")
+
+# Slightly less basic, line connecting treatment means but split by AMF status
+ggplot(berries,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g, color = Polyculture, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Inoculation) +
+  ggtitle("Berry biomass by PPT (gallons per week), by AMF status", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean berry biomass (g)")
+
+```
+Takeaways
+
+* This at least seems like it means something more? Because hopefully we've (at least partially) dealt with the density issue
+* They all seem to be in the same place more or less for the medium and control ppt
+
+Because I'm still confused if I should be making these figures with the y axis adjusted per plant? So here it is like that
+
+### 6B: Generating with berry weights per plant
+
+```{r}
+berries_sum <- berries %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_plant_wk) %>%
+  summarise(mean_biomass = mean(Biomass_g_pp, na.rm = TRUE), .groups = "drop")
+
+# Really basic with a line connecting treatment means
+ggplot(
+  berries_sum,
+  aes(
+    x = Water_gal_per_plant_wk,
+    y = mean_biomass,
+    color = interaction(Inoculation, Polyculture),
+    group = interaction(Inoculation, Polyculture)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Berry biomass by PPT (gallons per week) of all treatment types", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean berry biomass (g)")
+
+# Slightly less basic, line connecting treatment means but split by polyculture status
+ggplot(berries,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Polyculture) +
+  ggtitle("Berry biomass by PPT (gallons per week), by polyculture status", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean berry biomass per plant(g)")
+
+# Slightly less basic, line connecting treatment means but split by AMF status
+ggplot(berries,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g_pp, color = Polyculture, group = Polyculture)) +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun = mean, geom = "point") +
+  facet_wrap(~ Inoculation) +
+  ggtitle("Berry biomass by PPT (gallons per week), by AMF status", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean berry biomass per plant (g)")
+
+# Also testing this
+# Basic with a smoothed regression line connecting treatment means
+ggplot(berries,
+       aes(x = Water_gal_per_plant_wk, y = Biomass_g_pp,
+           color = interaction(Inoculation, Polyculture))) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle("Berry biomass by PPT (gallons per week) of all treatment types", 
+          subtitle = "Density adjusted for PPT and biomass") +
+  xlab("Gallons of water per week, density adjusted per plant") +
+  ylab("Mean berry biomass per plant (g)")
+
+```
+Takeaways
+
+* Okay so this is fascinating because now it looks like the inoc inter did the best (which was my hypothesis) followed by strl inter
+* Intercropping swept
+* Not much diff in the last one within intercropping between AMF treatments
+
+## Part 7 new figures for potential stories (3.10.26)
+
+STORY 1: Berries and intercropping
+
+* Berry biomass is very different between mono and intercropped treatments
+
+```{r}
+# Looking at just non AMF
+
+berries <- berries %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture)
+  )
+
+berries_strl <- berries %>%
+  filter(Inoculation == "Strl")
+
+ggplot(berries_strl, aes(x = Water, y = Biomass_g_pp)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  facet_wrap(~ Polyculture) +
+  ggtitle("Berry biomass by PPT, Sterile treatments only")
+
+# visualizing this with water as continuous
+
+berries_sum_strl <- berries %>%
+  filter(Inoculation == "Strl") %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_plant_wk) %>%
+  summarise(mean_biomass = mean(Biomass_g_pp, na.rm = TRUE), .groups = "drop")
+
+# Sterile only, Really basic with a line connecting treatment means
+
+ggplot(
+  berries_sum_strl,
+  aes(
+    x = Water_gal_per_plant_wk,
+    y = mean_biomass,
+    color = Polyculture,
+    group = Polyculture
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Berry biomass by PPT (gallons per week) of sterile treatments", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean berry biomass (g)")
+
+```
+This isn't just due to resource allocation, because the percent_berries also had a statistical significance. Let's see it plotted
+
+```{r}
+# by water
+ggplot(combined, aes(x = Water_gal, y = percent_berries, color = Polyculture)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Berry allocation and water",
+    x = "Water (gallons)",
+    y = "Percent berries",
+    color = "Polyculture"
+  )
+
+
+```
+
+Same figures as before but for percent_berry
+
+```{r}
+# Looking at just non AMF
+
+combined <- combined %>%
+  mutate(
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe")),
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture)
+  )
+
+combined_strl <- combined %>%
+  filter(Inoculation == "Strl")
+
+ggplot(combined_strl, aes(x = Water, y = percent_berries)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  facet_wrap(~ Polyculture) +
+  ggtitle("Percent Berries by PPT, Sterile treatments only")
+
+# visualizing this with water as continuous
+
+combined_sum_strl <- combined_strl %>%
+  group_by(Inoculation, Polyculture, Water_gal_per_plant_wk) %>%
+  summarise(mean_percent = mean(percent_berries, na.rm = TRUE), .groups = "drop")
+
+# Sterile only, Really basic with a line connecting treatment means
+
+ggplot(
+  combined_sum_strl,
+  aes(
+    x = Water_gal_per_plant_wk,
+    y = mean_percent,
+    color = Polyculture,
+    group = Polyculture
+  )
+) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Berry percent biomass by PPT (gallons per week) of sterile treatments", subtitle = "With precipitation adjusted to per-plant density") +
+  xlab("Gallons of water per week, density-adjusted") +
+  ylab("Mean percent berry biomass")
+```
+
+```{r}
+interaction_data <- combined %>%
+  group_by(Water, Inoculation) %>%
+  summarise(
+    mean_pb = mean(percent_berries, na.rm = TRUE),
+    se_pb = sd(percent_berries, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+ggplot(interaction_data,
+       aes(x = Water, y = mean_pb,
+           color = Inoculation,
+           group = Inoculation)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 1) +
+  geom_errorbar(aes(ymin = mean_pb - se_pb,
+                    ymax = mean_pb + se_pb),
+                width = 0.15) +
+  labs(
+    title = "% Berry Interaction between Inoculation and Water",
+    x = "Water Treatment",
+    y = "Mean Percent Berries"
+  )
+
+```
+

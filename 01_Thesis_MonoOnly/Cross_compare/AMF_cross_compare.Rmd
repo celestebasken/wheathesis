@@ -1,0 +1,65 @@
+---
+title: "AMF_cross_compare"
+author: "Celeste Basken"
+date: "2026-03-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+library(dplyr)
+```
+
+## Load data
+
+```{r}
+# Combined data
+combined <- read.csv("NPP_AMF_combined.csv")
+
+combined <- combined %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+```
+
+```{r}
+# AMF
+
+combined <- combined %>%
+  mutate(
+    Polyculture = factor(Polyculture),
+    Inoculation = factor(Inoculation)
+  )
+
+ANPP_sum <- combined %>%
+  group_by(hyphal_colonization, Polyculture, Water_gal_per_plant_wk) %>%
+  summarise(ANPP_mean = mean(ANPP_g_pp, na.rm = TRUE), .groups = "drop")
+
+ggplot(combined,
+       aes(x = arb_vesc_colonization,
+           y = percent_ANPP,
+           color = Polyculture)) +
+  geom_point(aes(size = Water_gal_per_plant_wk), alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    x = "Arb/Vesc Colonization (%)",
+    y = "Percent ANPP (%)",
+    color = "Intercropping",
+    size = "Water (gal/plant/wk)"
+  )
+
+```
+
+
+

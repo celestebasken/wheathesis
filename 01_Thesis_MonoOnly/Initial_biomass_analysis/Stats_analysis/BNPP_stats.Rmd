@@ -1,0 +1,244 @@
+---
+title: "BNPP_stats"
+author: "Celeste Basken"
+date: "2026-01-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+```
+
+# BNPP Wheat Biomass
+
+```{r}
+# Loading in data to explore
+BNPP <- read.csv("../Biomass/BNPP_Wheat_Weights.csv")
+
+BNPP <- BNPP %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+```
+
+## BNPP statistics
+
+To conclude my BNPP work, let's generate some statistics
+
+Before I begin I want to check some assumptions of a t-test
+
+The boxes shouldn't have overly long tails or outliers. The residuals should be straight.
+
+```{r}
+# Check of distributions
+ggplot(BNPP, aes(x = Inoculation, y = Biomass_g_pp)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.15, alpha = 0.6) +
+  facet_wrap(~ Water) +
+  theme_bw() +
+  ggtitle("BNPP biomass by inoculation status")
+
+# Q–Q plots of residuals
+ggplot(BNPP, aes(sample = Biomass_g_pp)) +
+  stat_qq() +
+  stat_qq_line() +
+  facet_wrap(~ Inoculation + Water) +
+  theme_bw() +
+  ggtitle("QQ plot of residuals for inoc status")
+
+```
+
+* 
+
+This next section is generating a variety of summary statistics about the data, and then saving them as CSVs. 
+
+```{r}
+
+# Load + clean
+BNPP <- BNPP %>%
+  mutate(
+    Inoculation = factor(Inoculation, levels = c("Strl", "Inoc")),
+    Polyculture = factor(Polyculture, levels = c("Mono", "Inter")),
+    Water = factor(Water, levels = c("Control", "Moderate", "Severe"))
+  ) %>%
+  filter(!is.na(Biomass_g_pp))
+
+# Descriptive statistics
+desc_stats <- function(x) {
+  tibble(
+    n      = sum(!is.na(x)),
+    mean   = mean(x, na.rm = TRUE),
+    sd     = sd(x, na.rm = TRUE),
+    se     = sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x))),
+    median = median(x, na.rm = TRUE),
+    q25    = quantile(x, 0.25, na.rm = TRUE, names = FALSE),
+    q75    = quantile(x, 0.75, na.rm = TRUE, names = FALSE),
+    iqr    = IQR(x, na.rm = TRUE),
+    min    = min(x, na.rm = TRUE),
+    max    = max(x, na.rm = TRUE)
+  )
+}
+
+# Each of the 4 treatments within each Water level
+summary_4treat_by_water <- BNPP %>%
+  group_by(Water, Inoculation, Polyculture) %>%
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
+
+# Inoculation only (fold inter/mono together), within each Water
+summary_inoc_by_water <- BNPP %>%
+  group_by(Water, Inoculation) %>%
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
+
+# Polyculture only (fold inoc/strl together), within each Water
+summary_poly_by_water <- BNPP %>%
+  group_by(Water, Polyculture) %>%
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
+
+# Oerall summaries across Water (all data)
+summary_4treat_overall <- BNPP %>%
+  group_by(Inoculation, Polyculture) %>%
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
+
+summary_inoc_overall <- BNPP %>%
+  group_by(Inoculation) %>%
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
+
+summary_poly_overall <- BNPP %>%
+  group_by(Polyculture) %>%
+  summarise(desc_stats(Biomass_g_pp), .groups = "drop")
+
+
+# Looking at them as tables
+summary_4treat_by_water
+summary_inoc_by_water
+summary_poly_by_water
+
+# Saving these as csvs
+
+write.csv(summary_4treat_by_water,
+          file.path(("../Biomass/BNPP"), "summary_4treat_by_water.csv"),
+          row.names = FALSE)
+
+write.csv(summary_inoc_by_water,
+          file.path(("../Biomass/BNPP"), "summary_inoc_by_water.csv"),
+          row.names = FALSE)
+
+write.csv(summary_poly_by_water,
+          file.path(("../Biomass/BNPP"), "summary_poly_by_water.csv"),
+          row.names = FALSE)
+
+write.csv(summary_4treat_overall,
+          file.path(("../Biomass/BNPP"), "summary_4treat_overall.csv"),
+          row.names = FALSE)
+
+write.csv(summary_inoc_overall,
+          file.path(("../Biomass/BNPP"), "summary_inoc_overall.csv"),
+          row.names = FALSE)
+
+write.csv(summary_poly_overall,
+          file.path(("../Biomass/BNPP"), "summary_poly_overall.csv"),
+          row.names = FALSE)
+
+
+```
+
+## BNPP statistical analysis
+
+I used AI to generate stats. This should be verified for sure!! Especially to make sure I meet the assumptions to even be using these stats.
+
+```{r}
+# These statistics were Chat GPT and should be verified
+
+# P-VALUES: Simple comparisons within each Water ----
+# Welch t-tests are robust to unequal variances (default in t.test)
+
+# a) Inoculation effect within each Water (folding Polyculture)
+ttest_inoc_within_water <- BNPP %>%
+  group_by(Water) %>%
+  do(tidy(t.test(Biomass_g_pp ~ Inoculation, data = .))) %>%
+  ungroup() %>%
+  select(Water, estimate1, estimate2, statistic, p.value, conf.low, conf.high, method)
+
+# b) Polyculture effect within each Water (folding Inoculation)
+ttest_poly_within_water <- BNPP %>%
+  group_by(Water) %>%
+  do(tidy(t.test(Biomass_g_pp ~ Polyculture, data = .))) %>%
+  ungroup() %>%
+  select(Water, estimate1, estimate2, statistic, p.value, conf.low, conf.high, method)
+
+# ---- 3-way factorial model (lets you test interactions) ----
+# If your data are fairly normal-ish, this is a strong default.
+fit_aov <- aov(Biomass_g_pp ~ Inoculation * Polyculture * Water, data = BNPP)
+aov_table <- broom::tidy(fit_aov)
+
+# ---- Optional: Nonparametric alternatives (in case assumptions are shaky) ----
+# Wilcoxon rank-sum within each Water for Inoculation / Polyculture
+wilcox_inoc_within_water <- BNPP %>%
+  group_by(Water) %>%
+  do(tidy(wilcox.test(Biomass_g_pp ~ Inoculation, data = ., exact = FALSE))) %>%
+  ungroup() %>%
+  select(Water, statistic, p.value, method)
+
+wilcox_poly_within_water <- BNPP %>%
+  group_by(Water) %>%
+  do(tidy(wilcox.test(Biomass_g_pp ~ Polyculture, data = ., exact = FALSE))) %>%
+  ungroup() %>%
+  select(Water, statistic, p.value, method)
+
+# Print these
+
+ttest_inoc_within_water
+ttest_poly_within_water
+
+aov_table
+
+# Saving as CSV
+
+write.csv(ttest_inoc_within_water,
+          file.path(("../Biomass/BNPP/Stats"), "ttest_inoc_within_water.csv"),
+          row.names = FALSE)
+
+write.csv(ttest_poly_within_water,
+          file.path(("../Biomass/BNPP/Stats"), "ttest_poly_within_water.csv"),
+          row.names = FALSE)
+
+write.csv(aov_table,
+          file.path(("../Biomass/BNPP/Stats"), "anova_3way_table.csv"),
+          row.names = FALSE)
+
+write.csv(wilcox_inoc_within_water,
+          file.path(("../Biomass/BNPP/Stats"), "wilcox_inoc_within_water.csv"),
+          row.names = FALSE)
+
+write.csv(wilcox_poly_within_water,
+          file.path(("../Biomass/BNPP/Stats"), "wilcox_poly_within_water.csv"),
+          row.names = FALSE)
+
+
+```
+
+```{r}
+
+an1 <- aov(Biomass_g_pp~Polyculture+Inoculation+Water, data= BNPP)
+summary(an1)
+
+an2 <- aov(Biomass_g_pp~Polyculture*Inoculation*Water, data= BNPP)
+summary(an2)
+
+lm2 <- lm(Biomass_g_pp~Polyculture*Inoculation*Water, data= BNPP)
+summary(lm2)
+
+```
+
+
+

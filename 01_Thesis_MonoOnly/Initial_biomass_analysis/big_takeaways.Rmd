@@ -1,0 +1,480 @@
+---
+title: "big_takeaways"
+output: html_document
+---
+
+This doc is just to look at figures that could help me with my big takeaways (or what I think they are so far..?)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+```
+
+## Load data
+
+```{r}
+# Combined data
+combined <- read.csv("../Cross_compare/NPP_AMF_combined.csv")
+
+# need to remove the fourth row bc I'm missing data (the bnpp)
+combined <- combined[-4,]
+
+combined <- combined %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+# Speciality subsetted ones
+mono_only <- combined[combined$Polyculture != "Inter", ]
+
+inter_only <- combined[combined$Polyculture != "Mono", ]
+
+```
+
+## Part 1: Monoculture story
+
+For NPP, inoculation and water are both significant
+
+```{r}
+# NPP
+
+# Check stat significance
+an_biomass2_mono_only <- aov(NPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+
+# Water: Inoc interaction
+ggplot(mono_only, aes(x = Water, y = NPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Mono Only: Water:Inoculation Interaction Impacts on system NPP", x = "", y = "NPP")
+
+# Statistics
+# for NPP g
+t.test(NPP_g_pp ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(NPP_g_pp ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Control"),
+       var.equal = FALSE)
+
+ggplot(mono_only, aes(x = Inoculation, y = NPP_g_pp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Inoculation impact on NPP", x = "", y = "NPP g per plant") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2)
+
+```
+
+```{r}
+# Berries
+
+##  Total berries
+# Stats
+an_berries2_mono_only <- aov(Berries_g_pp~Inoculation*Water, data= mono_only)
+summary(an_berries2_mono_only)
+
+# Water: Inoc interaction
+ggplot(mono_only, aes(x = Water, y = Berries_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  labs(title = "Mono Only: Water:Inoculation Interaction Impacts on Berry Productivity", x = "", y = "Berry productivity (g)")
+
+## Percent berries
+# Stats
+an_berries_percent2_mono_only <- aov(percent_berries_of_wheat~Inoculation*Water,
+                                     data= mono_only)
+summary(an_berries_percent2_mono_only)
+
+## BERRIES AS PERCENT OF WHEAT (which is the same lmfao since its mono but whateva)
+# Water: Inoc interaction
+ggplot(mono_only, aes(x = Water, y = percent_berries_of_wheat, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  labs(title = "Water:Inoc Interaction Impacts on Allocation to Berries Within Wheat", x = "", y = "% berries of wheat")
+
+# Statistics
+# for berries g
+t.test(Berries_g_pp ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(Berries_g_pp ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Control"),
+       var.equal = FALSE)
+
+# for berries %
+t.test(percent_berries_of_wheat ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(percent_berries_of_wheat ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Control"),
+       var.equal = FALSE)
+
+
+# quick glance at just inoculation impacts
+# polyculture
+#ggplot(mono_only, aes(x = Inoculation, y = NPP_g_pp)) +
+  #stat_summary(fun = mean, geom = "bar") +
+  #labs(title = "Inoculation impact on NPP", x = "", y = "NPP g per plant") +
+  #stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2)
+
+```
+
+```{r}
+## ANPP
+
+# Water: Inoc interaction
+ggplot(mono_only, aes(x = Water, y = ANPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoc Interaction Impacts on ANPP",
+       x = "", y = "ANPP (g)")
+
+# Stats
+an_ANPP2_mono_only <- aov(ANPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_ANPP2_mono_only)
+
+an2_ANPP_of_wheat_mono_only <- aov(percent_ANPP_of_wheat~Inoculation*Water, data= mono_only)
+summary(an2_ANPP_of_wheat_mono_only)
+
+# Wheat ANPP% vs water
+ggplot(combined, aes(x = Water, y = percent_ANPP_of_wheat)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on ANPP % of Wheat NPP", x = "", y = "ANPP %")
+
+# Water: Inoc interaction
+ggplot(mono_only, aes(x = Water, y = percent_ANPP_of_wheat, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoc Interaction Impacts on Allocation to ANPP Within Wheat",
+       x = "", y = "% ANPP")
+
+# Individual stats
+# ANPP biomass
+t.test(percent_ANPP ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(ANPP_g_pp ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Control"),
+       var.equal = FALSE)
+
+```
+
+
+```{r}
+## BNPP
+
+# Stats
+an_BNPP2_mono_only <- aov(BNPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_BNPP2_mono_only)
+
+an2_BNPP_of_wheat_mono_only <- aov(percent_BNPP_of_wheat~Inoculation*Water, data= mono_only)
+summary(an2_BNPP_of_wheat_mono_only)
+
+# Water: Inoc interaction
+ggplot(mono_only, aes(x = Water, y = BNPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  labs(title = "Water:Inoc Interaction Impacts on BNPP", x = "", y = "BNPP")
+
+# Water: Inoc interaction
+ggplot(mono_only, aes(x = Water, y = percent_BNPP_of_wheat, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoc Interaction Impacts on Allocation to BNPP Within Wheat", x = "", y = "% BNPP")
+
+# Wheat BNPP% vs water
+ggplot(combined, aes(x = Water, y = percent_BNPP_of_wheat)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on BNPP % of Wheat NPP", x = "", y = "BNPP %")
+
+# Individual stats
+# BNPP %
+t.test(percent_BNPP_of_wheat ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(percent_BNPP_of_wheat ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Control"),
+       var.equal = FALSE)
+
+```
+
+
+```{r}
+# AMF hyphal_colonization 
+
+# Check stat significance
+an_hyphal2_mono_only <- aov(hyphal_colonization~Water, data= mono_only)
+summary(an_hyphal2_mono_only)
+
+# Water
+ggplot(mono_only, aes(x = Water, y = hyphal_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Hyphal Colonization", x = "", y = "% roots with hyphal structures")
+
+# AMF arb_vesc_colonization 
+
+# Check stat significance
+an_arb_vesc2_mono_only <- aov(arb_vesc_colonization~Water, data= mono_only)
+summary(an_arb_vesc2_mono_only)
+
+# Water
+ggplot(mono_only, aes(x = Water, y = arb_vesc_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Arbuscular Vesicular Colonization", x = "", y = "% roots with Arbuscular or Vesicular AMF structures")
+
+```
+
+
+
+## Part 2: Intercropping only, what is fava doing?
+
+```{r}
+
+# NPP including fava
+# Check stat significance
+an_biomass2_mono_only <- aov(NPP_g_pp~Inoculation*Water, data= inter_only)
+summary(an_biomass2_mono_only)
+
+# Water: Inoc interaction
+ggplot(inter_only, aes(x = Water, y = NPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Inter Only: Water:Inoculation Interaction Impacts on system NPP", x = "", y = "NPP")
+
+#FAVA productivity
+# Water: Inoc interaction
+ggplot(inter_only, aes(x = Water, y = Fava_g, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on fava productivity", x = "", y = "Fava (g)")
+
+#FAVA percent
+# Water: Inoc interaction
+ggplot(inter_only, aes(x = Water, y = percent_fava, color = Inoculation, 
+                       group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on allocation to fava", x = "", y = "Fava %")
+
+```
+
+```{r}
+# Wheat NPP combined
+# Water: Inoc interaction
+ggplot(inter_only, aes(x = Water, y = Wheat_NPP, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on wheat (combined) productivity", x = "", y = "Wheat NPP (g)")
+
+an_wheatNPP2_inter_only <- aov(Wheat_NPP~Inoculation*Water, data= mono_only)
+summary(an_wheatNPP2_inter_only)
+
+# Wheat NPP combined %
+# Water: Inoc interaction
+ggplot(inter_only, aes(x = Water, y = percent_wheat_NPP, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on wheat (combined) productivity", x = "", y = "Wheat NPP (g)")
+
+an_wheatNPP_percent_inter_only <- aov(percent_wheat_NPP~Inoculation*Water, data= mono_only)
+summary(an_wheatNPP_percent_inter_only)
+```
+
+How is this happening? Which specific parts of wheat are losing out
+
+```{r}
+# BERRIES
+# Percent
+ggplot(inter_only, aes(x = Water, y = percent_berries, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoc Interaction Impacts % berries of system productivity", x = "", y = "Berry %")
+
+an_berries_percent_inter_only <- aov(percent_berries~Inoculation*Water, data= mono_only)
+summary(an_berries_percent_inter_only)
+
+# total
+  # not interesting
+ggplot(inter_only, aes(x = Water, y = Berries_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on Berry (g)", x = "", y = "Berry g")
+
+## BERRIES WITHIN WHEAT
+# Percent
+ggplot(inter_only, aes(x = Water, y = percent_berries_of_wheat, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoc Interaction Impacts on Allocation to Berries Within Wheat", x = "", y = "Berry % of Wheat")
+
+# is this stat significant?
+an_berries_percent_inter_only <- aov(percent_berries_of_wheat~Inoculation*Water, data= mono_only)
+summary(an_berries_percent_inter_only)
+
+
+```
+
+```{r}
+# ANPP
+# Percent
+ggplot(inter_only, aes(x = Water, y = percent_ANPP, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on allocation to ANPP", x = "", y = "ANPP %")
+
+an_ANPP_percent_inter_only <- aov(percent_ANPP~Inoculation*Water, data= mono_only)
+summary(an_ANPP_percent_inter_only)
+
+# total
+ggplot(inter_only, aes(x = Water, y = ANPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on ANPP (g)", x = "", y = "ANPP g")
+
+# BNPP
+# Percent
+ggplot(inter_only, aes(x = Water, y = percent_BNPP, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on allocation to BNPP", x = "", y = "BNPP %")
+
+# total
+  # not interesting
+ggplot(inter_only, aes(x = Water, y = BNPP_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  labs(title = "Water:Inoculation Interaction Impacts on BNPP (g)", x = "", y = "BNPP g")
+
+an_BNPP_percent_inter_only <- aov(percent_BNPP~Inoculation*Water, data= mono_only)
+summary(an_BNPP_percent_inter_only)
+```
+
+
+## Part 3. Fava can offset the losses during drought of berry % incurred by inoculation!
+
+```{r}
+
+# Berry allocation
+ggplot(combined, aes(x = Water, 
+                     y = percent_berries_of_wheat, 
+                     color = Inoculation, 
+                     shape = Polyculture,
+                     group = interaction(Inoculation, Polyculture))) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  stat_summary(fun = mean, geom = "line", aes(linetype = Polyculture)) +
+  #stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  labs(
+    title = "Fava Intercropping Ameliorates Decline in Berry Allocation
+    Incurred by Inoculation During Drought",
+    x = "",
+    y = "Berry % of Wheat"
+  )
+
+# Berry yield
+ggplot(combined, aes(x = Water, 
+                     y = Berries_g_pp, 
+                     color = Inoculation, 
+                     shape = Polyculture,
+                     group = interaction(Inoculation, Polyculture))) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  stat_summary(fun = mean, geom = "line", aes(linetype = Polyculture)) +
+  #stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  labs(
+    title = "3-way interaction inoc, inter, & water on berry production",
+    x = "",
+    y = "Berry Yield g per plant"
+  )
+
+# NPP
+ggplot(combined, aes(x = Water, 
+                     y = Wheat_NPP_pp, 
+                     color = Inoculation, 
+                     shape = Polyculture,
+                     group = interaction(Inoculation, Polyculture))) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  stat_summary(fun = mean, geom = "line", aes(linetype = Polyculture)) +
+  labs(
+    title = "Density-Adjusted NPP interaction between 
+    drought, inoculation, and intercropping",
+    x = "",
+    y = "Wheat NPP (g) per plant"
+  )
+
+```
+
+I want to understand if that figure Fava Intercropping Ameliorates Decline in Berry Allocation Incurred by Inoculation During Drought is statistically significant 
+
+```{r}
+# For berry allocation stats
+t.test(percent_berries_of_wheat ~ Inoculation,
+       data = dplyr::filter(mono_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(percent_berries_of_wheat ~ Inoculation,
+       data = dplyr::filter(inter_only, Water == "Severe"),
+       var.equal = FALSE)
+
+t.test(percent_berries_of_wheat ~ Polyculture,
+       data = dplyr::filter(combined, Water == "Severe", Inoculation == "Inoc"),
+       var.equal = FALSE)
+
+t.test(percent_berries_of_wheat ~ Polyculture,
+       data = dplyr::filter(combined, Water == "Severe", Inoculation == "Strl"),
+       var.equal = FALSE)
+
+
+```
+
+
+
+```{r}
+
+## Count berries
+# Stats
+an_berries_2_inter_only <- aov(Berries_g_pp~Inoculation*Water,
+                                     data= inter_only)
+summary(an_berries_2_inter_only)
+
+    # only water was stat significant
+
+# Water: Inoc interaction
+ggplot(inter_only, aes(x = Water, y = Berries_g_pp, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  labs(title = "Water:Inoc Interaction Impacts on Berries Biomass", x = "", y = "Berries g per plant")
+
+
+## Percent berries
+# Stats
+an_berries_percent2_inter_only <- aov(percent_berries_of_wheat~Inoculation*Water,
+                                     data= inter_only)
+summary(an_berries_percent2_inter_only)
+
+# Water: Inoc interaction
+ggplot(inter_only, aes(x = Water, y = percent_berries_of_wheat, color = Inoculation, group = Inoculation)) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  labs(title = "Water:Inoc Interaction Impacts on Allocation to Berries Within Wheat", x = "", y = "% berries of wheat")
+
+```
+

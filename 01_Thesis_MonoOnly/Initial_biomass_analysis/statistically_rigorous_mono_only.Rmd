@@ -1,0 +1,663 @@
+---
+title: "statistically_rigorous_mono_only"
+author: "Celeste Basken"
+date: "2026-04-04"
+output: html_document
+---
+
+This is Yet Another doc to look at the significance of relationships! Wow! Yay! This one is using better stats though hopefully
+
+It's Mono Only because that's my more limited paper scope
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+
+# specific new ones
+library(car)
+library(emmeans)
+library(effectsize)
+library(WRS2)
+```
+
+## Load data
+
+```{r}
+# Combined data
+combined <- read.csv("../Cross_compare/NPP_AMF_combined.csv")
+
+# need to remove the fourth row bc I'm missing data (the bnpp)
+combined <- combined[-4,]
+
+combined <- combined %>%
+  mutate(
+    Inoculation = factor(Inoculation),
+    Polyculture = factor(Polyculture),
+    Group = interaction(Inoculation, Polyculture, sep = "_")
+  )
+
+# percent vegetative of wheat
+combined <- combined %>%
+  mutate(
+    percent_vegetative_of_wheat = percent_ANPP_of_wheat + percent_BNPP_of_wheat
+  )
+
+# Speciality subsetted ones
+mono_only <- combined[combined$Polyculture != "Inter", ]
+
+inter_only <- combined[combined$Polyculture != "Mono", ]
+```
+
+## Part 1: More rigorous stats
+
+### NPP (g) per plant
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(NPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+
+# Assumption checking
+mod <- aov(NPP_g_pp ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  #LOOKS GOOD
+
+plot(mod, 1)  # residuals vs fitted
+leveneTest(NPP_g_pp ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+
+# r squared
+mod_lm <- lm(NPP_g_pp ~ Inoculation * Water, data = mono_only)
+summary(mod_lm)
+
+
+# cleanly together
+mod <- lm(NPP_g_pp ~ Inoculation * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod)  
+
+# okay type 2 anova??
+mod <- lm(NPP_g_pp ~ Inoculation * Water, data = mono_only)
+
+Anova(mod, type = 2)   # correct ANOVA
+summary(mod)$r.squared # R²
+```
+
+### ANPP pp g
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(ANPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(ANPP_g_pp ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  #LOOKS GOOD
+
+plot(mod, 1)  # residuals vs fitted
+  # it seems random but not SUPER random?? idk
+leveneTest(ANPP_g_pp ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+### BNPP pp g
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(BNPP_g_pp~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(BNPP_g_pp ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  #LOOKS GOOD
+
+plot(mod, 1)  # residuals vs fitted
+  # looks okay
+leveneTest(BNPP_g_pp ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+
+### Berries pp g
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(Berries_g_pp~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(Berries_g_pp ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  #I think this looks okay?
+
+plot(mod, 1)  # residuals vs fitted
+  # looks okay
+leveneTest(Berries_g_pp ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+
+# cleanly together
+mod <- lm(Berries_g_pp ~ Inoculation * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod)  
+```
+
+### ANPP %
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(percent_ANPP_of_wheat~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(percent_ANPP_of_wheat ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  # Looks good!
+
+plot(mod, 1)  # residuals vs fitted
+  # looks good!
+leveneTest(percent_ANPP_of_wheat ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+### BNPP %
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(percent_BNPP_of_wheat~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(percent_BNPP_of_wheat ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  # Looks good!
+
+plot(mod, 1)  # residuals vs fitted
+  # looks okay?
+leveneTest(percent_BNPP_of_wheat ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+```
+
+### Berries %
+
+```{r}
+# ANOVA
+an_biomass2_mono_only <- aov(percent_berries_of_wheat~Inoculation*Water, data= mono_only)
+summary(an_biomass2_mono_only)
+# THERE is a interaction inoc:water
+
+# Assumption checking
+mod <- aov(percent_berries_of_wheat ~ Inoculation * Water, data = mono_only)
+plot(mod, 2)  # QQ plot normality of residuals
+shapiro.test(residuals(mod))
+  # Looks potentially problematic?? Additionally testing:
+
+plot(mod, 1)  # residuals vs fitted
+  # looks okay?
+leveneTest(percent_berries_of_wheat ~ interaction(Inoculation, Water), data = mono_only)
+
+# Post-hoc tests
+emmeans(mod, pairwise ~ Water | Inoculation, adjust = "tukey")
+
+# Effect sizes
+eta_squared(mod)
+
+# cleanly together
+mod <- lm(percent_berries_of_wheat ~ Inoculation * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
+```
+
+```{r}
+# allocation to vegetative
+
+mod <- lm(percent_vegetative_of_wheat ~ Inoculation * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
+```
+
+
+Oh now things are getting funky with assumptions due to the nonnormal QQ
+```{r}
+kruskal.test(percent_berries_of_wheat ~ interaction(Inoculation, Water), data = mono_only)
+
+# check range first
+range(mono_only$percent_berries_of_wheat, na.rm = TRUE)
+
+# if values are proportions on 0–1 scale:
+mono_only$percent_berries_logit <- qlogis(
+  pmin(pmax(mono_only$percent_berries_of_wheat, 0.001), 0.999)
+)
+
+mod_logit <- aov(percent_berries_logit ~ Inoculation * Water, data = mono_only)
+summary(mod_logit)
+
+plot(mod_logit, 2)
+shapiro.test(residuals(mod_logit))
+plot(mod_logit, 1)
+
+library(car)
+leveneTest(percent_berries_logit ~ interaction(Inoculation, Water), data = mono_only)
+```
+
+This isn't actually needed but:
+```{r}
+#library(ARTool)
+
+#mono_only$Water <- factor(mono_only$Water)
+#mono_only$Inoculation <- factor(mono_only$Inoculation)
+
+#mod_art <- art(percent_berries_of_wheat ~ Inoculation * Water, data = mono_only)
+#anova(mod_art)
+```
+
+### AMF colonization INOC ONLY (Lau is anti this)
+
+```{r}
+aov(hyphal_colonization ~ Water, data = inoc_only)
+aov(arb_vesc_colonization ~ Water, data = inoc_only)
+
+# GLM
+inoc_only$hyphae_present <- round(inoc_only$hyphal_colonization * 100)
+inoc_only$hyphae_absent  <- 100 - inoc_only$hyphae_present
+
+glm_hyphae <- glm(cbind(hyphae_present, hyphae_absent) ~ Water,
+                  family = binomial, data = inoc_only)
+
+summary(glm_hyphae)
+
+# lm
+lm(percent_berries_of_wheat ~ hyphal_colonization, data = inoc_only)
+lm(percent_ANPP_of_wheat ~ hyphal_colonization, data = inoc_only)
+lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = inoc_only)
+lm(percent_berries_of_wheat ~ hyphal_colonization * Water, data = inoc_only)
+
+summary(lm(percent_ANPP_of_wheat ~ hyphal_colonization, data = inoc_only))
+summary(lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = inoc_only))
+summary(lm(percent_berries_of_wheat ~ hyphal_colonization, data = inoc_only))
+
+```
+
+# AMF hyphal but with all mono data
+
+```{r}
+aov(hyphal_colonization ~ Water, data = mono_only)
+aov(arb_vesc_colonization ~ Water, data = mono_only)
+
+# GLM
+mono_only$hyphae_present <- round(mono_only$hyphal_colonization * 100)
+mono_only$hyphae_absent  <- 100 - mono_only$hyphae_present
+
+glm_hyphae <- glm(cbind(hyphae_present, hyphae_absent) ~ Water,
+                  family = binomial, data = mono_only)
+
+summary(glm_hyphae)
+
+# lm
+lm(percent_berries_of_wheat ~ hyphal_colonization, data = mono_only)
+lm(percent_ANPP_of_wheat ~ hyphal_colonization, data = mono_only)
+lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = mono_only)
+lm(percent_berries_of_wheat ~ hyphal_colonization * Water, data = mono_only)
+
+summary(lm(percent_ANPP_of_wheat ~ hyphal_colonization, data = mono_only))
+summary(lm(percent_BNPP_of_wheat ~ hyphal_colonization, data = mono_only))
+summary(lm(percent_berries_of_wheat ~ hyphal_colonization, data = mono_only))
+
+```
+
+#NPP
+
+```{r}
+mod <- lm(NPP_g_pp ~ hyphal_colonization * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
+```
+
+# Berries
+
+```{r}
+mod <- lm(Berries_g_pp ~ hyphal_colonization * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
+```
+
+# Berries %
+
+```{r}
+mod <- lm(percent_berries_of_wheat ~ hyphal_colonization * Water, data = mono_only)
+
+summary(mod)        # gives R²
+anova(mod) 
+```
+
+Kind of out of scope but can we visualize this rq
+
+```{r}
+ggplot(mono_only, aes(x = Water, y = hyphal_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on hyphal colonization", x = "", y = "Hyphal colonization")
+
+ggplot(mono_only, aes(x = Water, y = arb_vesc_colonization)) +
+  stat_summary(fun = mean, geom = "bar") +
+  labs(title = "Water impact on Arb/Vesc colonization", x = "", y = "Arb/Vesc colonization")
+
+
+ggplot(mono_only, aes(x = hyphal_colonization, y = percent_berries_of_wheat)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "Hyphal colonization (%)",
+    y = "Berry allocation (%)",
+    title = "AMF colonization & berry allocation"
+  )
+
+ggplot(mono_only, aes(x = hyphal_colonization, y = percent_ANPP_of_wheat)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "Hyphal colonization (%)",
+    y = "ANPP allocation (%)",
+    title = "AMF colonization & ANPP allocation"
+  )
+
+ggplot(mono_only, aes(x = hyphal_colonization, y = NPP_g_pp)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "Hyphal colonization (%)",
+    y = "NPP per plant (g)",
+    title = "AMF colonization & NPP"
+  )
+```
+
+
+# Most interesting data for abstract
+
+```{r}
+# If mono_only is already made, start here:
+berry_summary <- mono_only %>%
+  group_by(Water, Inoculation) %>%
+  summarise(
+    mean_berry_alloc = mean(percent_berries_of_wheat, na.rm = TRUE),
+    sd_berry_alloc = sd(percent_berries_of_wheat, na.rm = TRUE),
+    n = n(),
+    se_berry_alloc = sd_berry_alloc / sqrt(n),
+    .groups = "drop"
+  )
+
+berry_summary
+
+severe_berry_change <- berry_summary %>%
+  filter(Water == "Severe") %>%
+  select(Inoculation, mean_berry_alloc) %>%
+  tidyr::pivot_wider(
+    names_from = Inoculation,
+    values_from = mean_berry_alloc
+  ) %>%
+  mutate(
+    difference_proportion = Inoc - Strl,
+    difference_percentage_points = difference_proportion * 100,
+    percent_change_relative_to_sterile = ((Inoc - Strl) / Strl) * 100
+  )
+
+severe_berry_change
+
+severe_berry_change %>%
+  mutate(
+    Inoc_percent = Inoc * 100,
+    Strl_percent = Strl * 100
+  ) %>%
+  select(
+    Inoc_percent,
+    Strl_percent,
+    difference_percentage_points,
+    percent_change_relative_to_sterile
+  )
+```
+
+```{r}
+# Summarize overall means by inoculation treatment
+overall_summary <- mono_only %>%
+  group_by(Inoculation) %>%
+  summarise(
+    mean_NPP = mean(NPP_g_pp, na.rm = TRUE),
+    mean_berries = mean(Berries_g_pp, na.rm = TRUE),
+    
+    sd_NPP = sd(NPP_g_pp, na.rm = TRUE),
+    sd_berries = sd(Berries_g_pp, na.rm = TRUE),
+    
+    n = n(),
+    .groups = "drop"
+  )
+
+overall_summary
+
+overall_changes <- overall_summary %>%
+  select(Inoculation, mean_NPP, mean_berries) %>%
+  pivot_wider(
+    names_from = Inoculation,
+    values_from = c(mean_NPP, mean_berries)
+  ) %>%
+  mutate(
+    
+    # NPP change with inoculation
+    NPP_difference = mean_NPP_Inoc - mean_NPP_Strl,
+    NPP_percent_change = 
+      ((mean_NPP_Inoc - mean_NPP_Strl) / mean_NPP_Strl) * 100,
+    
+    # Berry biomass change with inoculation
+    berry_difference = mean_berries_Inoc - mean_berries_Strl,
+    berry_percent_change =
+      ((mean_berries_Inoc - mean_berries_Strl) / mean_berries_Strl) * 100
+  )
+
+overall_changes
+```
+
+# and now more summaries for discussion
+
+```{r}
+# Summarize means across water treatments
+water_summary <- mono_only %>%
+  group_by(Water) %>%
+  summarise(
+    mean_NPP = mean(NPP_g_pp, na.rm = TRUE),
+    mean_ANPP = mean(ANPP_g_pp, na.rm = TRUE),
+    mean_BNPP = mean(BNPP_g_pp, na.rm = TRUE),
+    mean_berries = mean(Berries_g_pp, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+water_summary
+
+drought_changes <- water_summary %>%
+  filter(Water %in% c("Control", "Severe")) %>%
+  pivot_wider(
+    names_from = Water,
+    values_from = c(
+      mean_NPP,
+      mean_ANPP,
+      mean_BNPP,
+      mean_berries
+    )
+  ) %>%
+  mutate(
+
+    # NPP
+    NPP_difference = mean_NPP_Severe - mean_NPP_Control,
+    NPP_percent_change =
+      ((mean_NPP_Severe - mean_NPP_Control) /
+         mean_NPP_Control) * 100,
+
+    # ANPP
+    ANPP_difference = mean_ANPP_Severe - mean_ANPP_Control,
+    ANPP_percent_change =
+      ((mean_ANPP_Severe - mean_ANPP_Control) /
+         mean_ANPP_Control) * 100,
+
+    # BNPP
+    BNPP_difference = mean_BNPP_Severe - mean_BNPP_Control,
+    BNPP_percent_change =
+      ((mean_BNPP_Severe - mean_BNPP_Control) /
+         mean_BNPP_Control) * 100,
+
+    # Reproductive output
+    berry_difference = mean_berries_Severe - mean_berries_Control,
+    berry_percent_change =
+      ((mean_berries_Severe - mean_berries_Control) /
+         mean_berries_Control) * 100
+  )
+
+drought_changes
+
+drought_changes %>%
+  select(
+    starts_with("mean_"),
+    ends_with("difference"),
+    ends_with("percent_change")
+  )
+```
+
+```{r}
+allocation_summary <- mono_only %>%
+  group_by(Water) %>%
+  summarise(
+    mean_berry_alloc =
+      mean(percent_berries_of_wheat, na.rm = TRUE),
+
+    mean_ANPP_alloc =
+      mean(percent_ANPP_of_wheat, na.rm = TRUE),
+
+    mean_BNPP_alloc =
+      mean(percent_BNPP_of_wheat, na.rm = TRUE),
+
+    mean_vegetative_alloc =
+      mean(percent_vegetative_of_wheat, na.rm = TRUE),
+
+    .groups = "drop"
+  )
+
+allocation_summary
+
+allocation_changes <- allocation_summary %>%
+  filter(Water %in% c("Control", "Severe")) %>%
+  pivot_wider(
+    names_from = Water,
+    values_from = c(
+      mean_berry_alloc,
+      mean_ANPP_alloc,
+      mean_BNPP_alloc,
+      mean_vegetative_alloc
+    )
+  ) %>%
+  mutate(
+
+    # Berry allocation
+    berry_alloc_difference =
+      mean_berry_alloc_Severe -
+      mean_berry_alloc_Control,
+
+    berry_alloc_percent_change =
+      ((mean_berry_alloc_Severe -
+          mean_berry_alloc_Control) /
+          mean_berry_alloc_Control) * 100,
+
+    # ANPP allocation
+    ANPP_alloc_difference =
+      mean_ANPP_alloc_Severe -
+      mean_ANPP_alloc_Control,
+
+    ANPP_alloc_percent_change =
+      ((mean_ANPP_alloc_Severe -
+          mean_ANPP_alloc_Control) /
+          mean_ANPP_alloc_Control) * 100,
+
+    # BNPP allocation
+    BNPP_alloc_difference =
+      mean_BNPP_alloc_Severe -
+      mean_BNPP_alloc_Control,
+
+    BNPP_alloc_percent_change =
+      ((mean_BNPP_alloc_Severe -
+          mean_BNPP_alloc_Control) /
+          mean_BNPP_alloc_Control) * 100,
+
+    # Vegetative allocation
+    vegetative_alloc_difference =
+      mean_vegetative_alloc_Severe -
+      mean_vegetative_alloc_Control,
+
+    vegetative_alloc_percent_change =
+      ((mean_vegetative_alloc_Severe -
+          mean_vegetative_alloc_Control) /
+          mean_vegetative_alloc_Control) * 100
+  )
+
+allocation_changes
+
+allocation_changes %>%
+  select(
+    ends_with("difference"),
+    ends_with("percent_change")
+  )
+```
+
