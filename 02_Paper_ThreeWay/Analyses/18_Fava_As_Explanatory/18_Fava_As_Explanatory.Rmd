@@ -1,0 +1,242 @@
+---
+title: "18 - Fava as an explanatory variable for wheat allocation and biomass"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status: EXPLORATORY and non-causal.** Fava biomass is not randomized. It is an *outcome* of the
+pot's wheat inoculation (and of water), so here it is used the way root hyphal colonization is used
+in the AMF figures: as a measured covariate whose relationship with wheat performance we want to
+describe. Nothing here is in the confirmatory set, and every p-value is unadjusted for multiplicity.
+
+**Data.** Intercrop pots only (`Poly == "Inter"`, n = 30: 5 per Inoc x Water cell). Monoculture pots
+have no fava. Everything is **per pot**:
+
+* `Fava_g` - biomass of the single fava plant in the pot (x-axis).
+* `berry_alloc` - wheat berries / wheat total biomass. Wheat-only, so fava is not in the denominator.
+* `W_NPP` - total biomass of the 6 wheat plants in the pot, in grams. (`Pot_NPP_g` is not used: it
+  includes fava and would correlate with the x-axis by construction.)
+
+**Models.** Beta regression (logit link) for allocation; `lm` on `log(W_NPP)` for biomass. Each
+set of slopes comes from a single model fitted once, with slopes extracted by `emtrends`; no
+subset models. Slopes are on the logit scale (allocation) or the log scale (biomass, so a slope
+of 0.1 is about +10% per gram of fava). For each slope there are two p-values:
+
+* **pooled** - the simple fava slope, ignoring inoculation.
+* **adjusted** - the fava slope after also accounting for the other design factor (inoculation in
+  Part 1; water in Part 2).
+
+```{r libs}
+library(tidyverse)
+library(glmmTMB)
+library(emmeans)
+library(car)
+source("../fig_style.R")
+
+inter <- readRDS("../wheat_audited.rds") %>% filter(Poly == "Inter")
+stopifnot(nrow(inter) == 30, all(table(inter$Inoc, inter$Water) == 5),
+          identical(levels(inter$Inoc), c("Inoc", "Strl")), all(inter$Num_fava == 1),
+          all(inter$berry_alloc > 0 & inter$berry_alloc < 1))
+
+fmt_p <- function(p) ifelse(p < 0.001, "p < 0.001", paste0("p = ", formatC(p, format = "f", digits = 3)))
+
+resp_lab <- c(alloc = "Berry allocation\n(proportion of wheat NPP)",
+              bio   = "Wheat biomass\n(g per pot)")
+
+fit_resp <- function(resp, rhs, data = inter) {
+  if (resp == "alloc") glmmTMB(as.formula(paste("berry_alloc ~", rhs)), family = beta_family(), data = data)
+  else                 lm(as.formula(paste("log(W_NPP) ~", rhs)), data = data)
+}
+slopes <- function(m, by) {
+  as.data.frame(test(emtrends(m, as.formula(paste("~", by)), var = "Fava_g")))
+}
+norm_cl <- function(d) {
+  names(d)[names(d) %in% c("lower.CL", "asymp.LCL")] <- "lcl"
+  names(d)[names(d) %in% c("upper.CL", "asymp.UCL")] <- "ucl"
+  d
+}
+```
+
+# Collinearity check
+
+Why the design below carries two p-values per slope. Fava and inoculation are nearly the same
+variable at Control and Moderate, and only decouple at Severe.
+
+```{r collin}
+inter %>% group_by(Water) %>%
+  summarise(n = n(),
+            `r(fava, Inoc)`  = round(cor(Fava_g, Inoc == "Inoc"), 2),
+            `r(fava, hyphal colonization)` = round(cor(Fava_g, hyphal), 2),
+            `fava mean, Inoc (g)` = round(mean(Fava_g[Inoc == "Inoc"]), 1),
+            `fava mean, Strl (g)` = round(mean(Fava_g[Inoc == "Strl"]), 1)) %>%
+  knitr::kable()
+```
+
+At Control and Moderate, the adjusted slope has little independent fava variation to work with, so
+its CI will be wide. That is a property of the design, not of the analysis.
+
+# Part 1 - Full intercrop set, by water
+
+Three water levels (columns), two responses (rows). Line = pooled simple fit within each water level
+(n = 10 pots), ribbon = 95% CI. Filled points = inoculated, open = sterile.
+
+```{r modelsA}
+mA <- list(
+  alloc = list(pooled = fit_resp("alloc", "Fava_g * Water"),
+               adj    = fit_resp("alloc", "Fava_g * Water + Inoc")),
+  bio   = list(pooled = fit_resp("bio",   "Fava_g * Water"),
+               adj    = fit_resp("bio",   "Fava_g * Water + Inoc"))
+)
+
+slopeA <- imap_dfr(mA, function(ms, r) {
+  bind_rows(slopes(ms$pooled, "Water") %>% mutate(kind = "pooled"),
+            slopes(ms$adj,    "Water") %>% mutate(kind = "adjusted")) %>% mutate(resp = r)
+})
+slopeA %>% transmute(resp, Water, kind, slope = round(Fava_g.trend, 3), SE = round(SE, 3),
+                     p = signif(p.value, 3)) %>%
+  arrange(resp, Water, kind) %>% knitr::kable()
+```
+
+```{r figA, fig.width=11, fig.height=7}
+grid <- seq(0.5, 10, length.out = 100)
+rng  <- inter %>% group_by(Water) %>% summarise(lo = min(Fava_g), hi = max(Fava_g))
+
+linesA <- imap_dfr(mA, function(ms, r) {
+  emmeans(ms$pooled, ~ Fava_g * Water, at = list(Fava_g = grid), type = "response") %>%
+    as.data.frame() %>% norm_cl() %>% mutate(resp = r)
+}) %>% left_join(rng, by = "Water") %>% filter(Fava_g >= lo, Fava_g <= hi)
+
+ptsA <- inter %>% transmute(Water, Inoc, Fava_g, alloc = berry_alloc, bio = W_NPP) %>%
+  pivot_longer(c(alloc, bio), names_to = "resp", values_to = "y")
+
+annA <- slopeA %>%
+  select(resp, Water, kind, p.value) %>% pivot_wider(names_from = kind, values_from = p.value) %>%
+  mutate(label = paste0("slope ", fmt_p(pooled), " (pooled)\n",
+                        "slope ", fmt_p(adjusted), " (adj. for Inoc)"))
+
+relevel_resp <- function(d) mutate(d, resp = factor(resp, names(resp_lab), resp_lab))
+linesA <- relevel_resp(linesA); ptsA <- relevel_resp(ptsA); annA <- relevel_resp(annA)
+
+blue <- pal_poly[["Inter"]]
+figA <- ggplot() +
+  geom_ribbon(data = linesA, aes(Fava_g, ymin = lcl, ymax = ucl), fill = blue, alpha = 0.15) +
+  geom_line(data = linesA, aes(Fava_g, response), color = blue, linewidth = 0.9) +
+  geom_point(data = ptsA, aes(Fava_g, y, fill = Inoc), shape = 21, color = blue, size = 3, stroke = 1) +
+  geom_text(data = annA, aes(x = Inf, y = Inf, label = label), hjust = 1.05, vjust = 1.2,
+            size = 3, color = "grey25", lineheight = 0.95) +
+  facet_grid(resp ~ Water, scales = "free_y", switch = "y",
+             labeller = labeller(Water = water_lab)) +
+  scale_fill_manual(values = c(Inoc = blue, Strl = "white"), labels = inoc_lab) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.32))) +
+  scale_x_continuous(breaks = c(2.5, 5, 7.5)) +
+  labs(x = "Fava biomass (g per pot)", y = NULL,
+       title = "Wheat allocation and biomass against fava biomass, wheat/ fava intercrop",
+       subtitle = "Per pot, n = 10 per panel. Line = pooled fit with 95% CI; filled = inoculated, open = sterile.") +
+  theme_ms(base_size = 12) +
+  theme(strip.placement = "outside", panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 10, color = "grey30"))
+figA
+ggsave("figures/Fig_FavaExplanatory_ByWater.pdf", figA, width = 11, height = 7)
+ggsave("figures/Fig_FavaExplanatory_ByWater.png", figA, width = 11, height = 7, dpi = 300, bg = "white")
+```
+
+# Part 2 - Split by inoculation (Inter-Inoc and Inter-Strl, n = 15 each)
+
+With only 5 pots per Inoc x Water cell, per-cell slopes would be unreliable, so slopes are
+estimated **within each inoculation treatment** (n = 15) and the three water levels are shown as
+point shapes. Within each treatment fava varies with water (in Strl it falls from about 8.5 g at
+Control to 4.1 g at Severe), so fava and water are partly confounded there.
+
+* **pooled** p: `y ~ Fava * Inoc` - the simple fava slope within each inoculation treatment.
+* **adjusted** p: `y ~ Fava * Inoc + Water` - the fava slope after accounting for water, assuming
+  the slope does not differ by water (checked below). Fitted once on all 30 pots.
+
+```{r modelsB}
+mB <- list(
+  alloc = list(pooled = fit_resp("alloc", "Fava_g * Inoc"),
+               adj    = fit_resp("alloc", "Fava_g * Inoc + Water"),
+               full   = fit_resp("alloc", "Fava_g * Inoc + Water + Fava_g:Water")),
+  bio   = list(pooled = fit_resp("bio",   "Fava_g * Inoc"),
+               adj    = fit_resp("bio",   "Fava_g * Inoc + Water"),
+               full   = fit_resp("bio",   "Fava_g * Inoc + Water + Fava_g:Water"))
+)
+
+slopeB <- imap_dfr(mB, function(ms, r) {
+  bind_rows(slopes(ms$pooled, "Inoc") %>% mutate(kind = "pooled"),
+            slopes(ms$adj,    "Inoc") %>% mutate(kind = "adjusted")) %>% mutate(resp = r)
+})
+slopeB %>% transmute(resp, Inoc, kind, slope = round(Fava_g.trend, 3), SE = round(SE, 3),
+                     p = signif(p.value, 3)) %>%
+  arrange(resp, Inoc, kind) %>% knitr::kable()
+```
+
+Check on the assumption that the fava slope is the same at every water level (Fava x Water term in
+the adjusted model; a small p would mean the additive-water model is too simple):
+
+```{r checkB}
+chkB <- imap_dfr(mB, function(ms, r) {
+  a <- car::Anova(ms$full, type = 2)
+  pcol <- grep("^Pr\\(", colnames(a), value = TRUE)[1]
+  tibble(resp = r, p_Fava_x_Water = signif(a["Fava_g:Water", pcol], 3))
+})
+knitr::kable(chkB)
+```
+
+**Reading the check.** For allocation the Fava x Water term is clearly non-zero
+(p = `r signif(chkB$p_Fava_x_Water[chkB$resp == "alloc"], 2)`): the fava slope is not the same at every
+water level (Part 1 shows why: it is steep at Severe and flat at Control and Moderate). The
+water-adjusted allocation slopes in Part 2 are therefore an *average* across water levels and should
+not be read as a single clean effect; the by-water slopes in Part 1 describe allocation better. For
+biomass the term is not distinguishable from zero (p = `r signif(chkB$p_Fava_x_Water[chkB$resp == "bio"], 2)`),
+so the additive-water model is adequate there.
+
+```{r figB, fig.width=9.5, fig.height=7}
+rngB <- inter %>% group_by(Inoc) %>% summarise(lo = min(Fava_g), hi = max(Fava_g))
+
+linesB <- imap_dfr(mB, function(ms, r) {
+  emmeans(ms$pooled, ~ Fava_g * Inoc, at = list(Fava_g = grid), type = "response") %>%
+    as.data.frame() %>% norm_cl() %>% mutate(resp = r)
+}) %>% left_join(rngB, by = "Inoc") %>% filter(Fava_g >= lo, Fava_g <= hi)
+
+ptsB <- inter %>% transmute(Water, Inoc, Fava_g, alloc = berry_alloc, bio = W_NPP) %>%
+  pivot_longer(c(alloc, bio), names_to = "resp", values_to = "y")
+
+annB <- slopeB %>%
+  select(resp, Inoc, kind, p.value) %>% pivot_wider(names_from = kind, values_from = p.value) %>%
+  mutate(label = paste0("slope ", fmt_p(pooled), " (pooled)\n",
+                        "slope ", fmt_p(adjusted), " (adj. for water)"))
+
+linesB <- relevel_resp(linesB); ptsB <- relevel_resp(ptsB); annB <- relevel_resp(annB)
+inoc_panel <- c(Inoc = "Inter - inoculated", Strl = "Inter - sterile")
+
+figB <- ggplot() +
+  geom_ribbon(data = linesB, aes(Fava_g, ymin = lcl, ymax = ucl), fill = blue, alpha = 0.15) +
+  geom_line(data = linesB, aes(Fava_g, response), color = blue, linewidth = 0.9) +
+  geom_point(data = ptsB, aes(Fava_g, y, shape = Water, fill = Inoc), color = blue, size = 3, stroke = 1) +
+  geom_text(data = annB, aes(x = Inf, y = Inf, label = label), hjust = 1.05, vjust = 1.2,
+            size = 3, color = "grey25", lineheight = 0.95) +
+  facet_grid(resp ~ Inoc, scales = "free", switch = "y",
+             labeller = labeller(Inoc = inoc_panel)) +
+  scale_shape_manual(values = c(Control = 21, Moderate = 24, Severe = 22), labels = water_lab) +
+  scale_fill_manual(values = c(Inoc = blue, Strl = "white"), guide = "none") +
+  guides(shape = guide_legend(override.aes = list(fill = "grey60", color = "grey30"))) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.32))) +
+  labs(x = "Fava biomass (g per pot)", y = NULL,
+       title = "Fava as an explanatory variable within each inoculation treatment",
+       subtitle = "Per pot, n = 15 per panel (x-axes differ by panel). Line = pooled fit with 95% CI; shape = water level.") +
+  theme_ms(base_size = 12) +
+  theme(strip.placement = "outside", panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 10, color = "grey30"))
+figB
+ggsave("figures/Fig_FavaExplanatory_ByInoc.pdf", figB, width = 9.5, height = 7)
+ggsave("figures/Fig_FavaExplanatory_ByInoc.png", figB, width = 9.5, height = 7, dpi = 300, bg = "white")
+```
