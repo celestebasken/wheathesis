@@ -1,0 +1,462 @@
+---
+title: "16 - Figure 3B: competitive balance in the intercrop pots"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status: EXPLORATORY throughout.** Nothing here is in the pre-specified confirmatory set, and every
+p-value and CI is unadjusted. Section headers carry the label so it cannot be lost.
+
+**Question.** What does wheat inoculation do to the *competitive balance* between wheat and fava in
+the 30 intercrop pots, and does it change across drought? Fava suppression (Fig. 3, section R5)
+showed the fava side. This asks whether wheat gains when fava is suppressed, and whether the pot as
+a whole gains or loses.
+
+**Conventions.** The randomized `Inoc` factor is the predictor (colonization is a plant response, not
+a treatment). Every model is `Inoc * Water`, fitted **once** on all 30 intercrop pots and conditioned
+within with `emmeans`; no subset models. Effects are `Inoc - Strl` with 95% CIs, n = 5 per cell.
+Wheat biomass here is the **pot total** for the 6 wheat plants (`W_NPP`), not per plant.
+
+```{r libs}
+library(tidyverse)
+library(emmeans)
+library(car)
+library(nlme)
+
+inter <- readRDS("../wheat_audited.rds") %>% filter(Poly == "Inter") %>%
+  mutate(wheat = W_NPP, fava = Fava_g, pot = Pot_NPP_g,
+         log_fava = log(fava), log_wheat = log(wheat), log_pot = log(pot),
+         log_ratio = log(wheat / fava))
+stopifnot(nrow(inter) == 30, all(table(inter$Inoc, inter$Water) == 5),
+          identical(levels(inter$Inoc), c("Inoc", "Strl")),
+          all(inter$fava > 0), all(inter$wheat > 0),
+          isTRUE(all.equal(inter$fava, inter$fava_npp)),
+          isTRUE(all.equal(inter$pot, inter$wheat + inter$fava, tolerance = 1e-4)))  # pot = wheat + fava
+```
+
+# 1. Verification of the raw-mean table (descriptive)
+
+Inoculated minus sterile, mean per pot, in grams. This checks the table in the prompt against the data.
+
+```{r verify}
+means <- inter %>% group_by(Water, Inoc) %>%
+  summarise(fava = mean(fava), wheat = mean(wheat), pot = mean(pot), .groups = "drop") %>%
+  pivot_wider(names_from = Inoc, values_from = c(fava, wheat, pot)) %>%
+  transmute(Water,
+            d_fava = fava_Inoc - fava_Strl, d_wheat = wheat_Inoc - wheat_Strl,
+            d_pot = pot_Inoc - pot_Strl, pot_pct = (pot_Inoc / pot_Strl - 1) * 100)
+
+claimed <- tibble(Water = factor(c("Control", "Moderate", "Severe"), levels(inter$Water)),
+                  c_fava = c(-6.12, -5.36, -0.44), c_wheat = c(-1.38, 4.90, 1.38), c_pot = c(-7.50, -0.46, 0.94))
+chk <- left_join(means, claimed, by = "Water")
+stopifnot(max(abs(chk$d_fava - chk$c_fava), abs(chk$d_wheat - chk$c_wheat), abs(chk$d_pot - chk$c_pot)) < 0.006)
+knitr::kable(means %>% mutate(across(where(is.numeric), ~ round(.x, 2))),
+             col.names = c("Water", "Δ fava (g)", "Δ wheat (g)", "Δ total pot (g)", "Δ total pot (%)"),
+             caption = "Raw cell-mean differences (Inoc - Strl), grams per pot. All values match the prompt's table; control total = -20%.")
+```
+
+All nine numbers and the −20% match. The raw means are correct; section 2 asks how well the data
+back them up.
+
+# 2. EXPLORATORY: models
+
+## 2a. Variance check
+
+Levene's test across the six cells for each response; a variance structure is used only if it is
+violated (p < 0.05). AIC for alternatives is shown as a sensitivity check.
+
+```{r variance}
+resp <- tribble(~var,         ~label,
+                "log_fava",   "log(fava)",
+                "log_wheat",  "log(wheat, pot total)",
+                "log_pot",    "log(total pot)",
+                "log_ratio",  "log(wheat : fava)")
+cell <- interaction(inter$Inoc, inter$Water)
+inter$cell <- cell
+
+fit_gls <- function(y, w = NULL) {
+  f <- reformulate("Inoc * Water", y)
+  eval(bquote(gls(.(f), weights = .(w), data = inter, method = "REML")))
+}
+vtab <- map_dfr(seq_len(nrow(resp)), function(i) {
+  y <- resp$var[i]
+  tibble(response = resp$label[i],
+         `Levene, 6 cells (p)` = car::leveneTest(inter[[y]], cell, center = median)[1, "Pr(>F)"],
+         AIC_equal = AIC(fit_gls(y)),
+         `AIC varIdent(~1|Inoc)` = AIC(fit_gls(y, varIdent(form = ~ 1 | Inoc))),
+         `AIC varIdent(~1|Water)` = AIC(fit_gls(y, varIdent(form = ~ 1 | Water))),
+         `AIC varIdent(~1|cell)` = AIC(fit_gls(y, varIdent(form = ~ 1 | cell))))
+})
+knitr::kable(vtab %>% mutate(across(where(is.numeric), ~ round(.x, 3))),
+             caption = "Variance homogeneity (Levene) and AIC for alternative variance structures")
+```
+
+Levene's test is not violated for any response (all p > 0.4), so the primary models use equal
+variance. The AIC differences are small and mostly favor nothing decisively (the one lower AIC for
+fava under six free variances is estimated from five pots each); the effect of the best-fitting
+alternative on the key estimates is checked in 2d.
+
+## 2b. Effects, per water level
+
+```{r effects}
+get_eff <- function(var, label, scale = c("log", "identity")) {
+  scale <- match.arg(scale)
+  m <- lm(reformulate("Inoc * Water", var), data = inter)
+  p_iw <- car::Anova(m, type = 2)["Inoc:Water", "Pr(>F)"]
+  s <- emmeans(m, ~ Inoc | Water) %>% contrast("pairwise", by = "Water", adjust = "none") %>%
+    summary(infer = c(TRUE, TRUE)) %>% as.data.frame()
+  stopifnot(all(s$contrast == "Inoc - Strl"))
+  tibble(response = label, Water = factor(s$Water, levels(inter$Water)),
+         est = s$estimate, lo = s$lower.CL, hi = s$upper.CL, p = s$p.value, p_interaction = p_iw,
+         scale = scale)
+}
+log_eff <- bind_rows(
+  get_eff("log_fava",  "Fava biomass",            "log"),
+  get_eff("log_wheat", "Wheat biomass (pot total)", "log"),
+  get_eff("log_pot",   "Total pot biomass",        "log"),
+  get_eff("log_ratio", "Wheat : fava ratio",       "log")) %>%
+  mutate(fold = exp(est), fold_lo = exp(lo), fold_hi = exp(hi),
+         pct = (fold - 1) * 100, pct_lo = (fold_lo - 1) * 100, pct_hi = (fold_hi - 1) * 100)
+
+gram_eff <- bind_rows(
+  get_eff("fava", "Fava biomass",            "identity"),
+  get_eff("wheat", "Wheat biomass (pot total)", "identity"),
+  get_eff("pot",  "Total pot biomass",        "identity"))
+
+fmt_p <- function(p) ifelse(p < 1e-4, "<0.0001", as.character(signif(p, 2)))
+knitr::kable(log_eff %>% filter(response != "Wheat : fava ratio") %>%
+               transmute(response, Water, `% change` = round(pct, 1),
+                         `95% CI` = sprintf("[%.1f, %.1f]", pct_lo, pct_hi), p = fmt_p(p),
+                         `Inoc x Water p` = fmt_p(p_interaction)),
+             caption = "EXPLORATORY - Inoc - Strl effect on each biomass, % change (log-scale models; unadjusted 95% CI)")
+
+knitr::kable(log_eff %>% filter(response == "Wheat : fava ratio") %>%
+               transmute(Water, `fold-change in wheat:fava ratio` = round(fold, 2),
+                         `95% CI` = sprintf("[%.2f, %.2f]", fold_lo, fold_hi), p = fmt_p(p),
+                         `Inoc x Water p` = fmt_p(p_interaction)),
+             caption = "EXPLORATORY - competitive balance: fold-change in the wheat:fava ratio with inoculation (1 = no change)")
+
+knitr::kable(gram_eff %>% transmute(response, Water, `difference (g per pot)` = round(est, 2),
+                                    `95% CI` = sprintf("[%.2f, %.2f]", lo, hi), p = fmt_p(p)),
+             caption = "EXPLORATORY - the same contrasts in grams per pot (identity-scale models); this is the scale a stacked-bar panel would show")
+```
+
+## 2c. Why the log ratio, and what it can and cannot say
+
+The percentage of the pot that is fava (`Pot_pcent_fava`) conflates "fava shrank" with "wheat grew"
+and cannot tell them apart. The log wheat:fava ratio is symmetric (a 2x change up or down has the
+same magnitude) and additive, so a fold-change with a CI is interpretable. Its limitation is that
+it is **mechanically driven by whichever component moves most**: here fava biomass moves by about
+72-74% with a tight CI while wheat biomass is very noisy, so the ratio shift is almost entirely a
+fava effect. A rising ratio does **not** mean wheat gained.
+
+## 2d. Sensitivity of the key estimates to the variance structure
+
+```{r sensitivity}
+sens_eff <- function(var, label) {
+  g <- fit_gls(var, varIdent(form = ~ 1 | Inoc))
+  e <- emmeans(g, ~ Inoc | Water, data = inter) %>% contrast("pairwise", by = "Water", adjust = "none") %>%
+    summary(infer = c(TRUE, TRUE)) %>% as.data.frame()
+  tibble(response = label, Water = factor(e$Water, levels(inter$Water)),
+         pct_alt = (exp(e$estimate) - 1) * 100, lo_alt = (exp(e$lower.CL) - 1) * 100,
+         hi_alt = (exp(e$upper.CL) - 1) * 100)
+}
+alt <- bind_rows(sens_eff("log_fava", "Fava biomass"), sens_eff("log_wheat", "Wheat biomass (pot total)"),
+                 sens_eff("log_pot", "Total pot biomass"), sens_eff("log_ratio", "Wheat : fava ratio"))
+cmp <- log_eff %>% left_join(alt, by = c("response", "Water")) %>% filter(Water == "Control")
+knitr::kable(cmp %>% transmute(response,
+                               `equal variance` = sprintf("%+.0f%% [%.0f, %.0f]", pct, pct_lo, pct_hi),
+                               `varIdent(~1|Inoc)` = sprintf("%+.0f%% [%.0f, %.0f]", pct_alt, lo_alt, hi_alt)),
+             caption = "SENSITIVITY - Control water effects under equal variance vs. a separate variance for inoculated and sterile pots")
+```
+
+```{r save}
+dir.create("outputs", showWarnings = FALSE)
+write.csv(log_eff, "outputs/competitive_balance_effects_log.csv", row.names = FALSE)
+write.csv(gram_eff, "outputs/competitive_balance_effects_grams.csv", row.names = FALSE)
+```
+
+# 3. What the data support (EXPLORATORY)
+
+```{r headline}
+g <- function(resp, w, col) {
+  x <- log_eff %>% filter(response == resp, Water == w); x[[col]]
+}
+pot_c <- log_eff %>% filter(response == "Total pot biomass", Water == "Control")
+gr_c  <- gram_eff %>% filter(response == "Total pot biomass", Water == "Control")
+```
+
+* **Fava loses, strongly, at control and moderate water; not at severe.** −72% and −74% (CIs well clear
+  of zero); at severe −3% (CI −34 to +42).
+* **Wheat does not detectably gain anywhere.** Pot-total wheat changes are −9%, +15% and +8%, all with
+  CIs spanning zero by a wide margin (about −36% to +63%). The data are consistent with a wheat
+  gain, no change, or a loss; they cannot say wheat is better off. Wheat is the noisy component (a
+  pot-level CI of roughly ±10 g).
+* **Total pot productivity at control: a suggestive loss, not a demonstrated one.** The point estimate
+  is `r sprintf("%.0f%%", pot_c$pct)` (95% CI `r sprintf("%.0f%% to %+.0f%%", pot_c$pct_lo, pot_c$pct_hi)`, p = `r fmt_p(pot_c$p)`), or
+  `r sprintf("%.1f g", gr_c$est)` per pot (95% CI `r sprintf("%.1f to %+.1f g", gr_c$lo, gr_c$hi)`, p = `r fmt_p(gr_c$p)`). The raw −20% (ratio of
+  arithmetic means) corresponds to about −23% in the log-scale model, and the interval includes zero. State it as
+  "the pot lost about 20% of its biomass at control, but with n = 5 this was not statistically
+  distinguishable from no change". Nothing detectable at moderate (−5%) or severe (+4%) water.
+* **The ratio shifts strongly toward wheat, but only because fava shrinks.** The wheat:fava ratio
+  rose about 3.3-fold at control and 4.4-fold at moderate water, and not at severe. Wheat did not
+  gain (above), so this is a fava effect expressed as a ratio.
+
+**The framing in the prompt holds, with one qualification.** "Wheat does not reliably gain when fava
+is suppressed" is supported. "Under adequate water the pot simply loses biomass" is the right
+direction but is **not established**: the loss at control is borderline, and the missing biomass is
+entirely the fava's.
+
+# 4. Two caveats (must accompany any figure from this section)
+
+1. **Inoculum confound.** Inoculated pots received live INVAM material (spores, hyphae, root
+   fragments, carrier medium, and co-introduced microbiota); sterile pots received nothing. A
+   biomass loss concentrated entirely in the legume has an obvious alternative explanation:
+   something in the inoculum harmed fava directly, independent of AMF or of any competition with
+   wheat. There is no killed-inoculum-plus-filtrate control to separate these. Sterile pots also
+   showed background colonization (hyphal colonization up to 0.47), so the contrast is
+   attenuated, not clean.
+2. **AMF-rhizobia carbon competition is a hypothesis, not a finding.** Fava was nodulating, and AMF
+   and rhizobia both draw photosynthate, so a tripartite symbiosis can be net costly to the
+   legume. Nodulation was observed at harvest but never quantified (no counts or masses), so this
+   mechanism is untested. Fava's own AMF colonization was never measured either (fava roots were
+   not stained), so what is called "AMF" in the fava response is wheat's randomized inoculation
+   treatment, not fava's colonization.
+
+# 5. Figure 3 (two panels), EXPLORATORY
+
+Two-panel replacement for the single-panel Figure 3. **Panel A** is the fava biomass figure from
+`14_Figure3_FavaSuppression/fig3_redesign.R` (individual pots, model geometric mean with 95% CI,
+and an anchored bracket giving the % change). **Panel B** shows the pot composition, so the change
+in total productivity is visible next to which component moved. Panel B is built two ways so you
+can choose: **stacked bars** (the pot as a whole) and **side-by-side components** (wheat, fava and
+total on one shared axis).
+
+Encoding follows `fig_style.R`: blue = the intercrop stand, filled = inoculated, open = sterile.
+Panel B in grams uses identity-scale models (the model estimate of a difference in means equals the
+raw difference, so the bars, the points and the bracket labels agree). Panel A's % changes come from
+the log-scale model, as in section 2.
+
+```{r fig-setup}
+library(patchwork)
+source("../fig_style.R")
+
+dir.create("figures", showWarnings = FALSE)
+DODGE <- 0.6                 # same geometry as fig3_redesign.R: two groups sit at x +/- DODGE/4
+OFF   <- DODGE / 4
+col   <- pal_poly[["Inter"]]
+minus <- function(x, d = 1) gsub("-", "\u2212", formatC(x, format = "f", digits = d, flag = "+"), fixed = TRUE)
+
+# ---- identity-scale cell means with 95% CI, for panel B ---------------------------------------
+cell_means <- map_dfr(c(Wheat = "wheat", Fava = "fava", `Total pot` = "pot"), function(v) {
+  emmeans(lm(reformulate("Inoc * Water", v), data = inter), ~ Inoc | Water) %>% as.data.frame() %>%
+    transmute(Water = factor(Water, levels(inter$Water)), Inoc = factor(Inoc, levels(inter$Inoc)),
+              mean = emmean, lo = lower.CL, hi = upper.CL)
+}, .id = "comp") %>% mutate(comp = factor(comp, c("Wheat", "Fava", "Total pot")))
+
+# difference (Inoc - Strl) in grams, per component and water level
+gram_lab <- gram_eff %>%
+  mutate(comp = factor(unname(c(`Fava biomass` = "Fava", `Wheat biomass (pot total)` = "Wheat",
+                                `Total pot biomass` = "Total pot")[response]), c("Wheat", "Fava", "Total pot")),
+         sig = lo > 0 | hi < 0)
+stopifnot(nrow(gram_lab) == 9)
+```
+
+## Panel A: fava biomass (from `fig3_redesign.R`)
+
+```{r panel-a, fig.width=7.5, fig.height=4.2, dpi=150}
+mm_a <- emmeans(lm(log_fava ~ Inoc * Water, data = inter), ~ Inoc | Water) %>% as.data.frame() %>%
+  transmute(Water = factor(Water, levels(inter$Water)), Inoc = factor(Inoc, levels(inter$Inoc)),
+            fit = exp(emmean), lo = exp(lower.CL), hi = exp(upper.CL))
+
+# brackets sit above BOTH the raw pots and the top of the CI line, so nothing crosses them
+brk_a <- inter %>% group_by(Water) %>% summarise(top = max(fava), .groups = "drop") %>%
+  left_join(mm_a %>% group_by(Water) %>% summarise(ci_hi = max(hi), .groups = "drop"), by = "Water") %>%
+  mutate(top = pmax(top, ci_hi)) %>%
+  mutate(Water = factor(Water, levels(inter$Water)), xn = as.numeric(Water),
+         ybar = top * 1.12, ytick = top * 1.05, ylab_ = ybar * 1.045) %>%
+  left_join(log_eff %>% filter(response == "Fava biomass") %>% select(Water, pct, pct_lo, pct_hi, p), by = "Water") %>%
+  mutate(label = paste0(minus(pct, 0), "%  (", minus(pct_lo, 0), " to ", minus(pct_hi, 0), ")"),
+         sig = p < 0.05)
+
+legend_inoc <- function() list(
+  scale_shape_manual(values = c(Inoc = 21, Strl = 21), labels = inoc_lab),
+  scale_fill_manual(values = c(Inoc = col, Strl = "white"), labels = inoc_lab),
+  guides(shape = guide_legend(override.aes = list(size = 3.4, colour = col)),
+         fill  = guide_legend(override.aes = list(size = 3.4, colour = col))))
+
+fig_a <- ggplot(inter, aes(x = Water, y = fava)) +
+  geom_segment(data = brk_a, aes(x = xn - OFF, xend = xn + OFF, y = ybar, yend = ybar),
+               inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_segment(data = brk_a, aes(x = xn - OFF, xend = xn - OFF, y = ybar, yend = ytick),
+               inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_segment(data = brk_a, aes(x = xn + OFF, xend = xn + OFF, y = ybar, yend = ytick),
+               inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_text(data = brk_a, aes(x = xn, y = ylab_, label = label, colour = sig,
+                              fontface = ifelse(sig, "bold", "plain")),
+            inherit.aes = FALSE, size = 3.3, vjust = 0, show.legend = FALSE) +
+  scale_colour_manual(values = c(`TRUE` = "grey15", `FALSE` = "grey60"), guide = "none") +
+  geom_point(aes(shape = Inoc), colour = col, size = 2.1, stroke = 0.9, fill = NA, alpha = 0.75,
+             position = position_jitterdodge(jitter.width = 0.10, dodge.width = DODGE, seed = 1)) +
+  geom_linerange(data = mm_a, aes(y = fit, ymin = lo, ymax = hi, group = Inoc), colour = col,
+                 linewidth = 0.6, position = position_dodge(width = DODGE)) +
+  geom_point(data = mm_a, aes(y = fit, shape = Inoc, fill = Inoc), colour = col, size = 3.4, stroke = 1.1,
+             position = position_dodge(width = DODGE)) +
+  legend_inoc() +
+  scale_x_discrete(labels = water_lab) +
+  scale_y_continuous(breaks = seq(0, 10, 2), limits = c(0, max(brk_a$ylab_) * 1.12),
+                     expand = expansion(mult = c(0.01, 0))) +
+  labs(x = NULL, y = "Fava biomass per plant (g)",
+       title = "Fava biomass",
+       subtitle = "Change with inoculated vs. sterile wheat (95% CI). Large points: model mean; small points: pots.") +
+  theme_ms(11) +
+  theme(plot.title = element_text(face = "bold", size = 12), plot.subtitle = element_text(colour = "grey35", size = 8.8),
+        panel.grid.major.x = element_blank())
+print(fig_a)
+```
+
+## Panel B, layout 1: stacked bars
+
+Each bar is the mean pot, wheat (bottom) plus fava (top), for inoculated and sterile pots at each
+water level. Open circles are each pot's **total** biomass. The bracket gives the unadjusted p-value
+for the difference in total pot biomass (inoculated vs. sterile); it is grey when p >= 0.05. The
+size of the change and its CI are in the caption and in section 2b.
+
+```{r panel-b-stacked, fig.width=7.5, fig.height=4.4, dpi=150}
+stack <- cell_means %>% filter(comp %in% c("Wheat", "Fava")) %>%
+  mutate(comp = factor(comp, c("Fava", "Wheat")))            # first level is stacked on top
+
+brk_s <- inter %>% group_by(Water) %>% summarise(top = max(pot), .groups = "drop") %>%
+  mutate(ybar = top + 2.2, ytick = top + 0.9, ylab_ = ybar + 0.7) %>%
+  left_join(gram_lab %>% filter(comp == "Total pot") %>% select(Water, p, sig), by = "Water") %>%
+  mutate(label = ifelse(p < 1e-4, "p < 0.0001", paste0("p = ", formatC(p, format = "f", digits = 2))))
+
+fig_b_stacked <- ggplot(stack, aes(x = Inoc, y = mean)) +
+  geom_col(aes(fill = comp), colour = col, width = 0.66, linewidth = 0.5) +
+  geom_point(data = inter, aes(x = Inoc, y = pot), inherit.aes = FALSE, shape = 21, fill = "white",
+             colour = "grey25", size = 1.9, stroke = 0.8,
+             position = position_jitter(width = 0.12, height = 0, seed = 2)) +
+  geom_segment(data = brk_s, aes(x = 1, xend = 2, y = ybar, yend = ybar), inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_segment(data = brk_s, aes(x = 1, xend = 1, y = ybar, yend = ytick), inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_segment(data = brk_s, aes(x = 2, xend = 2, y = ybar, yend = ytick), inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_text(data = brk_s, aes(x = 1.5, y = ylab_, label = label, colour = sig, fontface = ifelse(sig, "bold", "plain")),
+            inherit.aes = FALSE, size = 3.1, vjust = 0, show.legend = FALSE) +
+  scale_colour_manual(values = c(`TRUE` = "grey15", `FALSE` = "grey60"), guide = "none") +
+  scale_fill_manual(values = c(Wheat = col, Fava = scales::alpha(col, 0.28)), breaks = c("Wheat", "Fava"),
+                    labels = c(Wheat = "Wheat (6 plants)", Fava = "Fava (1 plant)")) +
+  facet_wrap(~ Water, nrow = 1, strip.position = "bottom", labeller = labeller(Water = water_lab)) +
+  scale_x_discrete(labels = inoc_lab) +
+  scale_y_continuous(breaks = seq(0, 50, 10), limits = c(0, max(brk_s$ylab_) * 1.1), expand = expansion(mult = c(0, 0))) +
+  labs(x = NULL, y = "Biomass per pot (g)", title = "Pot composition",
+       subtitle = "Bars: mean wheat + fava. Open circles: total biomass of each pot. Bracket: p-value for the change in total.") +
+  theme_ms(11) +
+  theme(plot.title = element_text(face = "bold", size = 12), plot.subtitle = element_text(colour = "grey35", size = 8.8),
+        strip.placement = "outside", strip.text = element_text(face = "plain", size = 10),
+        panel.grid.major.x = element_blank(), panel.spacing.x = unit(1.4, "lines"))
+print(fig_b_stacked)
+
+fig3_stacked <- fig_a / fig_b_stacked + plot_layout(heights = c(1, 1.05)) +
+  plot_annotation(tag_levels = "A", caption = "Exploratory. CIs and p-values unadjusted. n = 5 pots per group.",
+                  theme = theme(plot.caption = element_text(colour = "grey45", size = 8.5, hjust = 0)))
+ggsave("figures/Fig3AB_Stacked.pdf", fig3_stacked, width = 7.5, height = 9.2)
+ggsave("figures/Fig3AB_Stacked.png", fig3_stacked, width = 7.5, height = 9.2, dpi = 300, bg = "white")
+```
+
+## Panel B, layout 2: side-by-side components
+
+Wheat, fava and total pot on **one shared axis** (grams per pot), so the size of each component's
+change can be compared directly. Large points are cell means with 95% CIs, small points are pots; the
+label is the difference (inoculated minus sterile) in grams, bold when its CI excludes zero.
+
+```{r panel-b-components, fig.width=7.5, fig.height=4.2, dpi=150}
+pts_b <- inter %>% select(Water, Inoc, Wheat = wheat, Fava = fava, `Total pot` = pot) %>%
+  pivot_longer(c(Wheat, Fava, `Total pot`), names_to = "comp", values_to = "y") %>%
+  mutate(comp = factor(comp, c("Wheat", "Fava", "Total pot")))
+
+brk_c <- pts_b %>% group_by(comp, Water) %>% summarise(top = max(y), .groups = "drop") %>%
+  left_join(cell_means %>% group_by(comp, Water) %>% summarise(ci_hi = max(hi), .groups = "drop"),
+            by = c("comp", "Water")) %>% mutate(top = pmax(top, ci_hi)) %>%
+  mutate(xn = as.numeric(Water), ybar = top + 2.2, ytick = top + 0.9, ylab_ = ybar + 0.6) %>%
+  left_join(gram_lab %>% select(comp, Water, est, sig), by = c("comp", "Water")) %>%
+  mutate(label = paste0(minus(est, 1), " g"))
+
+comp_lab <- c(Wheat = "Wheat (6 plants)", Fava = "Fava (1 plant)", `Total pot` = "Total pot")
+water_short <- c(Control = "Control\n80% FC", Moderate = "Moderate\n60% FC", Severe = "Severe\n40% FC")
+
+fig_b_comp <- ggplot(pts_b, aes(x = Water, y = y)) +
+  geom_segment(data = brk_c, aes(x = xn - OFF, xend = xn + OFF, y = ybar, yend = ybar), inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_segment(data = brk_c, aes(x = xn - OFF, xend = xn - OFF, y = ybar, yend = ytick), inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_segment(data = brk_c, aes(x = xn + OFF, xend = xn + OFF, y = ybar, yend = ytick), inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_text(data = brk_c, aes(x = xn, y = ylab_, label = label, colour = sig, fontface = ifelse(sig, "bold", "plain")),
+            inherit.aes = FALSE, size = 2.9, vjust = 0, show.legend = FALSE) +
+  scale_colour_manual(values = c(`TRUE` = "grey15", `FALSE` = "grey60"), guide = "none") +
+  geom_point(aes(shape = Inoc), colour = col, size = 1.6, stroke = 0.8, fill = NA, alpha = 0.7,
+             position = position_jitterdodge(jitter.width = 0.10, dodge.width = DODGE, seed = 1)) +
+  geom_linerange(data = cell_means, aes(y = mean, ymin = lo, ymax = hi, group = Inoc), colour = col,
+                 linewidth = 0.55, position = position_dodge(width = DODGE)) +
+  geom_point(data = cell_means, aes(y = mean, shape = Inoc, fill = Inoc), colour = col, size = 2.8, stroke = 1,
+             position = position_dodge(width = DODGE)) +
+  legend_inoc() +
+  facet_wrap(~ comp, nrow = 1, labeller = labeller(comp = comp_lab)) +
+  scale_x_discrete(labels = water_short) +
+  scale_y_continuous(breaks = seq(0, 50, 10), limits = c(0, max(brk_c$ylab_) * 1.1), expand = expansion(mult = c(0.01, 0))) +
+  labs(x = NULL, y = "Biomass per pot (g)", title = "Pot composition",
+       subtitle = "Same axis in every panel. Labels: change with inoculation (g); bold if the 95% CI excludes zero.") +
+  theme_ms(11) +
+  theme(plot.title = element_text(face = "bold", size = 12), plot.subtitle = element_text(colour = "grey35", size = 8.8),
+        strip.text = element_text(face = "bold", size = 10), panel.grid.major.x = element_blank(),
+        axis.text.x = element_text(size = 8.5, lineheight = 0.9), panel.spacing.x = unit(1, "lines"))
+print(fig_b_comp)
+
+fig3_components <- (fig_a + theme(legend.position = "none")) / fig_b_comp + plot_layout(heights = c(1, 1)) +
+  plot_annotation(tag_levels = "A", caption = "Exploratory. CIs and p-values unadjusted. n = 5 pots per group.",
+                  theme = theme(plot.caption = element_text(colour = "grey45", size = 8.5, hjust = 0)))
+ggsave("figures/Fig3AB_Components.pdf", fig3_components, width = 7.5, height = 8.6)
+ggsave("figures/Fig3AB_Components.png", fig3_components, width = 7.5, height = 8.6, dpi = 300, bg = "white")
+```
+
+## Proposed caption (either layout)
+
+> **Figure 3. Inoculated wheat suppressed its fava neighbor under adequate water, but the pot's
+> total biomass did not change detectably (exploratory).** (A) Fava biomass per plant (one fava per
+> pot) in the 30 wheat/ fava intercrop pots, by wheat inoculation (filled = inoculated, open =
+> sterile) and water level (FC = field capacity). Small points are pots; large points are model
+> geometric means with 95% CIs; brackets give the change in fava biomass with inoculated wheat (95%
+> CI). (B) Pot composition: wheat (6 plants) and fava biomass per pot. Inoculation reduced fava
+> biomass by about 6 g per pot at control and moderate water; wheat biomass per pot did not change
+> detectably at any water level (95% CIs span roughly -11 to +15 g), so total pot biomass fell by
+> `r minus(gr_c$est, 1)` g (95% CI `r minus(gr_c$lo, 1)` to `r minus(gr_c$hi, 1)`) at control water, an interval that includes zero.
+> Brackets in B give the unadjusted p-value for the difference in total pot biomass. n = 5 pots per group; all CIs and p-values are unadjusted. The inoculated pots received live inoculum with
+> co-introduced microbiota and the sterile pots received nothing, so a direct effect of the inoculum
+> on fava cannot be separated from an AMF effect (no killed-inoculum control).
+
+## Notes for the Results text
+
+* **Say what the data support.** Fava lost about 6 g per pot at control and moderate water, with
+  tight CIs. Wheat showed no detectable change at any level, but its pot-level uncertainty is
+  large (about ±10 g), so "wheat did not gain" is "no detectable gain", not "no gain".
+* **Do not call the total-pot loss a finding.** At control the pot lost about 20% of its biomass
+  (-7.5 g), 95% CI -17.0 to +2.0 g. It is suggestive, not established.
+* **The ratio and the fava share are fava effects.** The wheat:fava ratio shifting toward wheat (3.3x
+  and 4.4x) does not mean wheat gained; it is the fava loss expressed as a ratio.
+* **Keep the two caveats attached** to any use of this figure: the inoculum confound, and the
+  AMF-rhizobia carbon competition as an untested hypothesis (nodulation was observed, never quantified).
+* **Units differ by panel on purpose.** Panel A's % changes come from the log-scale fava model; panel
+  B is in grams from identity-scale models, so bars, points and labels agree and the wheat and fava
+  changes add to the total. Panel A's large points are geometric means and panel B's are arithmetic
+  means, so the fava values differ slightly between the panels (for example 8.4 vs 8.5 g at control).
+
+# Session info
+
+```{r}
+sessionInfo()
+```

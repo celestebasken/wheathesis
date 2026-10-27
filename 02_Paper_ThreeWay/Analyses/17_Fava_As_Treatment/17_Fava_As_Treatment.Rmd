@@ -1,0 +1,142 @@
+---
+title: "17 - Fava as a treatment: wheat berry allocation"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status: EXPLORATORY.** This starts a set of figures that treat the fava neighbor as a treatment, on
+the same footing as AMF inoculation, and ask how fava suppresses the effect of AMF on wheat. This
+first figure is the central allocation result (originally Figure 1 in `08.5_Research_Direction.Rmd`)
+with the factors flipped: **panels = inoculation, lines = stand type (Inter vs Mono)**.
+
+**Model.** Identical to the primary model: beta regression on `berry_alloc` with
+`Poly * Inoc * Water` and dispersion varying by `Poly`, fitted **once** to all 60 pots. All contrasts
+below are conditioned inside that model with `emmeans`; no subset models.
+
+**Letters and p-values.** Within each inoculation panel there are six cells (stand type x water).
+Letters come from a Tukey-adjusted compact letter display across those six cells (15 comparisons per
+panel), so cells sharing a letter are not distinguishable *within that panel*. Letters are **not**
+comparable between panels. The p-values on the figure are the Inter vs Mono contrast at each water
+level, from the same Tukey family, so they are consistent with the letters. Tests are on the logit
+scale; points and intervals are back-transformed to proportions.
+
+```{r libs}
+library(tidyverse)
+library(glmmTMB)
+library(emmeans)
+library(multcomp)
+library(multcompView)
+source("../fig_style.R")
+
+wheat <- readRDS("../wheat_audited.rds")
+stopifnot(nrow(wheat) == 60, all(table(wheat$Poly, wheat$Inoc, wheat$Water) == 5))
+
+fmt_p <- function(p) ifelse(p < 0.001, "p < 0.001", paste0("p = ", formatC(p, format = "f", digits = 3)))
+```
+
+# Model
+
+Water is given the same two planned orthogonal contrasts as the primary model. The fitted cell means
+do not depend on this coding, but it keeps the model object identical to the one in Steps 3 and 8.5.
+
+```{r model}
+wheat_c <- wheat
+contrasts(wheat_c$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
+
+m1 <- glmmTMB(berry_alloc ~ Poly * Inoc * Water, dispformula = ~ Poly,
+              family = beta_family(), data = wheat_c)
+car::Anova(m1, type = 2)
+```
+
+# Estimated means, letters, and Inter vs Mono p-values
+
+```{r emm}
+emm <- emmeans(m1, ~ Poly * Water | Inoc)
+
+# Tukey pairwise tests across the 6 Poly x Water cells within each Inoc panel (logit scale)
+pw <- pairs(emm, by = "Inoc", adjust = "tukey") %>% as.data.frame()
+
+# Letters from those same adjusted p-values, so letters and printed p-values agree
+letters_for <- function(d) {
+  pvec <- setNames(d$p.value, gsub(" ", "_", gsub(" - ", "-", d$contrast)))
+  lt <- multcompView::multcompLetters(pvec, threshold = 0.05)$Letters
+  tibble(cell = names(lt), .group = unname(lt))
+}
+lets <- pw %>% group_by(Inoc) %>% group_modify(~ letters_for(.x)) %>% ungroup() %>%
+  separate(cell, into = c("Poly", "Water"), sep = "_")
+
+cld_df <- as.data.frame(emm, type = "response") %>%
+  left_join(lets, by = c("Inoc", "Poly", "Water")) %>%
+  rename(prob = response)
+
+# P-values: Inter vs Mono at each Water, same Tukey family
+pv <- pw %>%
+  separate(contrast, into = c("a", "b"), sep = " - ") %>%
+  separate(a, into = c("Poly_a", "Water_a"), sep = " ") %>%
+  separate(b, into = c("Poly_b", "Water_b"), sep = " ") %>%
+  filter(Water_a == Water_b, Poly_a != Poly_b) %>%
+  transmute(Inoc, Water = factor(Water_a, levels(wheat$Water)), p = p.value,
+            lab = fmt_p(p.value))
+
+cld_df$Water <- factor(cld_df$Water, levels(wheat$Water))
+cld_df$Poly  <- factor(cld_df$Poly, c("Inter", "Mono"))
+
+cld_df %>% arrange(Inoc, Water, Poly) %>%
+  dplyr::select(Inoc, Water, Poly, prob, asymp.LCL, asymp.UCL, letter = .group) %>%
+  mutate(across(c(prob, asymp.LCL, asymp.UCL), ~ round(.x, 3))) %>% knitr::kable()
+pv %>% arrange(Inoc, Water) %>% dplyr::select(Inoc, Water, `Tukey p (Inter vs Mono)` = p) %>%
+  mutate(`Tukey p (Inter vs Mono)` = signif(`Tukey p (Inter vs Mono)`, 3)) %>% knitr::kable()
+```
+
+# Figure
+
+Color = stand type (same palette as Figures 2-4); filled symbols and solid lines in the inoculated
+panel, open symbols and dashed lines in the sterile panel.
+
+```{r fig, fig.width=9.5, fig.height=6}
+dodge <- position_dodge(0.35)
+panel_lab <- c(Inoc = "Inoculated", Strl = "Sterile")
+
+cld_df <- cld_df %>% mutate(InocL = factor(Inoc, names(panel_lab), panel_lab))
+pv     <- pv %>% mutate(InocL = factor(Inoc, names(panel_lab), panel_lab))
+
+fig_ft <- ggplot(cld_df, aes(Water, prob, color = Poly, group = Poly)) +
+  geom_line(aes(linetype = Inoc), position = dodge, linewidth = 0.8) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.15, position = dodge,
+                linewidth = 0.6) +
+  geom_point(aes(shape = Inoc), position = dodge, size = 3.4, stroke = 1.1, fill = "white") +
+  geom_text(aes(y = asymp.UCL + 0.018, label = .group), position = dodge,
+            size = 4, fontface = "bold", show.legend = FALSE) +
+  geom_text(data = pv, aes(x = Water, y = 0.52, label = lab), inherit.aes = FALSE,
+            size = 3.3, color = "grey25") +
+  facet_wrap(~InocL) +
+  scale_color_manual(values = pal_poly, labels = poly_lab, breaks = c("Mono", "Inter")) +
+  scale_shape_manual(values = shp_inoc, guide = "none") +
+  scale_linetype_manual(values = lty_inoc, guide = "none") +
+  scale_y_continuous(limits = c(0, 0.55), breaks = seq(0, 0.5, 0.1)) +
+  labs(y = "Berry allocation (proportion of total NPP)", x = NULL,
+       title = "Berry allocation by inter and PPT, within each inoculation treatment",
+       subtitle = paste0("Estimated marginal means from the primary beta regression; bars = 95% CI.\n",
+                         "Letters: Tukey CLD across the six cells within a panel. ",
+                         "p-values: Inter vs Mono at each water level (Tukey)")) +
+  theme_ms(base_size = 12) +
+  theme(plot.subtitle = element_text(size = 9.5, color = "grey30"))
+fig_ft
+
+ggsave("figures/Fig_FavaTreatment_BerryAlloc.pdf", fig_ft, width = 9.5, height = 6)
+ggsave("figures/Fig_FavaTreatment_BerryAlloc.png", fig_ft, width = 9.5, height = 6, dpi = 300, bg = "white")
+```
+
+**Reading it.** Inter (blue) vs Mono (orange) is now the comparison within each panel. In the sterile
+panel the two stand types track each other; in the inoculated panel they separate at severe drought,
+where inoculated monoculture collapses and inoculated intercrop does not. That is the fava-suppresses-
+AMF-cost pattern from the original figure, seen with fava as the treatment.

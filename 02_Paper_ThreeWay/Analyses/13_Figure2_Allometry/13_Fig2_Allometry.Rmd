@@ -125,7 +125,7 @@ fit_lines <- wc %>%
 
 # tint the one panel that carries the finding (Monoculture x Severe)
 hl <- tibble(Poly = factor("Mono", levels(wheat$Poly)), Water = factor("Severe", levels(wheat$Water)))
-note <- hl %>% mutate(x = 1.0, y = 3.0, label = "Inoculated plants are larger\nbut make less grain")
+note <- hl %>% mutate(x = 1.0, y = 3.0, label = "")
 
 fig2 <- ggplot(wheat, aes(x = veg, y = berry, color = Poly, shape = Inoc, linetype = Inoc)) +
   geom_rect(data = hl, aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf),
@@ -156,25 +156,58 @@ ggsave("figures/Fig2_Allometry.pdf", fig2, width = 9.5, height = 6)
 ggsave("figures/Fig2_Allometry.png", fig2, width = 9.5, height = 6, dpi = 300, bg = "white")
 ```
 
+## Presentation version: monoculture x severe drought only
+
+The panel that carries the claim, blown up, with larger points and type for a slide. It uses the
+**same model and the same fitted lines** as the full figure (one common slope, each line drawn over
+its own group's observed size range). The vertical gap between the two lines is the size-adjusted
+inoculation effect (EXPLORATORY); it is quoted in the footnote below, not drawn on the plot.
+
+```{r figure-presentation, fig.width=10, fig.height=6.5, dpi=120}
+col_mono <- pal_poly[["Mono"]]
+
+# the one panel
+pts_ms   <- wheat %>% filter(Poly == "Mono", Water == "Severe")
+lines_ms <- fit_lines %>% filter(Poly == "Mono", Water == "Severe")
+
+fig2_pres <- ggplot(pts_ms, aes(x = veg, y = berry, shape = Inoc, linetype = Inoc)) +
+  geom_line(data = lines_ms, aes(group = Inoc), color = col_mono, linewidth = 1.8) +
+  geom_point(color = col_mono, size = 6, stroke = 1.8, fill = NA) +
+  scale_shape_manual(values = shp_inoc, labels = inoc_lab) +
+  scale_linetype_manual(values = lty_inoc, labels = inoc_lab) +
+  scale_x_log10(breaks = c(1, 1.5, 2, 3)) +
+  scale_y_log10(breaks = c(0.05, 0.1, 0.2, 0.4), labels = c("0.05", "0.1", "0.2", "0.4")) +
+  coord_cartesian(xlim = c(0.95, 3.1), ylim = c(0.035, 0.6)) +
+  guides(shape    = guide_legend(override.aes = list(color = col_mono, size = 5), keywidth = unit(2.4, "lines")),
+         linetype = guide_legend(override.aes = list(color = col_mono), keywidth = unit(2.4, "lines"))) +
+  labs(title = "Monoculture, severe drought (40% FC)",
+       x = "Vegetative mass per plant (g, log scale)",
+       y = "Grain mass per plant (g, log scale)") +
+  theme_ms(base_size = 20) +
+  theme(plot.title = element_text(face = "bold", size = 23, hjust = 0, margin = margin(b = 10)),
+        plot.title.position = "plot",
+        panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        axis.title = element_text(size = 21), axis.text = element_text(size = 18),
+        legend.text = element_text(size = 19), plot.margin = margin(10, 14, 6, 6))
+print(fig2_pres)
+
+ggsave("figures/Fig2b_MonoSevere_Presentation.pdf", fig2_pres, width = 10, height = 6.5)
+ggsave("figures/Fig2b_MonoSevere_Presentation.png", fig2_pres, width = 10, height = 6.5, dpi = 300, bg = "white")
+```
+
+**Suggested slide text.** *Inoculated wheat under severe drought: larger plants, much less grain.* Footnote:
+*Monoculture, severe drought, n = 5 per group. Lines are one common-slope model fitted to all 60 pots;
+size-adjusted effect `r sprintf("%.0f%% (95%% CI %.0f to %.0f%%)", sev$pct, sev$lo, sev$hi)`, exploratory.*
+
+**Notes** The two groups overlap in size only partly (one sterile pot falls inside the
+inoculated range), so the vertical gap leans on the common slope; the slope is small, so the size
+difference alone could shift grain by only about -13% to +36%, against the observed -69%.
+
 ## Why common-slope lines, and what the slopes can and cannot say
 
-**The earlier figure was wrong in kind, not just in style.** It drew a separate regression line, with
-a confidence ribbon, through each group's five points. That does not match the model: the gate fits
-**one** slope and asks whether treatments shift the line up or down. Twelve free slopes are
-quantities the analysis never estimated, and where they visibly disagreed they appeared to undercut
-the common-slope assumption.
 
-**Why per-group slopes cannot be estimated here.** A slope needs horizontal spread, and these
-groups have little. The inoculated Mono x Control plants span a 1.21-fold range of size (about 21%
-of the axis); five points over that range give a "slope" that is mostly vertical scatter divided by
-almost no horizontal spread, which is why that panel's old ribbon fanned over a 25-fold range. The
-spread for every group is in the table above. The ribbon was the plot honestly reporting that it
-knew nothing.
 
-**The gate is not threatened.** The common slope is estimated from all 60 pots, which has the
-information that five-point groups lack. What was broken was the figure's representation of it.
-
-**What can be said about slopes (all EXPLORATORY).**
+**What can be said about slopes.**
 
 * **Heterogeneity.** The joint test of every `log(size)` interaction is
   F(`r df_het[1]`, `r df_het[2]`) = `r round(F_het, 2)`, p = `r round(p_het, 2)`: no evidence that slopes differ. State
@@ -192,7 +225,7 @@ information that five-point groups lack. What was broken was the figure's repres
   `r round((obs_ratio - 1) * 100)`%. That is the real content of the gate: the grain deficit is far larger than any
   slope compatible with the data could produce from the size difference.
 
-## Proposed caption
+## Draft caption
 
 > **Figure 2. The inoculation effect on grain is not a plant-size effect.** Grain mass against
 > vegetative mass per plant (both log scale) for each of the 60 pots, by stand type (rows) and water

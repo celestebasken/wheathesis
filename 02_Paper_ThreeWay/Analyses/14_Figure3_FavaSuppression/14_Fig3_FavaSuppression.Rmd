@@ -52,6 +52,7 @@ stopifnot(all(eff$contrast == "Inoc - Strl"))
 eff <- eff %>% transmute(Water = factor(Water, levels(inter$Water)),
                          pct = (exp(estimate) - 1) * 100,
                          lo = (exp(lower.CL) - 1) * 100, hi = (exp(upper.CL) - 1) * 100, p = p.value)
+fm <- function(x) gsub("-", "\u2212", sprintf("%+.0f", x), fixed = TRUE)   # signed, with a true minus sign
 knitr::kable(eff %>% mutate(across(c(pct, lo, hi), ~ round(.x, 1)), p = signif(p, 3)),
              caption = "EXPLORATORY - Inoc - Strl effect on fava biomass, % change (unadjusted 95% CI)")
 ```
@@ -59,32 +60,43 @@ knitr::kable(eff %>% mutate(across(c(pct, lo, hi), ~ round(.x, 1)), p = signif(p
 # Figure 3
 
 ```{r figure, fig.width=7.5, fig.height=5, dpi=150}
-# typographic minus sign (U+2212) instead of a hyphen
-fmt_eff <- function(pct, lo, hi) gsub("-", "\u2212", sprintf("%+.0f%%\n(%+.0f to %+.0f)", pct, lo, hi), fixed = TRUE)
-ann <- eff %>% mutate(label = fmt_eff(pct, lo, hi),
-                      y = max(inter$fava_npp) * 1.2)
-hdr <- tibble(x = 2, y = max(inter$fava_npp) * 1.35,
-              label = "Effect of wheat inoculation on fava biomass, % change (95% CI)")
-
 col <- pal_poly[["Inter"]]
+
+# one bracket per water level spanning the inoculated and sterile boxes, labeled with the
+# unadjusted p-value for that contrast (EXPLORATORY). Box centers sit at +/- 0.175 (dodge 0.7).
+fmt_p <- function(p) ifelse(p < 1e-4, "p < 0.0001", paste0("p = ", formatC(p, format = "f", digits = 2)))
+tops <- inter %>% group_by(Water) %>% summarise(top = max(fava_npp), .groups = "drop")
+brk <- eff %>% left_join(tops, by = "Water") %>%
+  mutate(x = as.numeric(Water), xmin = x - 0.175, xmax = x + 0.175,
+         y = top + 0.55, tick = 0.3, label = fmt_p(p))
+p_int <- ifelse(p_iw < 1e-4, "< 0.0001", paste("=", signif(p_iw, 2)))
 fig3 <- ggplot(inter, aes(x = Water, y = fava_npp, group = interaction(Water, Inoc))) +
   geom_boxplot(aes(fill = Inoc), color = col, linewidth = 0.7, width = 0.55,
                position = position_dodge(0.7), outlier.shape = NA) +
   geom_point(aes(shape = Inoc), color = col, size = 2.2, stroke = 0.9, fill = NA,
              position = position_jitterdodge(jitter.width = 0.08, dodge.width = 0.7, seed = 1)) +
-  geom_text(data = ann, aes(x = Water, y = y, label = label), inherit.aes = FALSE,
-            size = 3.5, lineheight = 0.95, color = "grey20", vjust = 1) +
-  geom_text(data = hdr, aes(x = x, y = y, label = label), inherit.aes = FALSE,
-            size = 3.3, color = "grey40", fontface = "italic", vjust = 1) +
+  geom_segment(data = brk, aes(x = xmin, xend = xmax, y = y, yend = y), inherit.aes = FALSE,
+               color = "grey30", linewidth = 0.5) +
+  geom_segment(data = brk, aes(x = xmin, xend = xmin, y = y, yend = y - tick), inherit.aes = FALSE,
+               color = "grey30", linewidth = 0.5) +
+  geom_segment(data = brk, aes(x = xmax, xend = xmax, y = y, yend = y - tick), inherit.aes = FALSE,
+               color = "grey30", linewidth = 0.5) +
+  geom_text(data = brk, aes(x = x, y = y + 0.15, label = label), inherit.aes = FALSE,
+            vjust = 0, size = 3.6, color = "grey20") +
   scale_fill_manual(values = c(Inoc = scales::alpha(col, 0.45), Strl = "white"), labels = inoc_lab) +
   scale_shape_manual(values = shp_inoc, guide = "none") +   # box fill already carries inoculation
   scale_x_discrete(labels = water_lab) +
   scale_y_continuous(breaks = seq(0, 10, 2), expand = expansion(mult = c(0.02, 0.02))) +
-  coord_cartesian(ylim = c(0, max(inter$fava_npp) * 1.37)) +
+  coord_cartesian(ylim = c(0, max(inter$fava_npp) * 1.2)) +
   guides(fill = guide_legend(override.aes = list(color = col))) +
-  labs(x = NULL, y = "Fava biomass per plant (g)") +
+  labs(title = "AMF-wheat symbiosis reduces fava competitiveness",
+       subtitle = paste0("Inoculation x water: p ", p_int),
+       x = NULL, y = "Fava biomass per plant (g)") +
   theme_ms() +
-  theme(panel.grid.major.x = element_blank())
+  theme(panel.grid.major.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 14, hjust = 0, margin = margin(b = 3)),
+        plot.subtitle = element_text(size = 10.5, color = "grey30", hjust = 0, margin = margin(b = 8)),
+        plot.title.position = "plot")
 print(fig3)
 
 dir.create("figures", showWarnings = FALSE)
@@ -97,10 +109,12 @@ ggsave("figures/Fig3_FavaSuppression.png", fig3, width = 7.5, height = 5, dpi = 
 > **Figure 3. Inoculated wheat suppressed its fava neighbor, except under severe drought
 > (exploratory).** Fava biomass per plant (one fava per pot) in the 30 wheat/ fava intercrop pots,
 > by wheat inoculation (filled = inoculated, open = sterile) and water level (FC = field capacity).
-> Boxes show the median and interquartile range, points are individual pots (n = 5 per cell). Labels
-> give the model-estimated change in fava biomass with inoculated wheat relative to sterile wheat
-> (percent, with 95% CI in parentheses, unadjusted) from a single model fitted to all 30 pots; the
-> inoculation x water interaction is p = `r signif(p_iw, 2)`. Fava roots were not stained, so the
+> Boxes show the median and interquartile range, points are individual pots (n = 5 per cell); brackets give
+> the unadjusted p-value for inoculated vs. sterile at each water level. From a
+> single model fitted to all 30 pots, fava biomass with inoculated wheat relative to sterile wheat
+> changed by `r fm(eff$pct[1])`% (95% CI `r fm(eff$lo[1])` to `r fm(eff$hi[1])`%) at control, `r fm(eff$pct[2])`% (`r fm(eff$lo[2])` to `r fm(eff$hi[2])`%) at
+> moderate, and `r fm(eff$pct[3])`% (`r fm(eff$lo[3])` to `r fm(eff$hi[3])`%, no detectable change) at severe water (unadjusted CIs); the
+> inoculation x water interaction is p `r ifelse(p_iw < 1e-4, "< 0.0001", paste("=", signif(p_iw, 2)))`. Fava roots were not stained, so the
 > figure shows fava performance in relation to wheat's randomized inoculation treatment, not fava's
 > own colonization. This analysis is exploratory and was not among the pre-specified tests.
 
