@@ -1,0 +1,113 @@
+---
+title: "14 - Figure 3: fava suppression (the neighbor's side)"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status: EXPLORATORY.** Carries question R5 ("What did the symbiosis cost the neighbor?"). It is not
+among the pre-specified confirmatory tests, and it uses all 30 mixed-stand pots rather than a
+randomized fava manipulation. Fava roots were never stained, so fava's own colonization is
+unmeasured: the figure relates fava *performance* to *wheat's* randomized inoculation treatment.
+
+**Encoding (same in every figure).** Blue = wheat/ fava intercrop; filled box = inoculated wheat,
+open box = sterile wheat.
+
+```{r libs}
+library(tidyverse)
+library(car)
+library(emmeans)
+source("../fig_style.R")
+
+inter <- readRDS("../wheat_audited.rds") %>% filter(Poly == "Inter")
+stopifnot(nrow(inter) == 30, all(table(inter$Inoc, inter$Water) == 5),
+          identical(levels(inter$Inoc), c("Inoc", "Strl")), all(inter$Num_fava == 1))
+```
+
+# Model and effect sizes
+
+One fava plant per pot, so per-pot and per-plant biomass are the same number. The model is a single
+`log(fava) ~ Inoc * Water` fit to all 30 pots (no subset models), and the effect in each water level
+is conditioned inside it. Variance is homogeneous across the six cells (Levene below), so no variance
+structure is needed.
+
+```{r model}
+lev_p <- car::leveneTest(log(fava_npp) ~ interaction(Inoc, Water), data = inter, center = median)[1, "Pr(>F)"]
+m <- lm(log(fava_npp) ~ Inoc * Water, data = inter)
+p_iw <- car::Anova(m, type = 2)["Inoc:Water", "Pr(>F)"]
+cat(sprintf("Levene (6 cells): p = %.2f | Inoc:Water interaction: p = %.2g\n", lev_p, p_iw))
+
+eff <- emmeans(m, ~ Inoc | Water) %>%
+  contrast("pairwise", by = "Water", adjust = "none") %>%       # Inoc - Strl
+  summary(infer = c(TRUE, TRUE)) %>% as.data.frame()
+stopifnot(all(eff$contrast == "Inoc - Strl"))
+eff <- eff %>% transmute(Water = factor(Water, levels(inter$Water)),
+                         pct = (exp(estimate) - 1) * 100,
+                         lo = (exp(lower.CL) - 1) * 100, hi = (exp(upper.CL) - 1) * 100, p = p.value)
+knitr::kable(eff %>% mutate(across(c(pct, lo, hi), ~ round(.x, 1)), p = signif(p, 3)),
+             caption = "EXPLORATORY - Inoc - Strl effect on fava biomass, % change (unadjusted 95% CI)")
+```
+
+# Figure 3
+
+```{r figure, fig.width=7.5, fig.height=5, dpi=150}
+# typographic minus sign (U+2212) instead of a hyphen
+fmt_eff <- function(pct, lo, hi) gsub("-", "\u2212", sprintf("%+.0f%%\n(%+.0f to %+.0f)", pct, lo, hi), fixed = TRUE)
+ann <- eff %>% mutate(label = fmt_eff(pct, lo, hi),
+                      y = max(inter$fava_npp) * 1.2)
+hdr <- tibble(x = 2, y = max(inter$fava_npp) * 1.35,
+              label = "Effect of wheat inoculation on fava biomass, % change (95% CI)")
+
+col <- pal_poly[["Inter"]]
+fig3 <- ggplot(inter, aes(x = Water, y = fava_npp, group = interaction(Water, Inoc))) +
+  geom_boxplot(aes(fill = Inoc), color = col, linewidth = 0.7, width = 0.55,
+               position = position_dodge(0.7), outlier.shape = NA) +
+  geom_point(aes(shape = Inoc), color = col, size = 2.2, stroke = 0.9, fill = NA,
+             position = position_jitterdodge(jitter.width = 0.08, dodge.width = 0.7, seed = 1)) +
+  geom_text(data = ann, aes(x = Water, y = y, label = label), inherit.aes = FALSE,
+            size = 3.5, lineheight = 0.95, color = "grey20", vjust = 1) +
+  geom_text(data = hdr, aes(x = x, y = y, label = label), inherit.aes = FALSE,
+            size = 3.3, color = "grey40", fontface = "italic", vjust = 1) +
+  scale_fill_manual(values = c(Inoc = scales::alpha(col, 0.45), Strl = "white"), labels = inoc_lab) +
+  scale_shape_manual(values = shp_inoc, guide = "none") +   # box fill already carries inoculation
+  scale_x_discrete(labels = water_lab) +
+  scale_y_continuous(breaks = seq(0, 10, 2), expand = expansion(mult = c(0.02, 0.02))) +
+  coord_cartesian(ylim = c(0, max(inter$fava_npp) * 1.37)) +
+  guides(fill = guide_legend(override.aes = list(color = col))) +
+  labs(x = NULL, y = "Fava biomass per plant (g)") +
+  theme_ms() +
+  theme(panel.grid.major.x = element_blank())
+print(fig3)
+
+dir.create("figures", showWarnings = FALSE)
+ggsave("figures/Fig3_FavaSuppression.pdf", fig3, width = 7.5, height = 5)
+ggsave("figures/Fig3_FavaSuppression.png", fig3, width = 7.5, height = 5, dpi = 300, bg = "white")
+```
+
+## Proposed caption
+
+> **Figure 3. Inoculated wheat suppressed its fava neighbor, except under severe drought
+> (exploratory).** Fava biomass per plant (one fava per pot) in the 30 wheat/ fava intercrop pots,
+> by wheat inoculation (filled = inoculated, open = sterile) and water level (FC = field capacity).
+> Boxes show the median and interquartile range, points are individual pots (n = 5 per cell). Labels
+> give the model-estimated change in fava biomass with inoculated wheat relative to sterile wheat
+> (percent, with 95% CI in parentheses, unadjusted) from a single model fitted to all 30 pots; the
+> inoculation x water interaction is p = `r signif(p_iw, 2)`. Fava roots were not stained, so the
+> figure shows fava performance in relation to wheat's randomized inoculation treatment, not fava's
+> own colonization. This analysis is exploratory and was not among the pre-specified tests.
+
+## Notes for the Results text
+
+* **Robustness already on file.** `06_Exploratory.Rmd` found one Bonferroni-significant outlier pot;
+  removing it strengthened the result, and a Kruskal-Wallis test across the six groups agreed.
+  Report these in the text or appendix, not in the figure.
+* **Reading the severe-drought cell.** The effect there is small with a CI that spans zero. Read it
+  as "no detectable suppression", and not as "facilitation".

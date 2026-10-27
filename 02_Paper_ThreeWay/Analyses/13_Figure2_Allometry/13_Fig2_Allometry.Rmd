@@ -1,0 +1,226 @@
+---
+title: "13 - Figure 2: allometry (is it just plant size?)"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status.** Carries question R3 ("Is it just plant size?"). The inferential results quoted in the
+caption come from the size-adjusted model in `02_Allometry_Gate.Rmd`. Its size-adjusted
+`Poly:Inoc:Water` test is **CONFIRMATORY #1**. The size-adjusted cell contrasts and the slope
+checks below are **EXPLORATORY** descriptions (n = 5 per cell).
+
+**What the lines are.** The lines are **not** separate regressions per group. They are the fitted
+values of the one model the gate uses, `log(grain) ~ log(size) + Stand * Inoculation * Water`:
+a single common slope, shifted up or down by group. The vertical gap between a filled and an open
+line in a panel is the size-adjusted inoculation effect. Each line is drawn only across its own
+group's observed size range, so nothing implies extrapolation, and there are no ribbons (the
+elevation contrasts and their CIs are in the caption). An earlier version of this figure fit a
+free line to each group's five points; that contradicted the model and is explained in the
+section on slopes below.
+
+**Encoding (same in every figure).** Color = stand type (orange = monoculture, blue = intercrop);
+filled symbol and solid line = inoculated, open symbol and dashed line = sterile.
+
+```{r libs}
+library(tidyverse)
+library(car)
+library(emmeans)
+source("../fig_style.R")
+
+wheat <- readRDS("../wheat_audited.rds") %>%
+  mutate(Poly = factor(Poly, c("Mono", "Inter")))
+stopifnot(nrow(wheat) == 60, all(wheat$berry > 0), all(wheat$veg > 0))
+```
+
+# Numbers for the caption
+
+The same models as `02_Allometry_Gate.Rmd` (and `08.6`): unadjusted `berry_alloc` vs. the
+common-slope size-adjusted model on log grain mass.
+
+```{r numbers}
+wc <- wheat %>% mutate(log_berry = log(berry), log_veg = log(veg))
+m_base <- lm(berry_alloc ~ Poly * Inoc * Water, data = wc)
+m_adj  <- lm(log_berry ~ log_veg + Poly * Inoc * Water, data = wc)
+p3_unadj <- car::Anova(m_base, type = 2)["Poly:Inoc:Water", "Pr(>F)"]
+p3_adj   <- car::Anova(m_adj,  type = 2)["Poly:Inoc:Water", "Pr(>F)"]
+slope    <- unname(coef(m_adj)["log_veg"])
+
+# size-adjusted Inoc - Strl contrast in each cell, as % change in grain mass at equal size
+adj <- emmeans(m_adj, ~ Inoc | Poly * Water) %>%
+  contrast("pairwise", by = c("Poly", "Water"), adjust = "none") %>%
+  summary(infer = c(TRUE, TRUE)) %>% as.data.frame()
+stopifnot(all(adj$contrast == "Inoc - Strl"))
+adj <- adj %>% transmute(Poly, Water, pct = (exp(estimate) - 1) * 100,
+                         lo = (exp(lower.CL) - 1) * 100, hi = (exp(upper.CL) - 1) * 100, p = p.value)
+knitr::kable(adj %>% mutate(across(c(pct, lo, hi), ~ round(.x, 1)), p = signif(p, 3)),
+             caption = "EXPLORATORY - size-adjusted (common-slope) Inoc - Strl effect on grain mass, % change at equal vegetative mass")
+
+# common slope with its CI, and the joint test of slope heterogeneity
+slope_ci <- confint(m_adj)["log_veg", ]
+m_het    <- lm(log_berry ~ log_veg * Poly * Inoc * Water, data = wc)
+het      <- anova(m_adj, m_het)
+p_het    <- het$`Pr(>F)`[2]; F_het <- het$F[2]; df_het <- c(het$Df[2], het$Res.Df[2])
+A_het    <- car::Anova(m_het, type = 2)
+p_veg_inoc  <- A_het["log_veg:Inoc", "Pr(>F)"]
+p_veg_water <- car::Anova(lm(log_berry ~ log_veg * Water, data = wc), type = 2)["log_veg:Water", "Pr(>F)"]
+
+# size overlap in the headline panel
+ms <- wheat %>% filter(Poly == "Mono", Water == "Severe")
+rng <- ms %>% group_by(Inoc) %>% summarise(lo = min(veg), hi = max(veg), .groups = "drop")
+r_i <- rng[rng$Inoc == "Inoc", ]; r_s <- rng[rng$Inoc == "Strl", ]
+n_strl_in_inoc <- sum(ms$Inoc == "Strl" & ms$veg >= r_i$lo & ms$veg <= r_i$hi)
+n_inoc_in_strl <- sum(ms$Inoc == "Inoc" & ms$veg >= r_s$lo & ms$veg <= r_s$hi)
+strl_in_range <- ms$veg[ms$Inoc == "Strl" & ms$veg >= r_i$lo & ms$veg <= r_i$hi]
+stopifnot(length(strl_in_range) == 1)
+sev <- adj %>% filter(Poly == "Mono", Water == "Severe")
+
+# sensitivity: how much of the grain deficit could size alone explain, for any slope in the CI?
+gm <- function(x) exp(mean(log(x)))
+size_ratio <- gm(ms$veg[ms$Inoc == "Inoc"])   / gm(ms$veg[ms$Inoc == "Strl"])     # inoculated / sterile size
+obs_ratio  <- gm(ms$berry[ms$Inoc == "Inoc"]) / gm(ms$berry[ms$Inoc == "Strl"])   # inoculated / sterile grain
+sens <- tibble(which = c("lower 95% limit", "point estimate", "upper 95% limit"),
+               slope = c(slope_ci[[1]], unname(coef(m_adj)["log_veg"]), slope_ci[[2]])) %>%
+  mutate(size_alone = (size_ratio^slope - 1) * 100)
+cat(sprintf("Mono x Severe: inoculated plants %.0f%% larger (geometric mean); observed grain %.0f%% (raw geometric means).\n",
+            (size_ratio - 1) * 100, (obs_ratio - 1) * 100))
+knitr::kable(sens %>% transmute(`slope in the 95% CI` = which, slope = round(slope, 2),
+                                `grain change expected from size alone (%)` = round(size_alone, 1)),
+             caption = "EXPLORATORY - grain change the size difference alone would produce in Mono x Severe, across the slope's 95% CI")
+
+# how much horizontal spread does each group have? (why per-group slopes are not estimable)
+spread <- wheat %>% group_by(Poly, Water, Inoc) %>%
+  summarise(`min (g)` = min(veg), `max (g)` = max(veg), `fold-span (max/min)` = max(veg) / min(veg), .groups = "drop") %>%
+  arrange(Poly, Water, Inoc)
+knitr::kable(spread %>% mutate(across(where(is.numeric), ~ round(.x, 2))),
+             caption = "Vegetative-mass range in each group of five pots")
+cat(sprintf("Slope heterogeneity: joint F(%d, %d) = %.2f, p = %.2f; log_veg:Inoc alone p = %.3f; pooled log_veg x Water p = %.3f.\n",
+            df_het[1], df_het[2], F_het, p_het, p_veg_inoc, p_veg_water))
+cat(sprintf("Common slope = %.2f (95%% CI %.2f to %.2f).\n", slope, slope_ci[[1]], slope_ci[[2]]))
+```
+
+# Figure 2
+
+```{r figure, fig.width=9.5, fig.height=6, dpi=150}
+poly_strip <- c(Mono = "Monoculture", Inter = "Wheat/ fava intercrop")
+strip_lab <- labeller(Poly = poly_strip, Water = water_lab)
+
+# Fitted values of the ONE common-slope model, each group's line drawn only over its own observed
+# size range (no extrapolation). Back-transformed to grams so the axes read in grams.
+fit_lines <- wc %>%
+  group_by(Poly, Inoc, Water) %>%
+  summarise(lo = min(log_veg), hi = max(log_veg), .groups = "drop") %>%
+  rowwise() %>% mutate(log_veg = list(seq(lo, hi, length.out = 25))) %>% ungroup() %>%
+  tidyr::unnest(log_veg) %>%
+  mutate(fit = predict(m_adj, newdata = pick(everything())),
+         veg = exp(log_veg), berry = exp(fit))
+
+# tint the one panel that carries the finding (Monoculture x Severe)
+hl <- tibble(Poly = factor("Mono", levels(wheat$Poly)), Water = factor("Severe", levels(wheat$Water)))
+note <- hl %>% mutate(x = 1.0, y = 3.0, label = "Inoculated plants are larger\nbut make less grain")
+
+fig2 <- ggplot(wheat, aes(x = veg, y = berry, color = Poly, shape = Inoc, linetype = Inoc)) +
+  geom_rect(data = hl, aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE, fill = pal_poly[["Mono"]], alpha = 0.07) +
+  geom_line(data = fit_lines, aes(group = interaction(Poly, Inoc, Water)), linewidth = 0.9) +
+  geom_point(size = 2.6, stroke = 0.9, fill = NA) +
+  geom_text(data = note, aes(x = x, y = y, label = label), inherit.aes = FALSE,
+            hjust = 0, vjust = 1, size = 3.3, color = "grey20", lineheight = 0.95) +
+  facet_grid(Poly ~ Water, labeller = strip_lab) +
+  scale_x_log10(breaks = c(1, 2, 4, 6)) +
+  scale_y_log10(breaks = c(0.05, 0.1, 0.25, 0.5, 1, 2), labels = c("0.05", "0.1", "0.25", "0.5", "1", "2")) +
+  scale_color_manual(values = pal_poly, guide = "none") +
+  scale_shape_manual(values = shp_inoc, labels = inoc_lab) +
+  scale_linetype_manual(values = lty_inoc, labels = inoc_lab) +
+  coord_cartesian(ylim = c(0.035, 3.2), xlim = c(0.95, 7)) +
+  guides(shape    = guide_legend(override.aes = list(color = "grey25")),
+         linetype = guide_legend(override.aes = list(color = "grey25"))) +
+  labs(x = "Vegetative mass per plant (g, log scale)",
+       y = "Grain mass per plant (g, log scale)") +
+  theme_ms() +
+  theme(strip.text.y = element_text(angle = 0, hjust = 0),
+        panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        panel.spacing = unit(0.9, "lines"))
+print(fig2)
+
+dir.create("figures", showWarnings = FALSE)
+ggsave("figures/Fig2_Allometry.pdf", fig2, width = 9.5, height = 6)
+ggsave("figures/Fig2_Allometry.png", fig2, width = 9.5, height = 6, dpi = 300, bg = "white")
+```
+
+## Why common-slope lines, and what the slopes can and cannot say
+
+**The earlier figure was wrong in kind, not just in style.** It drew a separate regression line, with
+a confidence ribbon, through each group's five points. That does not match the model: the gate fits
+**one** slope and asks whether treatments shift the line up or down. Twelve free slopes are
+quantities the analysis never estimated, and where they visibly disagreed they appeared to undercut
+the common-slope assumption.
+
+**Why per-group slopes cannot be estimated here.** A slope needs horizontal spread, and these
+groups have little. The inoculated Mono x Control plants span a 1.21-fold range of size (about 21%
+of the axis); five points over that range give a "slope" that is mostly vertical scatter divided by
+almost no horizontal spread, which is why that panel's old ribbon fanned over a 25-fold range. The
+spread for every group is in the table above. The ribbon was the plot honestly reporting that it
+knew nothing.
+
+**The gate is not threatened.** The common slope is estimated from all 60 pots, which has the
+information that five-point groups lack. What was broken was the figure's representation of it.
+
+**What can be said about slopes (all EXPLORATORY).**
+
+* **Heterogeneity.** The joint test of every `log(size)` interaction is
+  F(`r df_het[1]`, `r df_het[2]`) = `r round(F_het, 2)`, p = `r round(p_het, 2)`: no evidence that slopes differ. State
+  plainly that with n = 5 per cell the design **cannot resolve** slope differences, so a common slope is an
+  assumption the data do not contradict, not a demonstrated fact. One term, size x inoculation, is
+  nominally significant on its own (p = `r round(p_veg_inoc, 3)`); it is reported in
+  `02_Allometry_Gate.Rmd` and not dropped, but one nominal hit among seven terms is weak evidence.
+* **The common slope is small and imprecise:** `r round(slope, 2)` (95% CI `r round(slope_ci[[1]], 2)` to
+  `r round(slope_ci[[2]], 2)`). This changes what Figure 2 may claim. It does **not** show that grain
+  rises with size, and it does not show that severe drought breaks that scaling (pooled size x water
+  test p = `r round(p_veg_water, 3)`). Do not read the lines as demonstrating either.
+* **Size still cannot explain the result.** In Mono x Severe the inoculated plants are
+  `r round((size_ratio - 1) * 100)`% larger. Across the whole 95% CI of the slope, size alone would move grain by only
+  `r round(min(sens$size_alone), 0)`% to `r round(max(sens$size_alone), 0)`%, against an observed
+  `r round((obs_ratio - 1) * 100)`%. That is the real content of the gate: the grain deficit is far larger than any
+  slope compatible with the data could produce from the size difference.
+
+## Proposed caption
+
+> **Figure 2. The inoculation effect on grain is not a plant-size effect.** Grain mass against
+> vegetative mass per plant (both log scale) for each of the 60 pots, by stand type (rows) and water
+> level (columns; FC = field capacity). Filled symbols and solid lines are inoculated pots; open
+> symbols and dashed lines are sterile pots. Lines are fitted values from the single size-adjusted
+> model (one common slope, `r round(slope, 2)`, 95% CI `r round(slope_ci[[1]], 2)` to `r round(slope_ci[[2]], 2)`, shifted by group), each drawn over its
+> own group's observed size range; the vertical gap between lines within a panel is the size-adjusted
+> inoculation effect. In monoculture under severe drought (shaded) inoculated plants are larger
+> (further right) yet make less grain (lower). At equal size they produced
+> `r sprintf("%.0f%% less grain (95%% CI %.0f%% to %.0f%% less)", -sev$pct, -sev$hi, -sev$lo)` than sterile
+> plants (exploratory). Adjusting for size does not weaken the result: the three-way interaction
+> (Stand x Inoculation x Water) on grain is p = `r signif(p3_unadj, 2)` unadjusted and p = `r signif(p3_adj, 2)` size-adjusted.
+> The allometric slope is small and imprecise, so the size difference alone cannot account for the
+> grain deficit (see text). **Caveat:** with five pots per group the design cannot resolve differences
+> in slope between groups (joint test p = `r round(p_het, 2)`); the common slope is an assumption that the data do
+> not contradict. In the shaded panel the two groups overlap in size only
+> partly: one sterile pot (`r sprintf("%.2f", strl_in_range)` g) lies within the inoculated pots' size range of
+> `r sprintf("%.2f to %.2f g", r_i$lo, r_i$hi)`, so the size-adjusted contrast there leans on the common slope.
+
+## Notes for the Results text
+
+* **Overlap wording.** `08.6` and earlier notes said the two groups occupy non-overlapping size
+  ranges in this panel. They overlap partly: in Mono x Severe the inoculated pots span
+  `r sprintf("%.2f to %.2f g", r_i$lo, r_i$hi)` and the sterile pots `r sprintf("%.2f to %.2f g", r_s$lo, r_s$hi)`;
+  `r n_strl_in_inoc` sterile pot falls inside the inoculated range and `r n_inoc_in_strl` inoculated pots inside the sterile range. The
+  extrapolation caveat is real but milder than "no overlap" implied.
+* **Do not claim from this figure** that grain scales with size or that drought alters that scaling.
+  The slope is imprecise and the size x water test is not significant.
+* **Fallback if a reviewer objects to any line.** Plot points with a per-group centroid (mean size,
+  mean grain) and error bars in both directions. The message, inoculated plants up and to the right of
+  sterile in the shaded panel, is visible from the points alone.

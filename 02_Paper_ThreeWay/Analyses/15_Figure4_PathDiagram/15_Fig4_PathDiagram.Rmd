@@ -1,0 +1,177 @@
+---
+title: "15 - Figure 4: conceptual path diagram"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status.** A conceptual figure, not a model: it commits to no new statistics. Carries question R6
+and the limitations, and shows what is established, what was tested and came back null, and what
+could not be tested. Spec: `Manuscript/path_decomposition_and_diagram.md`, section 2.
+
+**Evidence behind each arrow** (every claim traces to a result already in the pipeline):
+
+| Arrow | Status in the figure | Where the evidence is |
+|---|---|---|
+| Inoculation -> vegetative mass (+) | supported | Fig 1A (NPP up in monoculture), Fig 2 (inoculated plants larger) |
+| Vegetative mass -> grain mass (+) | **weak, imprecise** | Fig 2: the common allometric slope is small, 0.15 (95% CI -0.26 to 0.56); a positive size effect is not demonstrated |
+| Inoculation -> grain mass, direct (−−) | supported, large | Fig 2 and `02_Allometry_Gate.Rmd`: at equal size, less grain; size alone cannot explain the deficit; confirmatory size-adjusted three-way interaction |
+| Water and Neighborhood moderate the direct path | moderation | confirmatory three-way interaction (Fig 1) |
+| Inoculation -> fava biomass (−) | supported, **exploratory** | Fig 3; suppression vanishes under severe drought |
+| Inoculation -> colonization -> grain | tested, null | `05_Mechanism_Arb_Vesc.Rmd`: arbuscule:vesicle ratio does not shift; colonization intact; dose-response uninformative (range-restricted) |
+| Inoculation -> phenology -> grain | untested | senescence timing was not recorded |
+
+```{r libs}
+library(tidyverse)
+```
+
+# Figure 4
+
+Drawn with `ggplot2` (no extra packages). Node boxes are placed by hand; each arrow starts and
+ends on the border of its boxes.
+
+```{r figure, fig.width=10, fig.height=6.6, dpi=150}
+blue <- "#2166ac"; ink <- "#1a1a1a"; grey <- "#8a8a8a"
+
+# ---- nodes (x, y = center; w, h = size) ----------------------------------------------------
+nodes <- tribble(
+  ~id,     ~x,  ~y, ~w, ~h, ~label,                                       ~fill,     ~border, ~lty,
+  "inoc",   11,  36, 17, 10, "AMF\ninoculation",                           "white",   ink,     "solid",
+  "veg",    50,  64, 20, 10, "Vegetative\nmass",                           "white",   ink,     "solid",
+  "grain",  89,  36, 17, 10, "Grain mass /\nallocation",                   "white",   ink,     "solid",
+  "col",    61.5, 24, 25, 11, "Colonization intact\n(composition unchanged)", "white", grey,   "solid",
+  "phen",   68,   6.5, 25, 12, "Phenology /\nsenescence timing\n(not recorded)", "white", grey, "22",
+  "fava",   11,  10, 17, 10, "Fava\nbiomass",                              "#e3edf7", blue,    "solid",
+  "water",  43,  46, 14,  8, "Water\n(severe drought)",                    "white",   ink,     "solid",
+  "neigh",  58,  46, 14,  8, "Neighborhood\n(fava present)",               "#e3edf7", blue,    "solid"
+)
+N <- function(id) nodes[nodes$id == id, ]
+
+# point where the ray from node a toward point (bx, by) leaves a's box
+clip <- function(a, bx, by) {
+  dx <- bx - a$x; dy <- by - a$y
+  t <- min((a$w / 2) / abs(dx), (a$h / 2) / abs(dy))
+  c(a$x + dx * t, a$y + dy * t)
+}
+
+# ---- edges ---------------------------------------------------------------------------------
+# status: sup (supported), big (supported, large), wk (weak / imprecise), nul (tested, null), unt (untested)
+# mark: symbol drawn on the arrow ("x" = not supported, "?" = untested)
+edges <- tribble(
+  ~from,  ~to,     ~status, ~label,                                                             ~mark, ~dx, ~dy,
+  "inoc", "veg",   "sup",   "+  larger plants",                                                   "",    -4,   2,
+  "veg",  "grain", "wk",    "+  (weak, imprecise)",                                               "",     7,   2,
+  "inoc", "grain", "big",   "\u2212\u2212  direct, size-independent", "", 0, -3.2,
+  "inoc", "col",   "nul",   "",                                                                   "",     0,   0,
+  "col",  "grain", "nul",   "not supported",                                                      "x",   -4,   3.4,
+  "inoc", "phen",  "unt",   "",                                                                   "?",    0,   0,
+  "phen", "grain", "unt",   "",                                                                   "?",    0,   0,
+  "inoc", "fava",  "sup",   "\u2212  (exploratory)",                                              "",     9,   0
+)
+
+style <- tribble(
+  ~status, ~col,  ~lw,  ~lty,    ~lab_col,
+  "sup",   ink,   1.2,  "solid",  ink,
+  "wk",    "#5a5a5a", 0.9, "solid", "grey30",
+  "big",   ink,   2.6,  "solid",  ink,
+  "nul",   grey,  0.9,  "22",     "grey35",
+  "unt",   ink,   0.9,  "dotted", ink
+)
+
+seg <- edges %>% rowwise() %>% mutate(
+  a = list(N(from)), b = list(N(to)),
+  s = list(clip(a, b$x, b$y)), e = list(clip(b, a$x, a$y)),
+  x = s[1], y = s[2], xend = e[1], yend = e[2],
+  mx = (x + xend) / 2 + dx, my = (y + yend) / 2 + dy,
+  ox = (x + xend) / 2, oy = (y + yend) / 2) %>% ungroup() %>%
+  select(-a, -b, -s, -e) %>% left_join(style, by = "status")
+
+# moderation: thin arrows from the moderators onto the middle of the direct (big) edge
+ymid <- seg$y[seg$status == "big"]
+mod <- tribble(
+  ~x,  ~y,   ~xend, ~yend,
+  43,  42,   46.5,  ymid + 0.8,
+  58,  42,   53.5,  ymid + 0.8
+)
+
+marks <- seg %>% filter(mark != "") %>% mutate(sym = ifelse(mark == "x", "\u2715", "?"))
+
+# ---- legend row ----------------------------------------------------------------------------
+ly <- -6
+leg <- tribble(
+  ~x,  ~xend, ~col,      ~lw,  ~lty,     ~tx,  ~text,
+  1,   8,     ink,       1.6,  "solid",  9.5,  "Supported",
+  21,  28,    "#5a5a5a", 0.9,  "solid",  29.5, "Weak, imprecise",
+  45,  52,    grey,      0.9,  "22",     53.5, "Tested, null",
+  66,  73,    ink,       0.9,  "dotted", 74.5, "Untested",
+  85,  91,    ink,       0.6,  "solid",  92.5, "Moderation"
+)
+
+fig4 <- ggplot() +
+  geom_segment(data = seg, aes(x = x, y = y, xend = xend, yend = yend, color = col, linewidth = lw, linetype = lty),
+               arrow = arrow(length = unit(3.2, "mm"), type = "closed"), lineend = "round") +
+  geom_segment(data = mod, aes(x = x, y = y, xend = xend, yend = yend), color = ink, linewidth = 0.6,
+               arrow = arrow(length = unit(2.6, "mm"), type = "closed")) +
+  geom_rect(data = nodes, aes(xmin = x - w / 2, xmax = x + w / 2, ymin = y - h / 2, ymax = y + h / 2,
+                              fill = fill, color = border, linetype = lty), linewidth = 0.9) +
+  geom_text(data = nodes, aes(x = x, y = y, label = label), size = 3.6, lineheight = 0.95, color = ink) +
+  geom_label(data = seg %>% filter(label != ""),
+             aes(x = mx, y = my, label = label, color = lab_col), size = 3.1, lineheight = 0.95,
+             fill = "white", label.size = 0, label.padding = unit(0.12, "lines")) +
+  geom_label(data = marks, aes(x = ox, y = oy, label = sym), size = 5, fontface = "bold", color = ink,
+             fill = "white", label.size = 0, label.padding = unit(0.1, "lines")) +
+  annotate("text", x = 50, y = 51.6, label = "moderate the direct effect", size = 3, color = "grey30",
+           fontface = "italic") +
+  annotate("text", x = 11, y = 2.2, label = "suppression absent\nunder severe drought", size = 2.9,
+           color = "grey30", lineheight = 0.95, fontface = "italic") +
+  geom_segment(data = leg, aes(x = x, xend = xend, y = ly, yend = ly, color = col, linewidth = lw, linetype = lty),
+               arrow = arrow(length = unit(2.6, "mm"), type = "closed")) +
+  geom_text(data = leg, aes(x = tx, y = ly, label = text), hjust = 0, size = 3.4, color = ink) +
+  scale_color_identity() + scale_fill_identity() + scale_linetype_identity() + scale_linewidth_identity() +
+  coord_cartesian(xlim = c(-1, 101), ylim = c(-9, 71), clip = "off") +
+  theme_void() +
+  theme(plot.margin = margin(4, 4, 4, 4), plot.background = element_rect(fill = "white", color = NA))
+print(fig4)
+
+dir.create("figures", showWarnings = FALSE)
+ggsave("figures/Fig4_PathDiagram.pdf", fig4, width = 10, height = 6.6)
+ggsave("figures/Fig4_PathDiagram.png", fig4, width = 10, height = 6.6, dpi = 300, bg = "white")
+```
+
+## Proposed caption
+
+> **Figure 4. What the experiment establishes, what it rules out, and what it could not test.**
+> Arrows show how AMF inoculation relates to wheat grain. Heavy solid arrows are supported by the
+> data: inoculation increased vegetative mass (+), and at equal size inoculated plants made
+> substantially less grain (direct path, heaviest arrow). The link from vegetative mass to grain is
+> weak and imprecise (thin gray arrow): the common allometric slope was small and its interval
+> included zero, so the size difference alone cannot account for the grain deficit. Water and
+> neighborhood (fava present, blue) modify the direct path, which is the three-way interaction in
+> Fig. 1. Inoculation also reduced fava biomass (exploratory; Fig. 3). The dashed gray path was
+> tested and not supported: the functional composition of colonization (arbuscule:vesicle ratio) did
+> not shift, and overall colonization stayed intact. The dotted path, a delay in phenology or
+> senescence that truncated grain filling, is the leading surviving hypothesis but could not be
+> tested because senescence timing was not recorded. The size-mediated and size-independent paths are
+> descriptive components of the total effect, not causal mediation: vegetative and grain mass share
+> unmeasured determinants.
+
+## Notes
+
+* **No formal decomposition was run.** `Manuscript/path_decomposition_and_diagram.md` section 1
+  describes a bootstrap decomposition of the grain effect into size-mediated and size-independent
+  parts. It has not been run. The signs on the arrows here rest on Fig. 1A, Fig. 2 and the
+  allometry gate, not on that decomposition. Say so if a reviewer asks, or run it and cite it.
+* **The size-to-grain arrow was downgraded.** An earlier draft drew it as supported, citing a positive
+  allometric slope. The common slope is 0.15 (95% CI -0.26 to 0.56), so a positive effect of size on grain
+  is not demonstrated. The arrow is now labeled weak and imprecise. The direct path still stands: across
+  the whole slope interval, size alone would change grain by only -13% to +36%, against an observed -69%.
+* **Color.** Blue marks the intercrop (fava and the neighborhood moderator), the same blue as
+  Figures 1-3. The ink and gray arrows use line style, not hue, to carry evidentiary status.

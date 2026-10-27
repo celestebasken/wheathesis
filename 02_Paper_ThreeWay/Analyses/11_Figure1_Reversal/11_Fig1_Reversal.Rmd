@@ -74,7 +74,7 @@ tidy_contrast <- function(model, panel_label, scale = c("log", "response")) {
   mutate(out, panel = panel_label)
 }
 
-panel_levels <- c("A. Total productivity (NPP)\n% change", "B. Grain mass\n% change", "C. Grain allocation\npercentage points")
+panel_levels <- c("A. Total productivity (NPP)\n% change", "B. Grain mass\n% change", "C. Allocation to grain\npercentage points")
 eff <- bind_rows(
   tidy_contrast(m_npp,   panel_levels[1], "log"),
   tidy_contrast(m_berry, panel_levels[2], "log"),
@@ -100,36 +100,64 @@ cat("Figure estimates match 10_Reversal_Rigor outputs for all 18 contrasts.\n")
 # Figure 1
 
 ```{r figure, fig.width=9.5, fig.height=4.2, dpi=150}
-pal <- c(Mono = "#b2182b", Inter = "#2166ac")   # passes validate_palette.js (CVD dE 21, normal dE 29)
-shp <- c(Mono = 16, Inter = 17)                  # shape = second, colour-independent encoding
-dodge <- position_dodge(width = 0.4)
+pal <- c(Mono = "#CC5500", Inter = "#2166ac")   # re-run validate_palette.js if these change
+shp <- c(Mono = 16, Inter = 17)                  # shape = second, color-independent encoding
+poly_lab <- c(Mono = "Monoculture (12 wheat)", Inter = "Wheat/ fava intercrop (6 wheat + 1 fava)")
 
-water_lab <- c(Control = "Control\n(80% FC)", Moderate = "Moderate\n(60% FC)", Severe = "Severe\n(40% FC)")
+water_lab <- c(Control = "Control", Moderate = "Moderate", Severe = "Severe")
 signed <- function(x) ifelse(x > 0, paste0("+", x), as.character(x))
 
-fig1 <- ggplot(eff, aes(x = Water, y = est, color = Poly, shape = Poly, group = Poly)) +
-  geom_hline(yintercept = 0, linetype = 2, color = "grey45", linewidth = 0.4) +
-  geom_line(position = dodge, linewidth = 0.7, alpha = 0.85) +
-  geom_errorbar(aes(ymin = lo, ymax = hi), width = 0.12, linewidth = 0.6, position = dodge) +
-  geom_point(position = dodge, size = 3, stroke = 0.6) +
-  facet_wrap(~ panel, scales = "free_y", ncol = 3) +
-  scale_color_manual(values = pal, labels = c(Mono = "Monoculture (12 wheat)", Inter = "Mixed with fava (6 wheat + 1 fava)")) +
-  scale_shape_manual(values = shp,  labels = c(Mono = "Monoculture (12 wheat)", Inter = "Mixed with fava (6 wheat + 1 fava)")) +
-  scale_x_discrete(labels = water_lab) +
-  scale_y_continuous(breaks = scales::breaks_pretty(n = 6), labels = function(x) signed(x)) +
-  labs(x = NULL, y = "Effect of AMF inoculation\n(inoculated minus sterile)") +
-  theme_minimal(base_size = 12) +
-  theme(legend.position = "bottom", legend.title = element_blank(),
-        strip.text = element_text(face = "bold", size = 11, hjust = 0, lineheight = 1.05),
-        panel.grid.minor = element_blank(), panel.grid.major.x = element_blank(),
-        panel.grid.major.y = element_line(color = "grey90", linewidth = 0.3),
-        axis.text.x = element_text(lineheight = 0.9),
-        panel.spacing.x = unit(1.1, "lines"))
-print(fig1)
+# Fixed x-offsets (equal to position_dodge(0.4) with two groups) so Mono sits in exactly the same
+# place whether or not Inter is drawn. A plain dodge would re-center a lone group.
+offset <- c(Mono = -0.1, Inter = 0.1)
+
+# `d` is what gets drawn; axis ranges are always taken from the FULL effect table `eff`, so the
+# monoculture-only version and the full version share identical panels and y-axes.
+plot_fig1 <- function(d) {
+  pos <- function(x) mutate(x, x = as.numeric(Water) + offset[as.character(Poly)])
+  shown <- levels(droplevels(d$Poly))   # legend lists only the stand types actually drawn
+  ggplot(pos(d), aes(x = x, y = est, color = Poly, shape = Poly, group = Poly)) +
+    geom_blank(data = pos(eff), aes(y = lo)) +
+    geom_blank(data = pos(eff), aes(y = hi)) +
+    geom_hline(yintercept = 0, linetype = 2, color = "grey45", linewidth = 0.4) +
+    geom_line(linewidth = 0.7, alpha = 0.85) +
+    geom_errorbar(aes(ymin = lo, ymax = hi), width = 0.12, linewidth = 0.6) +
+    geom_point(size = 3, stroke = 0.6) +
+    facet_wrap(~ panel, scales = "free_y", ncol = 3) +
+    scale_color_manual(values = pal, labels = poly_lab[shown], breaks = shown) +
+    scale_shape_manual(values = shp, labels = poly_lab[shown], breaks = shown) +
+    scale_x_continuous(breaks = 1:3, labels = water_lab, limits = c(0.5, 3.5)) +
+    scale_y_continuous(breaks = scales::breaks_pretty(n = 6), labels = function(x) signed(x)) +
+    labs(x = NULL, y = "Effect of AMF inoculation\n(inoculated minus sterile)") +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "bottom", legend.title = element_blank(),
+          strip.text = element_text(face = "bold", size = 11, hjust = 0, lineheight = 1.05),
+          panel.grid.minor = element_blank(), panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_line(color = "grey90", linewidth = 0.3),
+          axis.text.x = element_text(lineheight = 0.9),
+          panel.spacing.x = unit(1.1, "lines"))
+}
+
+fig1_mono <- plot_fig1(eff %>% filter(Poly == "Mono"))   # step 1: monoculture only
+fig1      <- plot_fig1(eff)                              # step 2: monoculture + intercrop
 
 dir.create("figures", showWarnings = FALSE)
+ggsave("figures/Fig1a_Reversal_MonoOnly.pdf", fig1_mono, width = 9.5, height = 4.2)
+ggsave("figures/Fig1a_Reversal_MonoOnly.png", fig1_mono, width = 9.5, height = 4.2, dpi = 300, bg = "white")
 ggsave("figures/Fig1_Reversal.pdf", fig1, width = 9.5, height = 4.2)
 ggsave("figures/Fig1_Reversal.png", fig1, width = 9.5, height = 4.2, dpi = 300, bg = "white")
+```
+
+## Step 1: monoculture only
+
+```{r fig-mono, fig.width=9.5, fig.height=4.2, dpi=150}
+print(fig1_mono)
+```
+
+## Step 2: monoculture plus the wheat/ fava intercrop
+
+```{r fig-full, fig.width=9.5, fig.height=4.2, dpi=150}
+print(fig1)
 ```
 
 Units: panels A and B are percent change in the response (back-transformed from the log scale);
@@ -142,7 +170,7 @@ so each panel uses its own range; the dashed line is no effect in every panel.
 > drought intensifies; in mixed stands it has no detectable effect.** Model-estimated effect of inoculation
 > (inoculated minus sterile) on (A) total productivity, (B) grain mass, and (C) grain allocation
 > (grain as a share of total net primary production) at three water levels (80, 60, 40% of field
-> capacity), in monoculture (red circles) and in mixed stands with fava bean (blue triangles).
+> capacity), in monoculture (orange circles) and in mixed stands with fava bean (blue triangles).
 > Points are estimates from a single model per response fitted to all 60 pots; bars are 95%
 > confidence intervals, unadjusted for multiplicity; the dashed line marks no effect. Every
 > contrast is computed within a stand type and water level, so planting density is constant within

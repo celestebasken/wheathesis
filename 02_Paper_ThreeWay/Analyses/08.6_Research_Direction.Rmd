@@ -330,49 +330,80 @@ because the design includes no fava monoculture.
 ### R3 — Is it just plant size?
 
 No. A genuine allocation shift. Allocation measured as a ratio is confounded with plant size, because
-plants of different sizes allocate differently regardless of strategy - bigger plants are further
-along the same developmental trajectory, not necessarily following a different one. Both
-treatments here changed plant size, so "AMF reduced grain fraction" could in principle mean
-nothing more than "AMF made plants bigger, and bigger plants have different fractions." The fix is
-to stop comparing ratios and instead ask whether treatments shift the relationship between grain
-output and vegetative size.
+plants of different sizes allocate differently regardless of strategy. Both treatments here changed
+plant size, so "AMF reduced grain fraction" could in principle mean nothing more than "AMF made
+plants bigger, and bigger plants have different fractions." The fix is to stop comparing ratios and
+ask whether treatments shift the relationship between grain output and vegetative size.
 
-```{r fig2, fig.width=8.5, fig.height=5.5}
-ggplot(wheat, aes(x = log_veg, y = log_berry, color = Inoc)) +
-  geom_point(size = 2, alpha = 0.75) +
-  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.7) +
-  facet_grid(Poly ~ Water) +
-  scale_color_manual(values = c(Inoc = COL_INOC, Strl = COL_STRL)) +
-  labs(title = "Grain output against plant size (log-log)",
-       subtitle = "Bottom-right panel carries the paper's central contrast",
-       x = "log(vegetative mass per plant)", y = "log(berry mass per plant)") +
-  theme_minimal(base_size = 12) +
-  theme(legend.position = "bottom", legend.title = element_blank())
+```{r allo_numbers}
+# Numbers for R3 (EXPLORATORY unless noted): common-slope model, slope sensitivity, heterogeneity test
+slope_ci <- confint(m_allo2)["log_veg", ]; slope_hat <- unname(coef(m_allo2)["log_veg"])
+m_het <- lm(log_berry ~ log_veg * Poly * Inoc * Water, data = wheat_c)
+het   <- anova(m_allo2, m_het)
+p_het <- het$`Pr(>F)`[2]
+p_veg_water <- p_of(lm(log_berry ~ log_veg * Water, data = wheat_c), "log_veg:Water")
+
+adj_sev <- emmeans(m_allo2, ~ Inoc | Poly * Water) %>%
+  contrast("pairwise", by = c("Poly", "Water"), adjust = "none") %>%
+  summary(infer = c(TRUE, TRUE)) %>% as.data.frame() %>%
+  filter(Poly == "Mono", Water == "Severe")
+stopifnot(adj_sev$contrast == "Inoc - Strl")
+adj_pct <- (exp(adj_sev$estimate) - 1) * 100
+adj_lo  <- (exp(adj_sev$lower.CL) - 1) * 100; adj_hi <- (exp(adj_sev$upper.CL) - 1) * 100
+
+ms <- wheat %>% filter(Poly == "Mono", Water == "Severe")
+gm <- function(x) exp(mean(log(x)))
+size_ratio <- gm(ms$veg[ms$Inoc == "Inoc"]) / gm(ms$veg[ms$Inoc == "Strl"])
+obs_ratio  <- gm(ms$berry[ms$Inoc == "Inoc"]) / gm(ms$berry[ms$Inoc == "Strl"])
+size_alone <- (size_ratio^c(slope_ci[[1]], slope_ci[[2]]) - 1) * 100
+rg <- ms %>% group_by(Inoc) %>% summarise(lo = min(veg), hi = max(veg), .groups = "drop")
+ri <- rg[rg$Inoc == "Inoc", ]; rs <- rg[rg$Inoc == "Strl", ]
+strl_in <- ms$veg[ms$Inoc == "Strl" & ms$veg >= ri$lo & ms$veg <= ri$hi]
 ```
 
-**What it shows.** In the well-watered mixed-stand panels the relationship tilts upward: bigger
-plant, more grain, normal biology. In the bottom-right panel - monoculture under severe drought -
-the inoculated points (blue) sit noticeably to the *right* of the sterile points, meaning larger
-plants, while sitting well *below* them, meaning less grain. Larger wheat plants, fewer berries.
-That is the opposite of the allometric expectation, which is why adjusting for size *strengthens* rather than weakens the result (`r fmt_p(p_3way_unadj)` → `r fmt_p(p_3way_adj)` for the three-way;
-`r fmt_p(p_2way_unadj)` → `r fmt_p(p_2way_adj)` for Inoc × Water).
+```{r fig2, out.width="100%"}
+knitr::include_graphics("13_Figure2_Allometry/figures/Fig2_Allometry.png")
+```
 
-**The important caveat.** In that bottom-right panel the two groups occupy **non-overlapping
-ranges on the x-axis** - sterile plants cluster small, inoculated plants cluster large, with no
-size at which both are represented. A size-adjusted contrast there is therefore an
-*extrapolation*: the estimated vertical gap depends on the assumed common slope, and the data
-cannot pin that slope down within the cell. The direction is stable across every plausible slope,
-and under the positive slope actually observed in the well-watered panels the effect gets larger -
-so the estimate is conservative. But we should report a sensitivity range rather than
-quoting a single fold-difference as though it were precisely identified.
+**Figure 2 (what the lines are).** The lines are fitted values from the **one** size-adjusted model the
+gate uses (a single common slope, shifted up or down by group), each drawn over its own group's
+observed size range. They are not twelve separate regressions: with five pots per group there is
+almost no horizontal spread to estimate a slope from (inoculated Mono x Control plants span only a
+1.21-fold size range), so per-group lines would be mostly vertical scatter and say nothing. Source:
+`13_Figure2_Allometry/`.
 
-**Secondary observation worth reporting.** The fitted slopes are positive under adequate water and
-flat-to-negative in all three severe-drought panels. Severe drought appears to break the normal
-scaling of reproductive output with plant size. That is a publishable observation on its own, and
-it makes the main finding coherent: once extra growth stops converting into grain, a fungal partner
-that pushes carbon toward vegetative tissue becomes pure cost. Treat it as suggestive - with n = 5
-and compressed x-ranges, individual panel slopes are unreliable, so any claim should rest on the
-pooled interaction term, not on the six fitted lines.
+**What it shows.** In monoculture under severe drought the inoculated points sit to the *right* of the
+sterile points (larger plants) and well *below* them (less grain). The vertical gap between the
+lines is the size-adjusted effect: at equal size, inoculated plants produced
+`r round(-adj_pct)`% less grain (95% CI `r round(-adj_hi)`% to `r round(-adj_lo)`% less; EXPLORATORY). Size
+adjustment does not weaken the result (three-way *p* `r fmt_p(p_3way_unadj)` → `r fmt_p(p_3way_adj)`;
+Inoc × Water `r fmt_p(p_2way_unadj)` → `r fmt_p(p_2way_adj)`).
+
+**Why size cannot be the explanation.** The common allometric slope is small and imprecise
+(`r round(slope_hat, 2)`, 95% CI `r round(slope_ci[[1]], 2)` to `r round(slope_ci[[2]], 2)`). In that cell inoculated plants are
+`r round((size_ratio - 1) * 100)`% larger, so across the whole slope CI the size difference alone would change grain by only
+`r round(min(size_alone))`% to `r round(max(size_alone))`%, against an observed `r round((obs_ratio - 1) * 100)`%. This is the real
+content of the gate: the grain deficit is far larger than any slope compatible with the data could
+produce from the size difference. Note that the slope is *weak*, not strongly positive, so the
+older phrasing "the opposite of the allometric expectation" overstates what the slope shows.
+
+**Caveats.**
+
+* **Common slope is an assumption the data do not contradict.** The joint test of every size
+  interaction is *p* = `r round(p_het, 2)`, but with n = 5 per cell the design cannot resolve slope
+  differences. One term (size × inoculation) is nominally significant on its own and is reported in
+  `02_Allometry_Gate.Rmd`, not dropped.
+* **Size overlap in the key cell is partial.** Inoculated pots span `r sprintf("%.2f to %.2f g", ri$lo, ri$hi)`
+  and sterile pots `r sprintf("%.2f to %.2f g", rs$lo, rs$hi)`; one sterile pot (`r sprintf("%.2f", strl_in)` g) falls inside the
+  inoculated range. An earlier version of this section said the groups occupy *non-overlapping*
+  ranges. That was too strong. The size-adjusted contrast there leans on the common slope, but
+  the extrapolation is milder than "no overlap" implied, and the size-sensitivity range above bounds it.
+
+**What was dropped.** An earlier draft reported that fitted slopes were positive under adequate water
+and flat-to-negative under severe drought, and that severe drought "breaks the normal scaling of
+reproductive output with plant size." That rested on per-group lines that cannot be estimated at
+n = 5, and the pooled size × water test is not significant (*p* = `r round(p_veg_water, 3)`). It
+should not be claimed.
 
 ### R4 — Is it fragile?
 
