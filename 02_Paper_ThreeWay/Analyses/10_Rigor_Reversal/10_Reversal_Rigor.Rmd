@@ -1,0 +1,350 @@
+---
+title: "10 - Rigor checks for the reversal framing"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 8, fig.height = 4.5)
+```
+
+**Status of every test in this document**
+
+| Section | Test | Status |
+|---|---|---|
+| 1 | `Poly:Inoc:Water` on grain allocation | **CONFIRMATORY** (pre-specified; reproduced from `03_Primary_Model.Rmd`) |
+| 2 | Variance homogeneity across the 12 cells | Model-checking (decides the error structure, not a hypothesis test of the paper) |
+| 3 | Simple effect of inoculation within each Poly x Water cell (task 1a, and 1c) | **EXPLORATORY** |
+| 4 | Linear trend of the inoculation effect across water (task 1b) | **EXPLORATORY** |
+| 5 | Summary across the three currencies (task 1c) | **EXPLORATORY** |
+
+Only the three-way interaction is confirmatory. Everything from Section 3 on was added after the
+reframing, so no p-value below should be read as confirmatory, and none is multiplicity-adjusted.
+Read the CIs as descriptions of effect size and uncertainty.
+
+**Conventions held throughout**
+
+* Every model is fit **once, on all 60 pots**, with the full `Poly * Inoc * Water` structure.
+  Contrasts are conditioned inside that model with `emmeans`. No subset models.
+* Every effect is `Inoc - Strl` (positive = inoculation increased the response). The factor
+  levels are `Inoc, Strl`, so `"pairwise"` gives this direction; `"revpairwise"` would flip it.
+  Each table asserts the contrast label so a flip cannot pass silently.
+* Each effect is computed *within* a stand type and *within* a water level, so planting density is
+  constant inside every contrast and does not contribute to any estimate.
+* Responses are per plant (`NPP`, `berry`); stand type has a fixed plant count with no losses, so
+  within-stand ratios and percent changes are identical to per-pot values.
+* Primary response: **grain allocation** (`berry_alloc`, proportion of total NPP in grain).
+  Grain mass per plant is the agronomic translation; total NPP is the productivity currency.
+
+```{r libs}
+library(tidyverse)
+library(emmeans)
+library(glmmTMB)
+library(nlme)
+library(car)
+library(DHARMa)
+
+wheat <- readRDS("../wheat_audited.rds") %>%
+  mutate(log_NPP = log(NPP), log_berry = log(berry),
+         PW = interaction(Poly, Water, drop = TRUE))   # grouping factor for the sensitivity varIdent
+stopifnot(nrow(wheat) == 60,
+          identical(levels(wheat$Inoc), c("Inoc", "Strl")),
+          identical(levels(wheat$Water), c("Control", "Moderate", "Severe")),
+          all(table(wheat$Poly, wheat$Inoc, wheat$Water) == 5))
+emm_options(pbkrtest.limit = 1e5, lmerTest.limit = 1e5)
+```
+
+# 1. CONFIRMATORY: the three-way interaction on grain allocation
+
+Reproduced from `03_Primary_Model.Rmd` so the confirmatory result sits next to the exploratory
+ones and nothing exploratory can be mistaken for it.
+
+```{r confirmatory}
+m_alloc <- glmmTMB(berry_alloc ~ Poly * Inoc * Water, dispformula = ~ Poly,
+                   family = beta_family(), data = wheat)
+a3 <- car::Anova(m_alloc, type = 2) %>% broom::tidy() %>%
+  mutate(across(c(statistic, p.value), ~ signif(.x, 3)))
+knitr::kable(a3, caption = "CONFIRMATORY - Type II Wald tests, berry_alloc ~ Poly*Inoc*Water, dispersion ~ Poly")
+p3 <- a3$p.value[a3$term == "Poly:Inoc:Water"]
+```
+
+**Poly:Inoc:Water, p = `r p3`.**
+
+# 2. Variance homogeneity across the 12 cells
+
+Model-checking step. It decides whether mono and inter share a residual variance, because a
+pooled variance across systems that do not share one distorts every CI below.
+
+## 2a. Levene's tests
+
+```{r levene}
+lev <- function(y, label) {
+  f12 <- interaction(wheat$Poly, wheat$Inoc, wheat$Water)
+  tibble(response = label,
+         `Levene, 12 cells (p)`      = car::leveneTest(wheat[[y]], f12, center = median)[1, "Pr(>F)"],
+         `Levene, Mono vs Inter (p)` = car::leveneTest(wheat[[y]], wheat$Poly, center = median)[1, "Pr(>F)"],
+         `SD Mono / SD Inter (residual-scale)` = {
+           r <- resid(lm(reformulate("Poly*Inoc*Water", y), wheat))
+           sd(r[wheat$Poly == "Mono"]) / sd(r[wheat$Poly == "Inter"])
+         })
+}
+bind_rows(lev("log_NPP", "log(NPP)"),
+          lev("log_berry", "log(grain mass)"),
+          lev("berry_alloc", "grain allocation (proportion)")) %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+  knitr::kable(caption = "Median-centred Levene (Brown-Forsythe) tests on raw values / model residuals")
+```
+
+## 2b. Does a per-stand variance improve the model?
+
+Candidates: equal variance vs `varIdent(~1|Poly)` for the log-scale Gaussian models. The rule is
+fixed in advance: **keep the heteroscedastic structure if it has the lower AIC**. For the beta
+model the dispersion structure (`dispformula = ~ Poly`) was pre-specified in the analysis plan and
+is used in the confirmatory test, so it is **kept as is** so the exploratory allocation estimates
+come from the same model as the confirmatory one; `dispformula = ~ 1` is shown as a sensitivity
+check only. A third candidate, `varIdent(~1|Poly*Water)`, is likewise sensitivity only.
+
+```{r varstruct}
+# The call is built with the weights object spliced in (bquote) so emmeans can re-evaluate it
+# later; a plain `weights = w` would point at a local variable that no longer exists.
+fit_gls <- function(y, w = NULL) {
+  f <- reformulate("Poly*Inoc*Water", y)
+  eval(bquote(gls(.(f), weights = .(w), data = wheat, method = "REML")))
+}
+vs_tbl <- function(y, label) {
+  g0 <- fit_gls(y)
+  g1 <- fit_gls(y, varIdent(form = ~ 1 | Poly))
+  g2 <- fit_gls(y, varIdent(form = ~ 1 | PW))
+  lrt <- anova(g0, g1)
+  tibble(response = label,
+         AIC_equal = AIC(g0), AIC_varIdent_Poly = AIC(g1), AIC_varIdent_PolyWater_sens = AIC(g2),
+         `LRT p (Poly vs equal)` = lrt$`p-value`[2],
+         chosen = if (AIC(g1) < AIC(g0)) "varIdent(~1|Poly)" else "equal variance")
+}
+vs <- bind_rows(vs_tbl("log_NPP", "log(NPP)"), vs_tbl("log_berry", "log(grain mass)"))
+
+m_alloc0 <- update(m_alloc, dispformula = ~ 1)
+vs <- bind_rows(vs, tibble(response = "grain allocation (beta)",
+                           AIC_equal = AIC(m_alloc0), AIC_varIdent_Poly = AIC(m_alloc),
+                           AIC_varIdent_PolyWater_sens = NA_real_,
+                           `LRT p (Poly vs equal)` = anova(m_alloc0, m_alloc)$`Pr(>Chisq)`[2],
+                           chosen = "dispformula ~ Poly (pre-specified; ~1 is sensitivity)"))
+vs %>% mutate(across(where(is.numeric), ~ signif(.x, 4))) %>% knitr::kable(
+  caption = "Variance structure selection (AIC; lower is better). 'Poly:Water' column is a sensitivity check only.")
+```
+
+```{r build-final}
+# Final models: heteroscedastic only where Section 2b chose it
+use_vi <- function(lbl) vs$chosen[vs$response == lbl] == "varIdent(~1|Poly)"
+m_npp   <- if (use_vi("log(NPP)"))        fit_gls("log_NPP",   varIdent(form = ~ 1 | Poly)) else fit_gls("log_NPP")
+m_berry <- if (use_vi("log(grain mass)")) fit_gls("log_berry", varIdent(form = ~ 1 | Poly)) else fit_gls("log_berry")
+m_alloc_final <- m_alloc   # pre-specified dispersion structure, same model as the confirmatory test
+cat("log(NPP):", vs$chosen[1], "| log(grain):", vs$chosen[2], "| allocation:", vs$chosen[3], "\n")
+
+# Does the confirmatory three-way result depend on that dispersion choice?
+p3_alt <- car::Anova(m_alloc0, type = 2)["Poly:Inoc:Water", "Pr(>Chisq)"]
+cat(sprintf("Three-way p: %.2e with dispformula ~ Poly (confirmatory) vs %.2e with ~ 1 (sensitivity)\n", p3, p3_alt))
+```
+
+Note on degrees of freedom: `emmeans` on a `gls` fit uses Satterthwaite df. With
+`varIdent(~1|Poly)` that is about 24 per stand type for a within-stand contrast (each stand's
+variance is estimated from its own 30 pots), which is wider than the 48-df pooled case and is the
+honest price of letting the stands differ in variance.
+
+## 2c. Beta-model diagnostics (DHARMa)
+
+```{r dharma}
+sim <- simulateResiduals(m_alloc_final, n = 1000)
+tibble(test = c("Uniformity (KS)", "Dispersion", "Outliers"),
+       p = c(testUniformity(sim, plot = FALSE)$p.value,
+             testDispersion(sim, plot = FALSE)$p.value,
+             testOutliers(sim, plot = FALSE)$p.value)) %>%
+  mutate(p = signif(p, 3)) %>% knitr::kable()
+```
+
+# 3. EXPLORATORY: simple effect of inoculation in every cell (tasks 1a and 1c)
+
+For each currency, the model-estimated `Inoc - Strl` contrast within each of the six
+Poly x Water cells, from the single full model. Log-scale models are back-transformed to
+**% change** (`exp(est) - 1`); the beta model is reported on the response scale as
+**percentage points** of allocation. CIs are 95%, unadjusted.
+
+```{r simple-fn}
+fmt_p <- function(p) ifelse(p < 1e-4, "<0.0001", as.character(signif(p, 2)))
+get_simple <- function(model, label, scale = c("log", "response")) {
+  scale <- match.arg(scale)
+  emm <- emmeans(model, ~ Inoc | Poly * Water, data = wheat)
+  if (scale == "response") emm <- regrid(emm)
+  ct <- contrast(emm, "pairwise", by = c("Poly", "Water"), adjust = "none")
+  d  <- as.data.frame(summary(ct, infer = c(TRUE, TRUE)))
+  stopifnot(all(d$contrast == "Inoc - Strl"))
+  lo <- intersect(c("asymp.LCL", "lower.CL"), names(d))[1]
+  hi <- intersect(c("asymp.UCL", "upper.CL"), names(d))[1]
+  out <- tibble(currency = label, Poly = d$Poly, Water = d$Water,
+                est_raw = d$estimate, lo_raw = d[[lo]], hi_raw = d[[hi]], p = d$p.value)
+  if (scale == "log") {
+    out %>% mutate(unit = "% change", est = (exp(est_raw) - 1) * 100,
+                   lo = (exp(lo_raw) - 1) * 100, hi = (exp(hi_raw) - 1) * 100)
+  } else {
+    out %>% mutate(unit = "pct points", est = est_raw * 100, lo = lo_raw * 100, hi = hi_raw * 100)
+  }
+}
+
+simple_all <- bind_rows(
+  get_simple(m_alloc_final, "C. Grain allocation (PRIMARY)", "response"),
+  get_simple(m_berry,       "B. Grain mass",                 "log"),
+  get_simple(m_npp,         "A. Total NPP",                  "log")
+) %>% mutate(excludes_0 = lo > 0 | hi < 0,
+             Poly = factor(Poly, c("Mono", "Inter")))
+
+simple_all %>% arrange(currency, Poly, Water) %>%
+  transmute(currency, Poly, Water, unit,
+            estimate = round(est, 1), `95% CI` = sprintf("[%.1f, %.1f]", lo, hi),
+            p = fmt_p(p), `CI excludes 0` = ifelse(excludes_0, "yes", "no")) %>%
+  knitr::kable(caption = "EXPLORATORY - model-estimated Inoc - Strl within each cell. Unadjusted 95% CIs.")
+```
+
+## Raw cell means versus the model (sanity check against the handoff table)
+
+```{r raw-check}
+raw <- wheat %>% group_by(Poly, Water, Inoc) %>%
+  summarise(NPP = mean(NPP), berry = mean(berry), alloc = mean(berry_alloc), .groups = "drop") %>%
+  pivot_wider(names_from = Inoc, values_from = c(NPP, berry, alloc)) %>%
+  transmute(Poly, Water,
+            `NPP raw %`   = round((NPP_Inoc / NPP_Strl - 1) * 100),
+            `grain raw %` = round((berry_Inoc / berry_Strl - 1) * 100),
+            `alloc Inoc` = round(alloc_Inoc, 3), `alloc Strl` = round(alloc_Strl, 3))
+knitr::kable(raw %>% arrange(desc(Poly), Water),
+             caption = "Ratio of raw cell means. These are the handoff's headline numbers; model estimates above differ slightly because they are geometric (log-scale) and use pooled error.")
+```
+
+## Task 1a verdict: the +51% at control in monoculture
+
+```{r verdict-1a}
+g <- simple_all %>% filter(Poly == "Mono", Water == "Control")
+gm <- g %>% filter(str_detect(currency, "^B"))
+ga <- g %>% filter(str_detect(currency, "^C"))
+gn <- g %>% filter(str_detect(currency, "^A"))
+verdict <- function(r) if (r$lo > 0) "CLEARS zero (benefit)" else if (r$hi < 0) "below zero (cost)" else "does NOT clear zero"
+```
+
+Mono x Control, inoculated vs sterile, full model, 95% CI:
+
+* **Grain mass:** `r sprintf("%+.1f%% [%.1f, %.1f]", gm$est, gm$lo, gm$hi)` (p = `r signif(gm$p, 2)`) -> **`r verdict(gm)`**
+* **Grain allocation (primary):** `r sprintf("%+.1f pp [%.1f, %.1f]", ga$est, ga$lo, ga$hi)` (p = `r signif(ga$p, 2)`) -> **`r verdict(ga)`**
+* **Total NPP:** `r sprintf("%+.1f%% [%.1f, %.1f]", gn$est, gn$lo, gn$hi)` (p = `r signif(gn$p, 2)`) -> **`r verdict(gn)`**
+
+```{r sentence-1a, results='asis'}
+if (gm$lo > 0 && ga$lo > 0) {
+  cat("**Sentence the data support:** AMF swings from benefit under adequate water to cost under severe drought (both grain mass and allocation clear zero at Control).\n")
+} else if (gm$lo > 0) {
+  cat("**Sentence the data support:** grain mass benefits at Control, but allocation does not clear zero; state the benefit for grain mass only.\n")
+} else {
+  cat("**Sentence the data support:** no demonstrable benefit under adequate water, with a large cost under drought. The 'reversal' wording is NOT supported at the 95% level for the Control end; the +51% is a point estimate whose CI includes zero.\n")
+}
+```
+
+*(Exploratory. This is one cell, one of six simple effects per currency, estimated with the pooled
+error of the full model. It is not a confirmatory test and carries no multiplicity adjustment.)*
+
+# 4. EXPLORATORY: the reversal as a linear trend (task 1b)
+
+One contrast, not three comparisons: the linear component (-1, 0, +1 across
+Control, Moderate, Severe; water levels are equally spaced at 48 / 32 / 16 gal) of the
+inoculation effect, within each stand type. Positive slope = the inoculation effect grows
+toward severe drought; negative = it falls. The quadratic component is reported alongside so
+a U-shape (as NPP seems to show) is not mistaken for a trend. The final row of each block is the
+**difference in trend, Mono minus Inter**, which is what "contingent on neighborhood" rests on.
+
+```{r trend-fn}
+get_trend <- function(model, label, scale = c("link", "response")) {
+  scale <- match.arg(scale)
+  emm_p <- emmeans(model, ~ Inoc * Water | Poly, data = wheat)
+  emm_a <- emmeans(model, ~ Inoc * Water * Poly, data = wheat)
+  if (scale == "response") { emm_p <- regrid(emm_p); emm_a <- regrid(emm_a) }
+
+  tr <- contrast(emm_p, interaction = c("pairwise", "poly"), by = "Poly")
+  dt <- as.data.frame(summary(tr, infer = c(TRUE, TRUE), adjust = "none"))
+  dd <- contrast(emm_a, interaction = c("pairwise", "poly", "revpairwise"))
+  dd <- as.data.frame(summary(dd, infer = c(TRUE, TRUE), adjust = "none"))
+  stopifnot(all(grepl("Inoc - Strl", dt$Inoc_pairwise)), all(grepl("Inoc - Strl", dd$Inoc_pairwise)))
+
+  lo <- intersect(c("asymp.LCL", "lower.CL"), names(dt))[1]
+  hi <- intersect(c("asymp.UCL", "upper.CL"), names(dt))[1]
+  a <- tibble(currency = label, scale = scale, what = paste0(dt$Poly, " - ", dt$Water_poly),
+              estimate = dt$estimate, lo = dt[[lo]], hi = dt[[hi]], p = dt$p.value)
+  b <- tibble(currency = label, scale = scale, what = paste0("Mono minus Inter - ", dd$Water_poly),
+              estimate = dd$estimate, lo = dd[[lo]], hi = dd[[hi]], p = dd$p.value)
+  bind_rows(a, b)
+}
+
+trend_all <- bind_rows(
+  get_trend(m_alloc_final, "C. Grain allocation (PRIMARY)", "link"),
+  get_trend(m_alloc_final, "C. Grain allocation (PRIMARY)", "response"),
+  get_trend(m_berry,       "B. Grain mass", "link"),
+  get_trend(m_npp,         "A. Total NPP",  "link")
+)
+unit_note <- c(link = "link scale: log-odds (alloc) / log-ratio (mass, NPP)", response = "response scale: proportion")
+trend_all %>%
+  mutate(across(c(estimate, lo, hi), ~ round(.x, 3)), p = fmt_p(p),
+         scale = unit_note[scale], `CI` = sprintf("[%.3f, %.3f]", lo, hi)) %>%
+  select(currency, scale, what, estimate, CI, p) %>%
+  knitr::kable(caption = "EXPLORATORY - trend contrasts on the Inoc - Strl effect across water. 'linear' (coefficients -1, 0, +1) = change in the Inoc - Strl effect from Control to Severe; 'quadratic' = curvature (Moderate vs the Control/Severe mean). Unadjusted.")
+```
+
+```{r trend-headline, results='asis'}
+pick <- function(cur, sc, w) trend_all %>% filter(str_detect(currency, cur), scale == sc, what == w)
+tm_a <- pick("^C", "link", "Mono - linear")
+tm_b <- pick("^B", "link", "Mono - linear")
+tm_n <- pick("^A", "link", "Mono - linear")
+ti_b <- pick("^B", "link", "Inter - linear")
+dd_b <- pick("^B", "link", "Mono minus Inter - linear")
+dd_a <- pick("^C", "link", "Mono minus Inter - linear")
+cat(sprintf(
+"* **Mono, linear trend of the AMF effect across water:** allocation %.2f [%.2f, %.2f] (p = %.3g); grain mass %.2f [%.2f, %.2f] (p = %.3g); NPP %.2f [%.2f, %.2f] (p = %.3g).\n* **Inter, grain mass:** %.2f [%.2f, %.2f] (p = %.3g).\n* **Mono minus Inter, linear:** grain mass %.2f [%.2f, %.2f] (p = %.3g); allocation %.2f [%.2f, %.2f] (p = %.3g).\n",
+tm_a$estimate, tm_a$lo, tm_a$hi, tm_a$p, tm_b$estimate, tm_b$lo, tm_b$hi, tm_b$p, tm_n$estimate, tm_n$lo, tm_n$hi, tm_n$p,
+ti_b$estimate, ti_b$lo, ti_b$hi, ti_b$p,
+dd_b$estimate, dd_b$lo, dd_b$hi, dd_b$p, dd_a$estimate, dd_a$lo, dd_a$hi, dd_a$p))
+```
+
+# 5. EXPLORATORY: do all three currencies tell the same story? (task 1c)
+
+The handoff asks whether "the reversal holds in all three currencies." Total NPP is not
+expected to *reverse*: its cell means are positive at every water level in monoculture. The
+right question for NPP is whether inoculation ever *costs* productivity. The table scores each
+currency on the criteria that fit it.
+
+```{r summary-tbl}
+sg <- function(cur, poly, water) simple_all %>% filter(str_detect(currency, paste0("^", cur)), Poly == poly, Water == water)
+fmt <- function(r) sprintf("%+.1f [%.1f, %.1f]%s", r$est, r$lo, r$hi, ifelse(r$excludes_0, " *", ""))
+rows <- map_dfr(c("C", "B", "A"), function(k) {
+  tl <- trend_all %>% filter(str_detect(currency, paste0("^", k)), scale == "link", what == "Mono - linear")
+  tibble(currency = unique(simple_all$currency[str_detect(simple_all$currency, paste0("^", k))]),
+         `Mono Control` = fmt(sg(k, "Mono", "Control")),
+         `Mono Moderate` = fmt(sg(k, "Mono", "Moderate")),
+         `Mono Severe` = fmt(sg(k, "Mono", "Severe")),
+         `Mono linear-trend p` = signif(tl$p, 3),
+         `Inter: any CI excluding 0?` = ifelse(any(simple_all %>% filter(str_detect(currency, paste0("^", k)), Poly == "Inter") %>% pull(excludes_0)), "yes", "no"))
+})
+knitr::kable(rows, caption = "Mono simple effects, estimate [95% CI] (* = CI excludes 0), units as in Section 3; plus the Mono linear-trend p and whether inter shows any effect.")
+```
+
+```{r save-outputs}
+dir.create("outputs", showWarnings = FALSE)
+write.csv(simple_all %>% select(-excludes_0), "outputs/reversal_simple_effects.csv", row.names = FALSE)
+write.csv(trend_all, "outputs/reversal_trend_tests.csv", row.names = FALSE)
+```
+
+Tables saved to `outputs/` (`reversal_simple_effects.csv`, `reversal_trend_tests.csv`).
+
+# Session info
+
+```{r}
+sessionInfo()
+```

@@ -1,0 +1,164 @@
+---
+title: "11 - Figure 1: the reversal"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status.** Figure 1 is *descriptive*. Each plotted point is a model-estimated inoculated-minus-sterile
+contrast with an unadjusted 95% CI (**EXPLORATORY**). The only **CONFIRMATORY** test behind the
+figure is the three-way interaction `Poly:Inoc:Water` on grain allocation (panel C), reported in
+`10_Rigor_Reversal/10_Reversal_Rigor.Rmd`.
+
+The models are the same ones fit in `10_Reversal_Rigor.Rmd`: one full `Poly * Inoc * Water` model
+per currency, on all 60 pots, contrasts conditioned inside it. This file re-fits them and then
+**checks the plotted numbers against `10_Rigor_Reversal/outputs/reversal_simple_effects.csv`**, so
+the figure cannot silently drift from the analysis.
+
+| Panel | Response | Model | Plotted as |
+|---|---|---|---|
+| A | total NPP per plant | `gls`, `varIdent(~1\|Poly)` (selected in 10, Sec. 2b) | % change |
+| B | grain mass per plant | `gls`, equal variance (selected in 10, Sec. 2b) | % change |
+| C | grain allocation (**primary**) | beta, `dispformula = ~Poly` (pre-specified) | percentage points |
+
+Sign convention: `Inoc - Strl`, asserted in code. Positive = inoculation increased the response.
+
+```{r libs}
+library(tidyverse)
+library(emmeans)
+library(glmmTMB)
+library(nlme)
+
+wheat <- readRDS("../wheat_audited.rds") %>%
+  mutate(log_NPP = log(NPP), log_berry = log(berry))
+stopifnot(nrow(wheat) == 60,
+          identical(levels(wheat$Inoc), c("Inoc", "Strl")),
+          identical(levels(wheat$Water), c("Control", "Moderate", "Severe")))
+```
+
+# Models and effect sizes
+
+```{r models}
+# weights object spliced into the call (bquote) so emmeans can re-evaluate it; see 10_Reversal_Rigor.Rmd
+fit_gls <- function(y, w = NULL) {
+  f <- reformulate("Poly*Inoc*Water", y)
+  eval(bquote(gls(.(f), weights = .(w), data = wheat, method = "REML")))
+}
+m_npp   <- fit_gls("log_NPP",   varIdent(form = ~ 1 | Poly))
+m_berry <- fit_gls("log_berry")
+m_alloc <- glmmTMB(berry_alloc ~ Poly * Inoc * Water, dispformula = ~ Poly,
+                   family = beta_family(), data = wheat)
+
+tidy_contrast <- function(model, panel_label, scale = c("log", "response")) {
+  scale <- match.arg(scale)
+  emm <- emmeans(model, ~ Inoc | Poly * Water, data = wheat)
+  if (scale == "response") emm <- regrid(emm)
+  # "pairwise" = first level minus second = Inoc - Strl.
+  # NOT "revpairwise": with levels (Inoc, Strl) that gives Strl - Inoc and mirrors the figure.
+  ct <- contrast(emm, "pairwise", by = c("Poly", "Water"), adjust = "none")
+  d  <- as.data.frame(summary(ct, infer = c(TRUE, TRUE)))
+  stopifnot(all(d$contrast == "Inoc - Strl"))
+  lo <- intersect(c("asymp.LCL", "lower.CL"), names(d))[1]
+  hi <- intersect(c("asymp.UCL", "upper.CL"), names(d))[1]
+  out <- tibble(Poly = d$Poly, Water = d$Water, est = d$estimate, lo = d[[lo]], hi = d[[hi]])
+  out <- if (scale == "log") mutate(out, across(c(est, lo, hi), ~ (exp(.x) - 1) * 100))  # % change
+         else                mutate(out, across(c(est, lo, hi), ~ .x * 100))             # percentage points
+  mutate(out, panel = panel_label)
+}
+
+panel_levels <- c("A. Total productivity (NPP)\n% change", "B. Grain mass\n% change", "C. Grain allocation\npercentage points")
+eff <- bind_rows(
+  tidy_contrast(m_npp,   panel_levels[1], "log"),
+  tidy_contrast(m_berry, panel_levels[2], "log"),
+  tidy_contrast(m_alloc, panel_levels[3], "response")
+) %>% mutate(panel = factor(panel, panel_levels),
+             Poly  = factor(Poly, c("Mono", "Inter")),
+             Water = factor(Water, c("Control", "Moderate", "Severe")))
+
+# --- consistency check against the analysis document -------------------------------
+chk <- read.csv("../10_Rigor_Reversal/outputs/reversal_simple_effects.csv") %>%
+  mutate(panel = case_when(str_starts(currency, "A") ~ panel_levels[1],
+                           str_starts(currency, "B") ~ panel_levels[2],
+                           str_starts(currency, "C") ~ panel_levels[3]),
+         Poly = factor(Poly, c("Mono", "Inter")), Water = factor(Water, c("Control", "Moderate", "Severe"))) %>%
+  select(panel, Poly, Water, est_10 = est, lo_10 = lo, hi_10 = hi)
+cmp <- eff %>% mutate(panel = as.character(panel)) %>%
+  inner_join(chk %>% mutate(panel = as.character(panel)), by = c("panel", "Poly", "Water"))
+stopifnot(nrow(cmp) == 18,
+          max(abs(cmp$est - cmp$est_10), abs(cmp$lo - cmp$lo_10), abs(cmp$hi - cmp$hi_10)) < 1e-6)
+cat("Figure estimates match 10_Reversal_Rigor outputs for all 18 contrasts.\n")
+```
+
+# Figure 1
+
+```{r figure, fig.width=9.5, fig.height=4.2, dpi=150}
+pal <- c(Mono = "#b2182b", Inter = "#2166ac")   # passes validate_palette.js (CVD dE 21, normal dE 29)
+shp <- c(Mono = 16, Inter = 17)                  # shape = second, colour-independent encoding
+dodge <- position_dodge(width = 0.4)
+
+water_lab <- c(Control = "Control\n(80% FC)", Moderate = "Moderate\n(60% FC)", Severe = "Severe\n(40% FC)")
+signed <- function(x) ifelse(x > 0, paste0("+", x), as.character(x))
+
+fig1 <- ggplot(eff, aes(x = Water, y = est, color = Poly, shape = Poly, group = Poly)) +
+  geom_hline(yintercept = 0, linetype = 2, color = "grey45", linewidth = 0.4) +
+  geom_line(position = dodge, linewidth = 0.7, alpha = 0.85) +
+  geom_errorbar(aes(ymin = lo, ymax = hi), width = 0.12, linewidth = 0.6, position = dodge) +
+  geom_point(position = dodge, size = 3, stroke = 0.6) +
+  facet_wrap(~ panel, scales = "free_y", ncol = 3) +
+  scale_color_manual(values = pal, labels = c(Mono = "Monoculture (12 wheat)", Inter = "Mixed with fava (6 wheat + 1 fava)")) +
+  scale_shape_manual(values = shp,  labels = c(Mono = "Monoculture (12 wheat)", Inter = "Mixed with fava (6 wheat + 1 fava)")) +
+  scale_x_discrete(labels = water_lab) +
+  scale_y_continuous(breaks = scales::breaks_pretty(n = 6), labels = function(x) signed(x)) +
+  labs(x = NULL, y = "Effect of AMF inoculation\n(inoculated minus sterile)") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom", legend.title = element_blank(),
+        strip.text = element_text(face = "bold", size = 11, hjust = 0, lineheight = 1.05),
+        panel.grid.minor = element_blank(), panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(color = "grey90", linewidth = 0.3),
+        axis.text.x = element_text(lineheight = 0.9),
+        panel.spacing.x = unit(1.1, "lines"))
+print(fig1)
+
+dir.create("figures", showWarnings = FALSE)
+ggsave("figures/Fig1_Reversal.pdf", fig1, width = 9.5, height = 4.2)
+ggsave("figures/Fig1_Reversal.png", fig1, width = 9.5, height = 4.2, dpi = 300, bg = "white")
+```
+
+Units: panels A and B are percent change in the response (back-transformed from the log scale);
+panel C is percentage points of allocation (grain as a share of total NPP). All y-axes are free
+so each panel uses its own range; the dashed line is no effect in every panel.
+
+## Proposed caption
+
+> **Figure 1. In monoculture, AMF inoculation turns from a grain benefit to a grain cost as
+> drought intensifies; in mixed stands it has no detectable effect.** Model-estimated effect of inoculation
+> (inoculated minus sterile) on (A) total productivity, (B) grain mass, and (C) grain allocation
+> (grain as a share of total net primary production) at three water levels (80, 60, 40% of field
+> capacity), in monoculture (red circles) and in mixed stands with fava bean (blue triangles).
+> Points are estimates from a single model per response fitted to all 60 pots; bars are 95%
+> confidence intervals, unadjusted for multiplicity; the dashed line marks no effect. Every
+> contrast is computed within a stand type and water level, so planting density is constant within
+> each contrast and does not contribute to any estimate. n = 5 pots per cell. Panels A and B are
+> percent change on the response scale (from log-scale models), panel C is percentage points.
+> The confirmatory test is the three-way interaction on grain allocation (Poly x Inoc x Water,
+> p = 0.00025); the contrasts plotted here are exploratory descriptions of that interaction.
+> At the control water level, inoculation raised total productivity and grain mass in monoculture,
+> but the allocation estimate there includes zero.
+
+## Values plotted
+
+```{r table}
+eff %>% arrange(panel, Poly, Water) %>%
+  transmute(panel, Poly, Water,
+            estimate = round(est, 1), `95% CI` = sprintf("[%.1f, %.1f]", lo, hi),
+            `CI excludes 0` = ifelse(lo > 0 | hi < 0, "yes", "no")) %>%
+  knitr::kable(caption = "Values plotted in Figure 1 (EXPLORATORY; unadjusted 95% CIs).")
+```

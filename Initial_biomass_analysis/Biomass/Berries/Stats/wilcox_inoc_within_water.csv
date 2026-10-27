@@ -1,4 +1,0 @@
-"Water","statistic","p.value","method"
-"Control",41,0.520522883275773,"Wilcoxon rank sum test with continuity correction"
-"Moderate",47,0.850106739138526,"Wilcoxon rank sum test with continuity correction"
-"Severe",63,0.344704222006958,"Wilcoxon rank sum test with continuity correction"
