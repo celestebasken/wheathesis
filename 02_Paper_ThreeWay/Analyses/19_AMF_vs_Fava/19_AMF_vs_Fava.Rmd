@@ -122,7 +122,7 @@ figA <- ggplot() +
   scale_fill_manual(values = c(Inoc = blue, Strl = "white"), labels = inoc_lab) +
   scale_y_continuous(limits = c(0, 1.3), breaks = c(0, 0.25, 0.5, 0.75, 1)) +
   labs(x = "Fava biomass (g per pot)", y = "% of root intersects",
-       title = "AMF colonization against fava biomass, inter only",
+       title = "AMF colonization vs fava biomass, inter only",
        subtitle = "Line = pooled fit with 95% CI.") +
   theme_ms(base_size = 12) +
   theme(panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
@@ -269,4 +269,223 @@ figC <- ggplot() +
 figC
 ggsave("figures/Fig_NPPvsAMF_Drought.pdf", figC, width = 10.5, height = 11)
 ggsave("figures/Fig_NPPvsAMF_Drought.png", figC, width = 10.5, height = 11, dpi = 300, bg = "white")
+```
+
+# Part 4 - Easier-to-read versions of the Part 2 figure
+
+The Part 2 figure packs three things into one 2 x 3 grid: metric (columns), inoculation (rows), and water
+(point shape), with a different x-range in each row. These alternatives pull those apart. **No new
+models are fitted** beyond the Part 2 ones (`Fava * Inoc` and `Fava * Inoc + Water`).
+
+| Figure | Layout | What it answers |
+|---|---|---|
+| 4a | Fava by inoculation and water | Why fava is largely a proxy for inoculation (except under severe drought) |
+| 4b | Rows = metric, **columns = water**, **lines = inoculation** | The requested layout; all the raw data in one view |
+| 4c | Inoculated pots only, columns = metric, shape = water | The real test of antagonism, bigger and without the contamination row |
+| 4d | Slopes as odds ratios with CIs, one panel per model | A one-glance summary of all the slopes (**recommended headline figure**) |
+
+```{r fig4a, fig.width=8.5, fig.height=4}
+fig4a <- ggplot(inter, aes(Inoc, Fava_g)) +
+  stat_summary(fun = median, fun.min = median, fun.max = median, geom = "crossbar",
+               width = 0.55, linewidth = 0.4, color = "grey40") +
+  geom_point(aes(fill = Inoc), shape = 21, color = blue, size = 3, stroke = 1,
+             position = position_jitter(width = 0.12, height = 0, seed = 1)) +
+  facet_wrap(~Water, labeller = labeller(Water = water_lab)) +
+  scale_fill_manual(values = c(Inoc = blue, Strl = "white"), guide = "none") +
+  scale_x_discrete(labels = inoc_lab) +
+  labs(x = NULL, y = "Fava biomass (g per pot)",
+       title = "Fava biomass by inoculation and water level, inter only",
+       subtitle = "Per pot, n = 5 per group; bar = median. Fava biomass separates by inoculation under control and moderate water, but not under severe drought.") +
+  theme_ms(base_size = 12) +
+  theme(plot.subtitle = element_text(size = 9.5, color = "grey30"))
+fig4a
+ggsave("figures/Fig_AMFvsFava_FavaByInoc.pdf", fig4a, width = 8.5, height = 4)
+ggsave("figures/Fig_AMFvsFava_FavaByInoc.png", fig4a, width = 8.5, height = 4, dpi = 300, bg = "white")
+```
+
+## 4b - Water as columns, inoculation as lines
+
+One model per metric, `Fava * Inoc + Water`, so each inoculation treatment gets one fava slope shared
+across the three water levels; the water columns only shift the lines up or down. Fitting a separate line
+inside every water x inoculation cell would mean n = 5 per line, which is too few to draw. The p-values are
+the adjusted fava slopes from Part 2 and are the same in every column.
+
+```{r fig4b, fig.width=10.5, fig.height=8}
+cellRng <- inter %>% group_by(Inoc, Water) %>% summarise(lo = min(Fava_g), hi = max(Fava_g), .groups = "drop")
+linesW <- map_dfr(plot_metrics, ~ emmeans(mB[[.x]]$adj, ~ Fava_g * Inoc * Water, at = list(Fava_g = grid),
+                                          type = "response") %>% as.data.frame() %>% norm_cl() %>%
+                    mutate(metric = .x)) %>%
+  left_join(cellRng, by = c("Inoc", "Water")) %>% filter(Fava_g >= lo, Fava_g <= hi) %>% rel()
+
+annW <- slopeB %>% filter(metric %in% plot_metrics, kind == "adjusted") %>%
+  select(metric, Inoc, p.value) %>%
+  mutate(txt = paste0(inoc_lab[as.character(Inoc)], " slope ", fmt_p(p.value))) %>%
+  group_by(metric) %>% summarise(label = paste(txt, collapse = "\n")) %>%
+  mutate(Water = factor("Control", levels(inter$Water))) %>% rel()
+
+fig4b <- ggplot() +
+  geom_ribbon(data = linesW, aes(Fava_g, ymin = lcl, ymax = ucl, group = Inoc), fill = blue, alpha = 0.15) +
+  geom_line(data = linesW, aes(Fava_g, response, linetype = Inoc), color = blue, linewidth = 0.9) +
+  geom_point(data = ptsA, aes(Fava_g, y, fill = Inoc), shape = 21, color = blue, size = 2.8, stroke = 1) +
+  geom_text(data = annW, aes(x = Inf, y = 1.3, label = label), hjust = 1.05, vjust = 1,
+            size = 3, color = "grey25", lineheight = 0.95) +
+  facet_grid(metric ~ Water, labeller = labeller(Water = water_lab)) +
+  scale_fill_manual(values = c(Inoc = blue, Strl = "white"), labels = inoc_lab) +
+  scale_linetype_manual(values = lty_inoc, labels = inoc_lab) +
+  scale_y_continuous(limits = c(0, 1.3), breaks = c(0, 0.25, 0.5, 0.75, 1)) +
+  scale_x_continuous(breaks = c(2.5, 5, 7.5, 10)) +
+  labs(x = "Fava biomass (g per pot)", y = "Proportion of 100 root intersects",
+       title = "AMF colonization against fava biomass, by water level and inoculation",
+       subtitle = "Per pot, n = 5 per symbol group per panel. Lines and 95% CI from one model per row (fava x inoculation + water).") +
+  theme_ms(base_size = 12) +
+  theme(panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 10, color = "grey30"))
+fig4b
+ggsave("figures/Fig_AMFvsFava_ByWater.pdf", fig4b, width = 10.5, height = 8)
+ggsave("figures/Fig_AMFvsFava_ByWater.png", fig4b, width = 10.5, height = 8, dpi = 300, bg = "white")
+```
+
+### 4b, arbuscules only
+
+The arbuscule row of 4b on its own, with the y-axis rescaled to the data (the other metrics needed 0-1).
+
+```{r fig4b-arb, fig.width=10.5, fig.height=4.4}
+arb_lab <- metric_lab[["arb_n"]]
+fig4b_arb <- ggplot() +
+  geom_ribbon(data = filter(linesW, metric == arb_lab),
+              aes(Fava_g, ymin = lcl, ymax = ucl, group = Inoc), fill = blue, alpha = 0.15) +
+  geom_line(data = filter(linesW, metric == arb_lab),
+            aes(Fava_g, response, linetype = Inoc), color = blue, linewidth = 0.9) +
+  geom_point(data = filter(ptsA, metric == arb_lab), aes(Fava_g, y, fill = Inoc),
+             shape = 21, color = blue, size = 3, stroke = 1) +
+  geom_text(data = filter(annW, metric == arb_lab), aes(x = Inf, y = 0.6, label = label),
+            hjust = 1.05, vjust = 1, size = 3, color = "grey25", lineheight = 0.95) +
+  facet_wrap(~Water, labeller = labeller(Water = water_lab)) +
+  scale_fill_manual(values = c(Inoc = blue, Strl = "white"), labels = inoc_lab) +
+  scale_linetype_manual(values = lty_inoc, labels = inoc_lab) +
+  scale_y_continuous(limits = c(0, 0.6), breaks = seq(0, 0.6, 0.1)) +
+  scale_x_continuous(breaks = c(2.5, 5, 7.5, 10)) +
+  labs(x = "Fava biomass (g per pot)", y = "Arbuscular colonization\n(proportion of 100 root intersects)",
+       title = "Arbuscular colonization against fava biomass, by water level and inoculation",
+       subtitle = "Per pot, n = 5 per symbol group per panel. Lines and 95% CI from one model (fava x inoculation + water).") +
+  theme_ms(base_size = 12) +
+  theme(panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 10, color = "grey30"))
+fig4b_arb
+ggsave("figures/Fig_AMFvsFava_ByWater_Arb.pdf", fig4b_arb, width = 10.5, height = 4.4)
+ggsave("figures/Fig_AMFvsFava_ByWater_Arb.png", fig4b_arb, width = 10.5, height = 4.4, dpi = 300, bg = "white")
+```
+
+### 4b, arbuscules: effect of inoculation as one line
+
+The two lines of the previous figure collapsed into one: the model-predicted **inoculated minus sterile**
+difference in arbuscular colonization (percentage points of root intersects) at each fava biomass, from the same
+`Fava * Inoc + Water` model (difference of predicted proportions, delta-method 95% CI). Above zero means
+inoculated pots are more colonized.
+
+**Caveat.** A difference *at a given fava biomass* needs both treatments to have pots there, and under
+control and moderate water they do not (inoculated pots 1.3-3.4 g, sterile 6.4-9.7 g). Only the part of the
+line inside the fava range shared by both treatments is solid; the rest is dotted extrapolation of at least one
+treatment's line, so read it as the model's inference, not as data.
+
+```{r fig4b-arb-diff, fig.width=10.5, fig.height=4.4}
+m_arb <- mB[["arb_n"]]$adj
+em_d <- emmeans(m_arb, ~ Inoc | Fava_g * Water, at = list(Fava_g = grid)) %>% regrid()
+diffW <- confint(pairs(em_d)) %>% as.data.frame() %>%
+  rename(est = estimate, lcl = asymp.LCL, ucl = asymp.UCL)
+stopifnot(all(diffW$contrast == "Inoc - Strl"))
+
+ovl <- cellRng %>% pivot_wider(names_from = Inoc, values_from = c(lo, hi)) %>%
+  transmute(Water, ov_lo = pmax(lo_Inoc, lo_Strl), ov_hi = pmin(hi_Inoc, hi_Strl))
+rngAll <- inter %>% group_by(Water) %>% summarise(lo = min(Fava_g), hi = max(Fava_g), .groups = "drop")
+diffW <- diffW %>% left_join(rngAll, by = "Water") %>% left_join(ovl, by = "Water") %>%
+  filter(Fava_g >= lo, Fava_g <= hi) %>%
+  mutate(supported = !is.na(ov_lo) & ov_hi > ov_lo & Fava_g >= ov_lo & Fava_g <= ov_hi)
+print(ovl)
+
+fig4b_diff <- ggplot(diffW, aes(Fava_g)) +
+  geom_hline(yintercept = 0, color = "grey40", linewidth = 0.4) +
+  geom_ribbon(aes(ymin = lcl, ymax = ucl), fill = blue, alpha = 0.08) +
+  geom_line(aes(y = est), color = blue, linewidth = 0.8, linetype = "13") +
+  geom_ribbon(data = filter(diffW, supported), aes(ymin = lcl, ymax = ucl), fill = blue, alpha = 0.2) +
+  geom_line(data = filter(diffW, supported), aes(y = est), color = blue, linewidth = 1.1) +
+  facet_wrap(~Water, labeller = labeller(Water = water_lab)) +
+  scale_x_continuous(breaks = c(2.5, 5, 7.5, 10)) +
+  coord_cartesian(ylim = c(-0.3, 0.6)) +
+  labs(x = "Fava biomass (g per pot)",
+       y = "Inoculated minus sterile\narbuscular colonization (proportion)",
+       title = "Effect of inoculation on arbuscular colonization, by fava biomass and water level",
+       subtitle = "Model difference with 95% CI (fava x inoculation + water). Solid = both treatments have pots at that fava biomass; dotted = extrapolated.") +
+  theme_ms(base_size = 12) +
+  theme(panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 9.5, color = "grey30"))
+fig4b_diff
+ggsave("figures/Fig_AMFvsFava_ByWater_Arb_Diff.pdf", fig4b_diff, width = 10.5, height = 4.4)
+ggsave("figures/Fig_AMFvsFava_ByWater_Arb_Diff.png", fig4b_diff, width = 10.5, height = 4.4, dpi = 300, bg = "white")
+```
+
+## 4c - Inoculated pots only
+
+```{r fig4c, fig.width=10.5, fig.height=4.6}
+ann4c <- annB %>% filter(Inoc == "Inoc")
+fig4c <- ggplot() +
+  geom_ribbon(data = filter(linesB, Inoc == "Inoc"), aes(Fava_g, ymin = lcl, ymax = ucl), fill = blue, alpha = 0.15) +
+  geom_line(data = filter(linesB, Inoc == "Inoc"), aes(Fava_g, response), color = blue, linewidth = 0.9) +
+  geom_point(data = filter(ptsA, Inoc == "Inoc"), aes(Fava_g, y, shape = Water),
+             fill = blue, color = blue, size = 3.2, stroke = 1) +
+  geom_text(data = ann4c, aes(x = Inf, y = 1.3, label = label), hjust = 1.05, vjust = 1,
+            size = 3, color = "grey25", lineheight = 0.95) +
+  facet_wrap(~metric) +
+  scale_shape_manual(values = c(Control = 21, Moderate = 24, Severe = 22), labels = water_lab) +
+  guides(shape = guide_legend(override.aes = list(fill = "grey60", color = "grey30"))) +
+  scale_y_continuous(limits = c(0, 1.3), breaks = c(0, 0.25, 0.5, 0.75, 1)) +
+  labs(x = "Fava biomass (g per pot)", y = "Proportion of 100 root intersects",
+       title = "AMF colonization against fava biomass, inoculated pots only",
+       subtitle = "Per pot, n = 15. Line = simple fit with 95% CI; shape = water level. Sterile pots (contamination only) omitted.") +
+  theme_ms(base_size = 12) +
+  theme(panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 10, color = "grey30"))
+fig4c
+ggsave("figures/Fig_AMFvsFava_InocOnly.pdf", fig4c, width = 10.5, height = 4.6)
+ggsave("figures/Fig_AMFvsFava_InocOnly.png", fig4c, width = 10.5, height = 4.6, dpi = 300, bg = "white")
+```
+
+## 4d - All slopes on one panel
+
+The slope of each fitted line, expressed as the **odds ratio per +1 g of fava** (the logit slope,
+exponentiated). An odds ratio below 1 would mean lower colonization in pots with more fava; the dashed
+line at 1 is "no relationship". The left panel is the simple fit within each treatment; the right panel
+adds water. Note that the sign of several slopes changes between the two panels, a sign that none of these
+slopes is stable.
+
+```{r fig4d, fig.width=9.5, fig.height=3.8}
+slopeCI <- imap_dfr(mB[plot_metrics], ~ bind_rows(
+    as.data.frame(emtrends(.x$pooled, ~ Inoc, var = "Fava_g")) %>% mutate(kind = "Simple, within treatment"),
+    as.data.frame(emtrends(.x$adj,    ~ Inoc, var = "Fava_g")) %>% mutate(kind = "Adjusted for water")) %>%
+    mutate(metric = .y)) %>%
+  transmute(metric = fct_rev(factor(metric, plot_metrics, metric_lab)),
+            Inoc, kind = factor(kind, c("Simple, within treatment", "Adjusted for water")),
+            or = exp(Fava_g.trend), lcl = exp(asymp.LCL), ucl = exp(asymp.UCL))
+slopeCI %>% arrange(kind, desc(metric), Inoc) %>%
+  mutate(across(c(or, lcl, ucl), ~ round(.x, 2))) %>% knitr::kable()
+
+dodge <- position_dodge(width = 0.55)
+fig4d <- ggplot(slopeCI, aes(or, metric, group = Inoc)) +
+  geom_vline(xintercept = 1, linetype = "22", color = "grey45") +
+  geom_linerange(aes(xmin = lcl, xmax = ucl, linetype = Inoc), orientation = "y",
+                 color = blue, linewidth = 0.8, position = dodge) +
+  geom_point(aes(fill = Inoc), shape = 21, color = blue, size = 3.2, stroke = 1, position = dodge) +
+  facet_wrap(~kind) +
+  scale_x_log10(breaks = c(0.25, 0.5, 1, 2, 4)) +
+  scale_fill_manual(values = c(Inoc = blue, Strl = "white"), labels = inoc_lab) +
+  scale_linetype_manual(values = lty_inoc, labels = inoc_lab) +
+  labs(x = "Odds ratio of colonization per +1 g fava (95% CI, log scale)", y = NULL,
+       title = "Fava slope of each AMF metric, by inoculation treatment",
+       subtitle = "Per-pot quasibinomial fits, n = 15 per treatment. Every interval includes 1.") +
+  theme_ms(base_size = 12) +
+  theme(panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 10, color = "grey30"))
+fig4d
+ggsave("figures/Fig_AMFvsFava_Slopes.pdf", fig4d, width = 9.5, height = 3.8)
+ggsave("figures/Fig_AMFvsFava_Slopes.png", fig4d, width = 9.5, height = 3.8, dpi = 300, bg = "white")
 ```
