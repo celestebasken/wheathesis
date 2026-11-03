@@ -1,0 +1,272 @@
+---
+title: "19 - AMF and fava: AMF metrics against fava, and NPP against AMF metrics"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "CLAUDE + Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status: EXPLORATORY and non-causal.** The question is whether wheat roots are less colonized in
+pots where fava grew more (an antagonistic fava-AMF relationship). Fava biomass is not randomized, and
+the arrow could just as well run the other way: the Figure 3 analysis (`14_Figure3_FavaSuppression`) found that
+inoculated wheat *suppresses* fava. So a negative slope here would show that the two move together, not
+that fava reduces colonization. Every p-value is unadjusted for multiplicity.
+
+**Data.** Parts 1-2 use intercrop pots only (n = 30, 5 per Inoc x Water cell), per pot. Part 3 uses both stand types. X-axis is `Fava_g`.
+Colonization was scored on 100 root intersects per pot, so the three AMF metrics are counts out of 100:
+
+* **Any fungal structure** (`hyph_n`, the hyphal colonization used elsewhere).
+* **Arbuscules** (`arb_n`).
+* **Vesicles** (`ves_n`).
+
+`AV` (log arbuscule : vesicle ratio) is reported in the table only. It is set to 0 whenever both counts
+are 0, so it is not defined for most sterile pots and is not plotted.
+
+**Models.** Quasibinomial regression on the counts out of 100 (logit link, dispersion estimated, because
+intersects within a root are not independent). Slopes are on the logit scale. `lm` for `AV`. Slopes come
+from models fitted once with `emtrends`; no subset models.
+
+```{r libs}
+library(tidyverse)
+library(emmeans)
+source("../fig_style.R")
+
+inter <- readRDS("../wheat_audited.rds") %>% filter(Poly == "Inter")
+stopifnot(nrow(inter) == 30, all(table(inter$Inoc, inter$Water) == 5),
+          identical(levels(inter$Inoc), c("Inoc", "Strl")),
+          all(inter$hyph_n == 100 - inter$None))
+
+fmt_p <- function(p) ifelse(p < 0.001, "p < 0.001", paste0("p = ", formatC(p, format = "f", digits = 3)))
+
+metric_lab <- c(hyph_n = "Any fungal structure", arb_n = "Arbuscules", ves_n = "Vesicles")
+
+fit_metric <- function(metric, rhs, data = inter) {
+  if (metric == "AV") return(lm(as.formula(paste("AV ~", rhs)), data = data))
+  data$n <- data[[metric]]
+  glm(as.formula(paste("cbind(n, 100 - n) ~", rhs)), family = quasibinomial, data = data)
+}
+slopes <- function(m, by = NULL) {
+  f <- if (is.null(by)) ~ 1 else as.formula(paste("~", by))
+  as.data.frame(test(emtrends(m, f, var = "Fava_g")))
+}
+norm_cl <- function(d) {
+  names(d)[names(d) == "prob"] <- "response"
+  names(d)[names(d) %in% c("lower.CL", "asymp.LCL")] <- "lcl"
+  names(d)[names(d) %in% c("upper.CL", "asymp.UCL")] <- "ucl"
+  d
+}
+blue <- pal_poly[["Inter"]]
+```
+
+# Why two views
+
+Fava biomass is nearly a proxy for inoculation (sterile pots grew 4-10 g of fava; inoculated pots 1-4 g),
+and sterile pots are barely colonized (the scored colonization there is background/contamination). A
+pooled regression over all 30 pots therefore mostly re-draws the inoculation effect. The informative
+question is whether fava predicts colonization *among the inoculated pots*, where colonization actually
+varies, so Part 2 estimates the slope within each inoculation treatment.
+
+```{r summ}
+inter %>% group_by(Inoc) %>%
+  summarise(n = n(), `fava, g (range)` = paste0(round(min(Fava_g), 1), "-", round(max(Fava_g), 1)),
+            `any structure, mean` = mean(hyph_n) / 100, `arbuscules, mean` = mean(arb_n) / 100,
+            `vesicles, mean` = mean(ves_n) / 100) %>%
+  mutate(across(where(is.double), ~ round(.x, 2))) %>% knitr::kable()
+```
+
+# Part 1 - Simple regression, all 30 intercrop pots
+
+* **pooled** p: `metric ~ Fava` (the simple regression).
+* **adjusted** p: `metric ~ Fava + Inoc`, the fava slope once inoculation is accounted for.
+
+```{r modelsA}
+metrics <- c("hyph_n", "arb_n", "ves_n", "AV")
+mA <- map(set_names(metrics), ~ list(pooled = fit_metric(.x, "Fava_g"),
+                                      adj    = fit_metric(.x, "Fava_g + Inoc")))
+slopeA <- imap_dfr(mA, ~ bind_rows(slopes(.x$pooled) %>% mutate(kind = "pooled"),
+                                   slopes(.x$adj)    %>% mutate(kind = "adjusted")) %>%
+                     mutate(metric = .y))
+slopeA %>% transmute(metric, kind, slope = round(Fava_g.trend, 3), SE = round(SE, 3),
+                     p = signif(p.value, 3)) %>% knitr::kable()
+```
+
+```{r figA, fig.width=10.5, fig.height=4.6}
+grid <- seq(1, 10, length.out = 100)
+plot_metrics <- c("hyph_n", "arb_n", "ves_n")
+rel <- function(d) mutate(d, metric = factor(metric, plot_metrics, metric_lab))
+
+linesA <- map_dfr(plot_metrics, ~ emmeans(mA[[.x]]$pooled, ~ Fava_g, at = list(Fava_g = grid),
+                                          type = "response") %>% as.data.frame() %>% norm_cl() %>%
+                    mutate(metric = .x)) %>% rel()
+ptsA <- inter %>% select(Inoc, Water, Fava_g, all_of(plot_metrics)) %>%
+  pivot_longer(all_of(plot_metrics), names_to = "metric", values_to = "n") %>%
+  mutate(y = n / 100) %>% rel()
+annA <- slopeA %>% filter(metric %in% plot_metrics) %>% select(metric, kind, p.value) %>%
+  pivot_wider(names_from = kind, values_from = p.value) %>%
+  mutate(label = paste0("slope ", fmt_p(pooled), " (pooled)\nslope ", fmt_p(adjusted), " (adj. for Inoc)")) %>% rel()
+
+figA <- ggplot() +
+  geom_ribbon(data = linesA, aes(Fava_g, ymin = lcl, ymax = ucl), fill = blue, alpha = 0.15) +
+  geom_line(data = linesA, aes(Fava_g, response), color = blue, linewidth = 0.9) +
+  geom_point(data = ptsA, aes(Fava_g, y, fill = Inoc), shape = 21, color = blue, size = 3, stroke = 1) +
+  geom_text(data = annA, aes(x = Inf, y = 1.3, label = label), hjust = 1.05, vjust = 1,
+            size = 3, color = "grey25", lineheight = 0.95) +
+  facet_wrap(~metric) +
+  scale_fill_manual(values = c(Inoc = blue, Strl = "white"), labels = inoc_lab) +
+  scale_y_continuous(limits = c(0, 1.3), breaks = c(0, 0.25, 0.5, 0.75, 1)) +
+  labs(x = "Fava biomass (g per pot)", y = "% of root intersects",
+       title = "AMF colonization against fava biomass, inter only",
+       subtitle = "Line = pooled fit with 95% CI.") +
+  theme_ms(base_size = 12) +
+  theme(panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 10, color = "grey30"))
+figA
+ggsave("figures/Fig_AMFvsFava_AllPots.pdf", figA, width = 10.5, height = 4.6)
+ggsave("figures/Fig_AMFvsFava_AllPots.png", figA, width = 10.5, height = 4.6, dpi = 300, bg = "white")
+```
+
+# Part 2 - Within each inoculation treatment (n = 15 each)
+
+* **pooled** p: `metric ~ Fava * Inoc`, the simple fava slope within each treatment.
+* **adjusted** p: `metric ~ Fava * Inoc + Water`, the same slope after accounting for water.
+
+The sterile row is shown for completeness, but its "colonization" is contamination; the inoculated row
+is the real test of antagonism. Within inoculated pots fava varies only about 1.3-4.3 g, and
+colonization is near the ceiling for hyphae (0.46-1.0), so power is limited.
+
+```{r modelsB}
+mB <- map(set_names(metrics), ~ list(pooled = fit_metric(.x, "Fava_g * Inoc"),
+                                      adj    = fit_metric(.x, "Fava_g * Inoc + Water")))
+slopeB <- imap_dfr(mB, ~ bind_rows(slopes(.x$pooled, "Inoc") %>% mutate(kind = "pooled"),
+                                   slopes(.x$adj,    "Inoc") %>% mutate(kind = "adjusted")) %>%
+                     mutate(metric = .y))
+slopeB %>% transmute(metric, Inoc, kind, slope = round(Fava_g.trend, 3), SE = round(SE, 3),
+                     p = signif(p.value, 3)) %>% arrange(metric, Inoc, kind) %>% knitr::kable()
+```
+
+```{r figB, fig.width=10.5, fig.height=7}
+rngB <- inter %>% group_by(Inoc) %>% summarise(lo = min(Fava_g), hi = max(Fava_g))
+linesB <- map_dfr(plot_metrics, ~ emmeans(mB[[.x]]$pooled, ~ Fava_g * Inoc, at = list(Fava_g = grid),
+                                          type = "response") %>% as.data.frame() %>% norm_cl() %>%
+                    mutate(metric = .x)) %>%
+  left_join(rngB, by = "Inoc") %>% filter(Fava_g >= lo, Fava_g <= hi) %>% rel()
+annB <- slopeB %>% filter(metric %in% plot_metrics) %>% select(metric, Inoc, kind, p.value) %>%
+  pivot_wider(names_from = kind, values_from = p.value) %>%
+  mutate(label = paste0("slope ", fmt_p(pooled), " (pooled)\nslope ", fmt_p(adjusted), " (adj. for water)")) %>% rel()
+inoc_panel <- c(Inoc = "Inter - inoculated", Strl = "Inter - sterile")
+
+figB <- ggplot() +
+  geom_ribbon(data = linesB, aes(Fava_g, ymin = lcl, ymax = ucl), fill = blue, alpha = 0.15) +
+  geom_line(data = linesB, aes(Fava_g, response), color = blue, linewidth = 0.9) +
+  geom_point(data = ptsA, aes(Fava_g, y, shape = Water, fill = Inoc), color = blue, size = 3, stroke = 1) +
+  geom_text(data = annB, aes(x = Inf, y = 1.3, label = label), hjust = 1.05, vjust = 1,
+            size = 3, color = "grey25", lineheight = 0.95) +
+  facet_grid(Inoc ~ metric, scales = "free_x", labeller = labeller(Inoc = inoc_panel)) +
+  scale_shape_manual(values = c(Control = 21, Moderate = 24, Severe = 22), labels = water_lab) +
+  scale_fill_manual(values = c(Inoc = blue, Strl = "white"), guide = "none") +
+  guides(shape = guide_legend(override.aes = list(fill = "grey60", color = "grey30"))) +
+  scale_y_continuous(limits = c(0, 1.3), breaks = c(0, 0.25, 0.5, 0.75, 1)) +
+  labs(x = "Fava biomass (g per pot)", y = "Proportion of 100 root intersects",
+       title = "AMF colonization against fava biomass within each inoculation treatment",
+       subtitle = "Per pot, n = 15 per panel (x-axes differ by row). Line = pooled fit with 95% CI; shape = water level.") +
+  theme_ms(base_size = 12) +
+  theme(panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 10, color = "grey30"))
+figB
+ggsave("figures/Fig_AMFvsFava_ByInoc.pdf", figB, width = 10.5, height = 7)
+ggsave("figures/Fig_AMFvsFava_ByInoc.png", figB, width = 10.5, height = 7, dpi = 300, bg = "white")
+```
+
+# Part 3 - Total NPP against AMF metrics, Moderate and Severe drought
+
+**Question.** Under moderate and severe drought, does wheat-pot productivity rise or fall with how
+heavily the roots are colonized? Simple regression of **pot total NPP** (`Pot_NPP_g`, g per pot) on
+each AMF metric, **fitted separately for every water level and every stand type** (as requested; Control is
+left out). This departs from the "fit once" convention used elsewhere, so each regression has only
+n = 10 pots and the 12 tests below are unadjusted.
+
+* Stand types are kept apart, never pooled: Mono pots hold 12 wheat plants and Inter pots 6 wheat + 1
+  fava, so their pot totals are not on one scale. In Inter pots the total includes the fava.
+* Predictors are the proportion of 100 root intersects (0-1): any fungal structure, arbuscules, vesicles.
+* Model: `lm(log(Pot_NPP_g) ~ metric)`. The slope is the log-change in NPP per unit change in the
+  proportion, reported as the percent change per +0.10 colonization.
+* **Colonization is nearly a proxy for inoculation.** Within each cell, sterile pots sit near 0 and
+  inoculated pots near 1 for hyphae, so the hyphal slope is close to an inoculation contrast. Points
+  are colored by Inoc so the two clusters are visible. Arbuscules and vesicles vary more within the
+  inoculated pots, which makes them the more informative predictors.
+
+```{r modelsC}
+wheat_all <- readRDS("../wheat_audited.rds") %>% filter(Water %in% c("Moderate", "Severe")) %>%
+  mutate(Water = droplevels(Water))
+stopifnot(nrow(wheat_all) == 40, all(table(wheat_all$Poly, wheat_all$Inoc, wheat_all$Water) == 5),
+          all(wheat_all$Pot_NPP_g > 0))
+
+dfC <- wheat_all %>%
+  select(Poly, Inoc, Water, Pot_NPP_g, all_of(plot_metrics)) %>%
+  pivot_longer(all_of(plot_metrics), names_to = "metric", values_to = "n") %>%
+  mutate(x = n / 100)
+
+fitC <- dfC %>% group_by(Poly, Water, metric) %>% nest() %>%
+  mutate(m = map(data, ~ lm(log(Pot_NPP_g) ~ x, data = .x)),
+         est = map_dbl(m, ~ coef(.x)[["x"]]),
+         se  = map_dbl(m, ~ summary(.x)$coefficients["x", 2]),
+         p   = map_dbl(m, ~ summary(.x)$coefficients["x", 4]),
+         pct10 = (exp(est * 0.1) - 1) * 100,
+         n = map_int(data, nrow))
+
+fitC %>% ungroup() %>%
+  transmute(Poly, Water, metric = metric_lab[metric], n, `slope (log)` = round(est, 2), SE = round(se, 2),
+            `% per +0.10` = round(pct10, 1), p = signif(p, 3)) %>%
+  arrange(Poly, Water, metric) %>% knitr::kable()
+```
+
+```{r figC, fig.width=10.5, fig.height=11}
+gridC <- seq(0, 1, length.out = 100)
+linesC <- fitC %>%
+  mutate(pred = map2(m, data, function(m, d) {
+    g <- tibble(x = gridC[gridC >= min(d$x) & gridC <= max(d$x)])
+    pr <- predict(m, g, se.fit = TRUE)
+    tcrit <- qt(0.975, m$df.residual)
+    g %>% mutate(fit = exp(pr$fit), lcl = exp(pr$fit - tcrit * pr$se.fit), ucl = exp(pr$fit + tcrit * pr$se.fit))
+  })) %>% select(Poly, Water, metric, pred) %>% unnest(pred)
+
+annC <- fitC %>% ungroup() %>%
+  transmute(Poly, Water, metric,
+            label = paste0(fmt_p(p), " (", sprintf("%+.1f", round(pct10, 1) + 0), "% per +0.10)"))
+
+relC <- function(d) d %>%
+  mutate(metric = factor(metric, plot_metrics, metric_lab),
+         row = factor(paste(Poly, "-", Water),
+                      c("Inter - Moderate", "Inter - Severe", "Mono - Moderate", "Mono - Severe")))
+linesC <- relC(linesC); annC <- relC(annC); ptsC <- relC(dfC)
+
+figC <- ggplot() +
+  geom_ribbon(data = linesC, aes(x, ymin = lcl, ymax = ucl, fill = Poly), alpha = 0.15, show.legend = FALSE) +
+  geom_line(data = linesC, aes(x, fit, color = Poly), linewidth = 0.9) +
+  geom_point(data = ptsC, aes(x, Pot_NPP_g, color = Poly, shape = Inoc), size = 3, stroke = 1.1) +
+  geom_text(data = annC, aes(x = Inf, y = Inf, label = label), hjust = 1.05, vjust = 1.4,
+            size = 3, color = "grey25") +
+  facet_grid(row ~ metric, scales = "free_y") +
+  scale_color_manual(values = pal_poly, guide = "none") +
+  scale_fill_manual(values = pal_poly, guide = "none") +
+  scale_shape_manual(values = shp_inoc, labels = inoc_lab,
+                     guide = guide_legend(override.aes = list(color = "grey30"))) +
+  scale_x_continuous(breaks = c(0, 0.5, 1)) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.25))) +
+  labs(x = "Proportion of 100 root intersects", y = "Pot total NPP (g per pot)",
+       title = "Pot productivity against AMF colonization under moderate and severe drought",
+       subtitle = "Separate simple regression per panel, n = 10.") +
+  theme_ms(base_size = 12) +
+  theme(panel.grid.major.x = element_line(color = "grey93", linewidth = 0.3),
+        plot.subtitle = element_text(size = 9.5, color = "grey30"))
+figC
+ggsave("figures/Fig_NPPvsAMF_Drought.pdf", figC, width = 10.5, height = 11)
+ggsave("figures/Fig_NPPvsAMF_Drought.png", figC, width = 10.5, height = 11, dpi = 300, bg = "white")
+```
