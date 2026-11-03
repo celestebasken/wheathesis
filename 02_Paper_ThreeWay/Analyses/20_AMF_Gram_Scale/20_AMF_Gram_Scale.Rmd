@@ -1,0 +1,184 @@
+---
+title: "20 - AMF effect on berry mass, vegetative mass and NPP, in grams per pot"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "Celeste"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+THIS FILE is not useful it's just a repeat of the exploratory grids I made a while ago.
+
+1. What does AMF inoculation do to **berry mass**, **vegetative mass**, and **total NPP**, in each stand type?
+2. Does that AMF effect **differ between monoculture and intercrop** (a difference-of-differences)?
+
+**Responses (wheat only, grams per pot).** `W_Berries_g` = berries; vegetative = `W_NPP - W_Berries_g`
+(everything that is not berries, roots included); total = `W_NPP`. Berries + vegetative = total exactly.
+Pot totals are used, per the pot-level convention, and `Pot_NPP_g` is not used because for Inter pots it
+includes fava. **Important caveat for Mono vs Inter:** a Mono pot holds 12 wheat plants and an Inter pot
+6 wheat + 1 fava, with the same water per pot. The stand-type contrast is therefore *fava presence and
+halved wheat density together*; this data set cannot separate them.
+
+**Model.** One model per response, fitted **once** to all 60 pots:
+`lm(log(y) ~ Poly * Inoc * Water)`. The log scale makes effects ratios (percent change) and keeps the
+fitted values positive. Berry variance differs strongly across cells (SD on the log scale from 0.10 to
+0.65, n = 5 per cell), so all tests and intervals use heteroscedasticity-robust (HC3) covariance. Effects
+are `Inoc - Strl`, shown as a percent change; the stand-type contrast is the ratio of those effects
+(Mono / Inter). All p-values and CIs are unadjusted for multiplicity (3 responses x 3 water levels).
+
+```{r libs}
+library(tidyverse)
+library(emmeans)
+library(car)
+library(sandwich)
+source("../fig_style.R")
+
+wheat <- readRDS("../wheat_audited.rds") %>%
+  mutate(berry_g = W_Berries_g, total_g = W_NPP, veg_g = W_NPP - W_Berries_g)
+stopifnot(nrow(wheat) == 60, all(table(wheat$Poly, wheat$Inoc, wheat$Water) == 5),
+          all(wheat$berry_g > 0), all(wheat$veg_g > 0),
+          identical(levels(wheat$Inoc), c("Inoc", "Strl")),
+          isTRUE(all.equal(wheat$berry_g + wheat$veg_g, wheat$total_g)))
+
+resp_lab <- c(berry_g = "Berries", veg_g = "Vegetative", total_g = "Total NPP")
+fmt_p <- function(p) ifelse(p < 0.001, "p < 0.001", paste0("p = ", formatC(p, format = "f", digits = 3)))
+
+models <- map(set_names(names(resp_lab)), ~ lm(as.formula(paste0("log(", .x, ") ~ Poly * Inoc * Water")), data = wheat))
+rob <- map(models, ~ sandwich::vcovHC(.x, type = "HC3"))
+```
+
+# Cell means
+
+Raw means per pot (g), five pots per cell.
+
+```{r means}
+wheat %>% group_by(Poly, Water, Inoc) %>%
+  summarise(across(c(berry_g, veg_g, total_g), ~ round(mean(.x), 1)), .groups = "drop") %>%
+  pivot_wider(names_from = Inoc, values_from = c(berry_g, veg_g, total_g)) %>%
+  select(Poly, Water, ends_with("_Inoc"), ends_with("_Strl")) %>% knitr::kable()
+```
+
+# Omnibus tests
+
+Robust Wald tests (type II). The terms that bear on the question are `Poly:Inoc` (does AMF act differently
+in the two stand types) and `Poly:Inoc:Water` (does that difference change with drought).
+
+```{r omni}
+imap_dfr(models, function(m, r) {
+  a <- car::Anova(m, type = 2, white.adjust = "hc3")
+  tibble(response = resp_lab[[r]], term = rownames(a), p = signif(a[["Pr(>F)"]], 3)) %>%
+    filter(term %in% c("Inoc", "Poly:Inoc", "Inoc:Water", "Poly:Inoc:Water"))
+}) %>% pivot_wider(names_from = term, values_from = p) %>% knitr::kable()
+```
+
+# AMF effect by stand type and water (Inoc vs Strl)
+
+```{r effects}
+em <- map2(models, rob, ~ emmeans(.x, ~ Inoc | Poly * Water, vcov. = .y))
+
+eff <- imap_dfr(em, function(e, r) {
+  summary(contrast(e, "pairwise", by = c("Poly", "Water")), infer = c(TRUE, TRUE)) %>%
+    as.data.frame() %>% mutate(resp = r)
+}) %>%
+  mutate(pct = (exp(estimate) - 1) * 100, lo = (exp(lower.CL) - 1) * 100, hi = (exp(upper.CL) - 1) * 100)
+stopifnot(eff$contrast[1] == "Inoc - Strl")
+
+eff %>% transmute(Response = resp_lab[resp], Poly, Water, `AMF effect (%)` = round(pct, 0),
+                  `95% CI` = paste0("[", round(lo, 0), ", ", round(hi, 0), "]"),
+                  p = signif(p.value, 3)) %>%
+  arrange(Response, Poly, Water) %>% knitr::kable()
+```
+
+# Does the AMF effect differ between Mono and Inter? (difference-of-differences)
+
+Ratio of the AMF effect in Mono to the AMF effect in Inter, at each water level. A ratio of 1 means AMF
+acts the same in both stand types; below 1 means a more negative (or less positive) AMF effect in
+monoculture. This is the formal version of "AMF costs berries only in monoculture."
+
+```{r dod}
+dod <- imap_dfr(em, function(e, r) {
+  summary(contrast(e, interaction = c("pairwise", "revpairwise"), by = "Water"),
+          infer = c(TRUE, TRUE)) %>% as.data.frame() %>% mutate(resp = r)
+}) %>% mutate(ratio = exp(estimate), rlo = exp(lower.CL), rhi = exp(upper.CL))
+
+dod %>% transmute(Response = resp_lab[resp], Water,
+                  `Mono / Inter ratio of AMF effects` = round(ratio, 2),
+                  `95% CI` = paste0("[", round(rlo, 2), ", ", round(rhi, 2), "]"),
+                  p = signif(p.value, 3)) %>%
+  arrange(Response, Water) %>% knitr::kable()
+```
+
+# Figure A - AMF effect (Inoc vs Strl), by stand type
+
+Percent change in grams per pot with inoculation, with 95% CI. The label above each water level is the p-value
+for the Mono vs Inter difference in that effect.
+
+```{r figA, fig.width=10.5, fig.height=4.8}
+effp <- eff %>% mutate(resp = factor(resp, names(resp_lab), resp_lab),
+                       Poly = factor(Poly, c("Mono", "Inter")))
+dodp <- dod %>% mutate(resp = factor(resp, names(resp_lab), resp_lab),
+                       label = fmt_p(p.value))
+dodge <- position_dodge(0.4)
+
+figA <- ggplot(effp, aes(Water, pct, color = Poly)) +
+  geom_hline(yintercept = 0, color = "grey50", linewidth = 0.4) +
+  geom_errorbar(aes(ymin = lo, ymax = hi), width = 0.18, position = dodge, linewidth = 0.7) +
+  geom_point(position = dodge, size = 3.4) +
+  geom_text(data = dodp, aes(x = Water, y = Inf, label = label), inherit.aes = FALSE,
+            vjust = 1.4, size = 3.1, color = "grey25") +
+  facet_wrap(~resp, scales = "free_y") +
+  scale_color_manual(values = pal_poly, labels = poly_lab, breaks = c("Mono", "Inter")) +
+  scale_y_continuous(labels = function(x) paste0(x, "%"), expand = expansion(mult = c(0.05, 0.2))) +
+  labs(x = NULL, y = "AMF effect: inoculated vs sterile (% change)",
+       title = "Effect of AMF on wheat biomass components, by stand type and water",
+       subtitle = paste0("Grams per pot, wheat only. Bars = 95% CI (robust). ",
+                         "Labels: Mono vs Inter difference in the AMF effect (unadjusted).")) +
+  theme_ms(base_size = 12) +
+  theme(plot.subtitle = element_text(size = 9.5, color = "grey30"))
+figA
+ggsave("figures/Fig_AMF_GramScale_Effects.pdf", figA, width = 10.5, height = 4.8)
+ggsave("figures/Fig_AMF_GramScale_Effects.png", figA, width = 10.5, height = 4.8, dpi = 300, bg = "white")
+```
+
+# Figure B - Estimated means in grams
+
+Geometric-mean estimates back-transformed from the log model, with 95% CI. Filled = inoculated, open =
+sterile. Same cells as Figure A, shown as levels rather than effects.
+
+```{r figB, fig.width=9.5, fig.height=8.5}
+emm_df <- imap_dfr(models, function(m, r) {
+  as.data.frame(emmeans(m, ~ Inoc * Poly * Water, vcov. = rob[[r]], type = "response")) %>%
+    mutate(resp = r)
+}) %>%
+  mutate(resp = factor(resp, names(resp_lab), resp_lab), Poly = factor(Poly, c("Mono", "Inter")))
+if ("response" %in% names(emm_df) == FALSE) stop("unexpected emmeans output")
+names(emm_df)[names(emm_df) %in% c("lower.CL", "asymp.LCL")] <- "lcl"
+names(emm_df)[names(emm_df) %in% c("upper.CL", "asymp.UCL")] <- "ucl"
+polyn <- c(Mono = "Monoculture (12 wheat)", Inter = "Wheat/ fava intercrop (6 wheat + 1 fava)")
+dodge2 <- position_dodge(0.35)
+
+figB <- ggplot(emm_df, aes(Water, response, color = Poly, group = Inoc)) +
+  geom_line(aes(linetype = Inoc), position = dodge2, linewidth = 0.8) +
+  geom_errorbar(aes(ymin = lcl, ymax = ucl), width = 0.15, position = dodge2, linewidth = 0.6) +
+  geom_point(aes(shape = Inoc), position = dodge2, size = 3.2, stroke = 1.1, fill = "white") +
+  facet_grid(resp ~ Poly, scales = "free_y", labeller = labeller(Poly = polyn)) +
+  scale_color_manual(values = pal_poly, guide = "none") +
+  scale_shape_manual(values = shp_inoc, labels = inoc_lab,
+                     guide = guide_legend(override.aes = list(color = "grey30"))) +
+  scale_linetype_manual(values = lty_inoc, guide = "none") +
+  scale_y_continuous(limits = c(0, NA)) +
+  labs(x = NULL, y = "Wheat mass (g per pot)",
+       title = "Berry, vegetative and total wheat mass by stand type, water and inoculation",
+       subtitle = "Estimated means from the log model (geometric means); bars = 95% CI (robust); filled = inoculated, open = sterile.") +
+  theme_ms(base_size = 12) +
+  theme(plot.subtitle = element_text(size = 9.5, color = "grey30"))
+figB
+ggsave("figures/Fig_AMF_GramScale_Means.pdf", figB, width = 9.5, height = 8.5)
+ggsave("figures/Fig_AMF_GramScale_Means.png", figB, width = 9.5, height = 8.5, dpi = 300, bg = "white")
+```
