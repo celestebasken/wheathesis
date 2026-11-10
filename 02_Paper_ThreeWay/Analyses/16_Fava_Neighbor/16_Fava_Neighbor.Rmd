@@ -13,7 +13,9 @@ output:
 knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
 
-**Status: EXPLORATORY throughout.** None of this is in the pre-specified confirmatory set, and every
+**Status: SUPPLEMENTARY and EXPLORATORY throughout.** In the paper this material is supplementary
+(R5, "neighbor response"; Fig S-fava = `Fig_FavaNeighbor_InocWater` and
+`Fig_FavaNeighbor_PotComposition`), not a main figure. None of this is in the pre-specified confirmatory set, and every
 p-value and CI is unadjusted for multiplicity. This file replaces the earlier fava documents
 (14 Fig 3 "fava suppression", 16 "competitive balance", 18 "fava as explanatory", 19 "AMF vs fava").
 Those were built on a data-entry error: the fava weights for the sterile intercrop pots (31-45) were
@@ -234,6 +236,68 @@ signature of two plants competing for the same pot, but it is a correlation in o
 levels, unadjusted, and fava biomass also depends on the pot, so it cannot be read as fava causing a
 wheat loss.
 
+# 3b. Simple effects: water within each inoculation level (EXPLORATORY)
+
+Section 1 compares inoculated with sterile wheat *within* each water level. This section adds the
+other direction, water contrasts *within* inoculated and within sterile pots, and repeats the full
+set for fava's share of pot biomass (`Pot_pcent_fava`, a proportion 0-1). The models are
+`lm(y ~ Inoculation * Water)` on the 30 intercrop pots for three responses: fava in grams, log(fava)
+as a check, and fava share. All contrasts, with raw and Holm-adjusted p-values, are written to
+`outputs/fava_simple_effects.csv`. Holm families: (a) the three Inoc - Strl contrasts for one
+response; (b) the three pairwise water contrasts within one inoculation level for one response.
+
+```{r simple-effects}
+se_resp <- c(`Fava biomass (g)` = "Fava_g", `log(fava biomass)` = "log(Fava_g)",
+             `Fava share of pot biomass` = "Pot_pcent_fava")
+se_models <- map(se_resp, ~ lm(as.formula(paste(.x, "~ Inoc * Water")), data = inter))
+
+anova_tab <- imap_dfr(se_models, function(m, r)
+  car::Anova(m, type = 2) %>% as.data.frame() %>% rownames_to_column("term") %>%
+    filter(term != "Residuals") %>% transmute(response = r, term, F = `F value`, df = Df, p = `Pr(>F)`))
+knitr::kable(anova_tab %>% mutate(F = round(F, 2), p = signif(p, 2)),
+             caption = "Type II ANOVA, lm(y ~ Inoc * Water), intercrop pots (n = 5 per cell)")
+
+cellm <- inter %>% group_by(Inoc, Water) %>%
+  summarise(`fava (g)` = sprintf("%.2f ± %.2f", mean(Fava_g), sd(Fava_g) / sqrt(n())),
+            `fava share (%)` = sprintf("%.1f ± %.1f", 100 * mean(Pot_pcent_fava), 100 * sd(Pot_pcent_fava) / sqrt(n())),
+            .groups = "drop")
+knitr::kable(cellm, caption = "Cell means ± SE (n = 5)")
+
+contr <- function(m, r) {
+  a <- emmeans(m, ~ Inoc | Water) %>% contrast("pairwise", adjust = "none") %>%
+    summary(infer = c(TRUE, TRUE)) %>% as.data.frame() %>%
+    transmute(response = r, family = "a: Inoc vs Strl within water", within = as.character(Water),
+              contrast, estimate, lo = lower.CL, hi = upper.CL, p_raw = p.value)
+  b <- emmeans(m, ~ Water | Inoc) %>% contrast("pairwise", adjust = "none") %>%
+    summary(infer = c(TRUE, TRUE)) %>% as.data.frame() %>%
+    transmute(response = r, family = "b: water within inoculation", within = as.character(Inoc),
+              contrast, estimate, lo = lower.CL, hi = upper.CL, p_raw = p.value)
+  bind_rows(a, b) %>% group_by(response, family, if_else(grepl("^b", family), within, "")) %>%
+    mutate(p_holm = p.adjust(p_raw, "holm")) %>% ungroup() %>% select(response:p_holm)
+}
+simple <- imap_dfr(se_models, contr) %>%
+  mutate(scale = case_when(response == "log(fava biomass)" ~ "log (difference of logs)",
+                           response == "Fava share of pot biomass" ~ "proportion (0-1)",
+                           TRUE ~ "grams"))
+write.csv(simple, "outputs/fava_simple_effects.csv", row.names = FALSE)
+
+show <- simple %>% filter(grepl("^b", family) | response == "Fava share of pot biomass")
+knitr::kable(show %>% mutate(across(c(estimate, lo, hi), ~ round(.x, 3)),
+                             across(c(p_raw, p_holm), ~ signif(.x, 2))),
+             caption = "EXPLORATORY - water contrasts within each inoculation level (all responses), and Inoc - Strl for fava share. Inoc - Strl for fava grams and log(fava) is in section 1.")
+
+sig_b <- simple %>% filter(grepl("^b", family), response == "Fava biomass (g)", p_holm < 0.05)
+fs <- simple %>% filter(response == "Fava share of pot biomass", grepl("^a", family))
+fs_sev <- fs %>% filter(within == "Severe")
+```
+
+**Reading it.** For fava grams, `r nrow(sig_b)` of the six water contrasts within an inoculation
+level survive Holm adjustment`r if (nrow(sig_b) > 0) paste0(" (", paste0(sig_b$within, ": ", sig_b$contrast, ", ", sgn(sig_b$estimate, 2), " g, Holm p ", sapply(sig_b$p_holm, fmt_p), collapse = "; "), ")") else ""`.
+For fava's share of the pot, inoculated minus sterile is
+`r paste0(sgn(100 * fs$estimate, 1), " points", collapse = ", ")` at control, moderate and
+severe water (raw p `r paste(signif(fs$p_raw, 2), collapse = ", ")`; severe Holm p
+`r fmt_p(fs_sev$p_holm)`).
+
 # 4. Caveats (attach to any use of this file)
 
 1. **Inoculum confound.** Inoculated pots received live INVAM material (spores, hyphae, root fragments,
@@ -340,33 +404,123 @@ fig_b <- ggplot(pts_b, aes(x = Water, y = y)) +
         axis.text.x = element_text(size = 8.5, lineheight = 0.9), panel.spacing.x = unit(1, "lines"),
         legend.position = "none")
 
+fig <- fig_a / fig_b + plot_layout(heights = c(1, 1))
+print(fig)
+ggsave("figures/Fig_FavaNeighbor.png", fig, width = 7.5, height = 12, dpi = 300, bg = "white")
+```
+
+```{r}
+
 # ---- C: wheat vs fava, by water ----------------------------------------------------------------
 rng <- inter %>% group_by(Water) %>% summarise(lo = min(Fava_g), hi = max(Fava_g), .groups = "drop")
 grid_c <- rng %>% rowwise() %>% reframe(Water = Water, Fava_g = seq(lo, hi, length.out = 50)) %>%
   mutate(Water = factor(Water, levels(inter$Water)))
 pred_c <- cbind(grid_c, exp(predict(m_pool, newdata = grid_c, interval = "confidence")))
-ann_c <- slopes %>% filter(kind == "pooled") %>%
-  mutate(label = paste0("slope ", sgn(slope, 2), " per g, p ", fmt_p(p)), sig = clear(lo, hi))
+#ann_c <- slopes %>% filter(kind == "pooled") %>%
+ # mutate(label = paste0("slope ", sgn(slope, 2), " per g, p ", fmt_p(p)), sig = clear(lo, hi))
 fig_c <- ggplot(inter, aes(Fava_g, W_NPP)) +
   geom_ribbon(data = pred_c, aes(Fava_g, ymin = lwr, ymax = upr), inherit.aes = FALSE, fill = col, alpha = 0.15) +
   geom_line(data = pred_c, aes(Fava_g, fit), colour = col, linewidth = 0.9) +
   geom_point(aes(fill = Inoc), shape = 21, colour = col, size = 2.6, stroke = 0.9) +
-  geom_text(data = ann_c, aes(x = Inf, y = Inf, label = label, colour = sig, fontface = ifelse(sig, "bold", "plain")),
-            hjust = 1.05, vjust = 1.4, size = 3, show.legend = FALSE) +
-  scale_colour_manual(values = c(`TRUE` = "grey15", `FALSE` = "grey60"), guide = "none") +
   scale_fill_manual(values = c(Inoc = col, Strl = "white"), labels = inoc_lab) +
   facet_wrap(~ Water, nrow = 1, labeller = labeller(Water = water_lab)) +
   scale_y_continuous(expand = expansion(mult = c(0.05, 0.2))) +
-  labs(x = "Fava biomass (g)", y = "Wheat biomass per pot (g)", title = "Wheat vs fava (non-causal)",
-       subtitle = "Line: fit from log(wheat) ~ fava x water, 95% CI. Slopes on the log scale.") +
+  labs(x = "Fava biomass (g)", y = "Wheat biomass per pot (g)", title = "Wheat and fava biomass interaction") +
   theme_ms(11) + ttl + theme(legend.position = "none", strip.text = element_text(size = 9.5))
 
-fig <- fig_a / fig_b / fig_c + plot_layout(heights = c(1, 1, 0.9)) +
-  plot_annotation(tag_levels = "A", caption = "Exploratory. CIs and p-values unadjusted. n = 5 pots per group (n = 10 per water level in C).",
-                  theme = theme(plot.caption = element_text(colour = "grey45", size = 8.5, hjust = 0)))
-print(fig)
-ggsave("figures/Fig_FavaNeighbor.pdf", fig, width = 7.5, height = 12)
-ggsave("figures/Fig_FavaNeighbor.png", fig, width = 7.5, height = 12, dpi = 300, bg = "white")
+print(fig_c)
+
+```
+
+
+## Pot composition, stacked bars (EXPLORATORY)
+
+Each bar is the mean pot, wheat (bottom) plus fava (top), for inoculated and sterile pots at each
+water level (identity-scale cell means, the same models as panel B). Open circles are each pot's
+**total** biomass. The bracket gives the unadjusted p-value for the inoculated vs sterile difference
+in total pot biomass (`gram_eff`); it is grey when the 95% CI includes zero.
+
+```{r pot-composition, fig.width=7.5, fig.height=4.6, dpi=150}
+stack <- cell_means %>% filter(comp %in% c("Wheat", "Fava")) %>%
+  mutate(comp = factor(comp, c("Fava", "Wheat")))            # first level is stacked on top
+
+brk_s <- inter %>% group_by(Water) %>% summarise(top = max(pot), .groups = "drop") %>%
+  mutate(ybar = top + 2.2, ytick = top + 0.9, ylab_ = ybar + 0.7) %>%
+  left_join(gram_lab %>% filter(comp == "Total pot") %>% select(Water, est, p, sig), by = "Water") %>%
+  mutate(label = paste0("p ", fmt_p(p)))
+
+fig_stacked <- ggplot(stack, aes(x = Inoc, y = mean)) +
+  geom_col(aes(fill = comp), colour = col, width = 0.66, linewidth = 0.5) +
+  geom_point(data = inter, aes(x = Inoc, y = pot), inherit.aes = FALSE, shape = 21, fill = "white",
+             colour = "grey25", size = 1.9, stroke = 0.8,
+             position = position_jitter(width = 0.12, height = 0, seed = 2)) +
+  geom_segment(data = brk_s, aes(x = 1, xend = 2, y = ybar, yend = ybar), inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_segment(data = brk_s, aes(x = 1, xend = 1, y = ybar, yend = ytick), inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_segment(data = brk_s, aes(x = 2, xend = 2, y = ybar, yend = ytick), inherit.aes = FALSE, colour = "grey55", linewidth = 0.4) +
+  geom_text(data = brk_s, aes(x = 1.5, y = ylab_, label = label, colour = sig, fontface = ifelse(sig, "bold", "plain")),
+            inherit.aes = FALSE, size = 3.1, vjust = 0, show.legend = FALSE) +
+  scale_colour_manual(values = c(`TRUE` = "grey15", `FALSE` = "grey60"), guide = "none") +
+  scale_fill_manual(values = c(Wheat = col, Fava = scales::alpha(col, 0.28)), breaks = c("Wheat", "Fava"),
+                    labels = c(Wheat = "Wheat (6 plants)", Fava = "Fava (1 plant)")) +
+  facet_wrap(~ Water, nrow = 1, strip.position = "bottom", labeller = labeller(Water = water_lab)) +
+  scale_x_discrete(labels = inoc_lab) +
+  scale_y_continuous(limits = c(0, max(brk_s$ylab_) * 1.1), expand = expansion(mult = c(0, 0))) +
+  labs(x = NULL, y = "Biomass per pot (g)", fill = NULL, title = "Pot composition",
+       subtitle = "Bars: mean wheat + fava. Open circles: total biomass of each pot. Bracket: p-value for the change in total.",
+       caption = "Exploratory. p-values unadjusted. n = 5 pots per group.") +
+  theme_ms(11) + ttl +
+  theme(strip.placement = "outside", strip.text = element_text(face = "plain", size = 10),
+        panel.grid.major.x = element_blank(), panel.spacing.x = unit(1.4, "lines"),
+        plot.caption = element_text(colour = "grey45", size = 8.5, hjust = 0))
+print(fig_stacked)
+ggsave("figures/Fig_FavaNeighbor_PotComposition.pdf", fig_stacked, width = 7.5, height = 4.6)
+ggsave("figures/Fig_FavaNeighbor_PotComposition.png", fig_stacked, width = 7.5, height = 4.6, dpi = 300, bg = "white")
+
+knitr::kable(stack %>% select(Water, Inoc, comp, mean) %>% pivot_wider(names_from = comp, values_from = mean) %>%
+               left_join(brk_s %>% select(Water, `Δ total (g)` = est, `p (total)` = p), by = "Water") %>%
+               mutate(across(where(is.numeric), ~ signif(.x, 3))),
+             caption = "Segment means (g per pot) and the inoculated vs sterile change in total pot biomass")
+```
+
+## Fava biomass: inoculation x water interaction plot (EXPLORATORY)
+
+Cell means ± SE of fava biomass (g per pot) in the 30 intercrop pots; faint points are individual
+pots. The label above each water level is the unadjusted p-value for inoculated vs sterile, from
+`lm(Fava_g ~ Inoc * Water)` (section 3b), bold when p < 0.05. The Type II ANOVA for this model is in
+section 3b: Inoculation p `r fmt_p(anova_tab$p[anova_tab$response == "Fava biomass (g)" & anova_tab$term == "Inoc"])`,
+Water p `r fmt_p(anova_tab$p[anova_tab$response == "Fava biomass (g)" & anova_tab$term == "Water"])`,
+Inoculation × Water p `r fmt_p(anova_tab$p[anova_tab$response == "Fava biomass (g)" & anova_tab$term == "Inoc:Water"])`.
+
+```{r inoc-water-plot, fig.width=6.5, fig.height=4.6, dpi=150}
+iw_means <- inter %>% group_by(Water, Inoc) %>%
+  summarise(m = mean(Fava_g), se = sd(Fava_g) / sqrt(n()), .groups = "drop")
+iw_lab <- simple %>% filter(response == "Fava biomass (g)", grepl("^a", family)) %>%
+  transmute(Water = factor(within, levels(inter$Water)), p = p_raw, sig = p_raw < 0.05) %>%
+  left_join(inter %>% group_by(Water) %>% summarise(top = max(Fava_g), .groups = "drop"), by = "Water") %>%
+  mutate(label = paste("p", fmt_p(p)))
+pd <- position_dodge(width = 0.25)
+
+fig_iw <- ggplot(iw_means, aes(Water, m, group = Inoc)) +
+  geom_point(data = inter, aes(Water, Fava_g, group = Inoc, fill = Inoc), inherit.aes = FALSE,
+             shape = 21, colour = col, size = 1.8, alpha = 0.35,
+             position = position_jitterdodge(jitter.width = 0.08, dodge.width = 0.25, seed = 3)) +
+  geom_line(aes(linetype = Inoc), colour = col, linewidth = 0.8, position = pd) +
+  geom_errorbar(aes(ymin = m - se, ymax = m + se), colour = col, width = 0.08, linewidth = 0.6, position = pd) +
+  geom_point(aes(fill = Inoc), shape = 21, colour = col, size = 3.4, stroke = 1.1, position = pd) +
+  geom_text(data = iw_lab, aes(x = Water, y = top + 0.3, label = label, colour = sig,
+                               fontface = ifelse(sig, "bold", "plain")),
+            inherit.aes = FALSE, size = 3.4, vjust = 0, show.legend = FALSE) +
+  scale_colour_manual(values = c(`TRUE` = "grey15", `FALSE` = "grey60"), guide = "none") +
+  scale_fill_manual(values = c(Inoc = col, Strl = "white"), labels = inoc_lab, name = NULL) +
+  scale_linetype_manual(values = c(Inoc = "solid", Strl = "22"), labels = inoc_lab, name = NULL) +
+  scale_x_discrete(labels = water_lab) +
+  scale_y_continuous(limits = c(0, max(iw_lab$top) + 0.9), expand = expansion(mult = c(0, 0))) +
+  labs(x = NULL, y = "Fava biomass per pot (g)", title = "Fava biomass by wheat inoculation and water") +
+  theme_ms(11) + ttl +
+  theme(panel.grid.major.x = element_blank())
+print(fig_iw)
+ggsave("figures/Fig_FavaNeighbor_InocWater.pdf", fig_iw, width = 6.5, height = 4.6)
+ggsave("figures/Fig_FavaNeighbor_InocWater.png", fig_iw, width = 6.5, height = 4.6, dpi = 300, bg = "white")
 ```
 
 # Session info

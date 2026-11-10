@@ -1,0 +1,93 @@
+---
+title: "Significance grid - Monoculture only, per-pot variables - DRAFT (for review)"
+author: "CLAUDE + Celeste Basken"
+date: "2026-09-16"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# READ ME FIRST
+
+This is the **per-pot** counterpart of `../PerPlant/Significance_Grid_Mono_DRAFT.Rmd`:
+same grid as `Significance_Grid_DRAFT.Rmd` (this folder's full-dataset, per-pot grid),
+restricted to **Mono (monoculture) pots only** - both Inoculation levels (Strl and Inoc)
+stay in, unlike the Sterile/Inoculated grids, which each drop down to one Inoculation
+level but keep both Polyculture levels. Everything about how a cell is built - the
+`Yes`/`Kinda (<.1)`/`No` label off BH-adjusted `p_adj`, the direction text, the
+thumbnail with its p-value/stars baked in - is identical; only the underlying models
+change, because of what dropping down to one polyculture does to the design:
+
+- **Polyculture is no longer a predictor.** Every pot here is Mono, so there's no
+  variation left for Polyculture to explain - the 3-way `Inoculation*Polyculture*Water`
+  models from the full-dataset grid become 2-way `Inoculation*Water` models. That means
+  there's no "Polyculture", "Poly:Inoc", "Poly:Water", or 3-way row in this grid at all -
+  they're not blank/`NA`, they simply don't exist as term rows here (`term_labels_for_scope
+  ("mono")` only has 3 possible terms: `AMF inoculation`, `Water (PPT)`, `Inoc:Water`).
+- **AMF colonization** is fit on Inoc-only Mono pots, with `Water` as the only predictor
+  (Polyculture is fixed by this doc's scope; Inoculation is fixed by the Inoc-only
+  subsetting - neither has any variation left to test).
+- **Fava columns are dropped entirely** - `Fava_g` and `Pot_pcent_fava` are exactly 0 for
+  every Mono pot by definition (no fava plant present), so there's zero variance for an
+  ANOVA to test. They don't appear as `NA` columns here; they're just not part of this
+  scope's `battery_spec` at all.
+- **"Total pot productivity" is dropped too**, along with the Fava columns - it's
+  numerically identical to "Wheat total NPP" for this scope (max difference ~5e-5 g,
+  i.e. rounding), since a Mono pot's total biomass IS its wheat biomass with no fava
+  plant to add. Per your call, it's excluded here rather than kept as a redundant
+  column.
+- Mass-family variables are fit on the same **pot-total** biomass columns as
+  `Significance_Grid_DRAFT.Rmd` (`W_NPP`, `W_ANPP_g`, `W_BNPP_g`, `W_Berries_g`), not
+  the density-adjusted `_pp` columns.
+
+All of this comes from `build_battery_spec("mono")` in this folder's `battery_core.R` -
+nothing here is hand-adjusted per variable.
+
+```{r, message=FALSE}
+source("battery_core.R")   # combined/inoc_only/sterile_only/inter_only/mono_only,
+                             # build_battery_spec(), run_battery()
+source("grid_helpers.R")    # plot_cell(), direction_label(), build_cell_data(), render_grid()
+```
+
+```{r}
+# This scope's own spec + fitted battery - NOT the top-level battery_spec/
+# term_summary that battery_core.R also builds (those are scope = "full").
+battery_spec_mono <- build_battery_spec("mono")
+batt_mono          <- run_battery(battery_spec_mono)
+```
+
+```{r}
+# Own plot directory, separate from the other grids', so identically-named
+# cells (e.g. a "Water" main-effect thumbnail exists in every grid) don't
+# overwrite each other on disk.
+plot_dir <- "plots/significance_grid_plots_mono"
+dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+# 1. Build the cell data (one row per response variable x ANOVA term)
+
+```{r}
+cell_data <- build_cell_data(batt_mono$term_summary, batt_mono$spec_by_label, batt_mono$results_list, plot_dir)
+```
+
+# 2. Render the two grids (mass / percent)
+
+```{r}
+term_labels <- term_labels_for_scope("mono")
+```
+
+## 2.1 Mass variables (grams, per pot)
+
+```{r}
+render_grid("mass", cell_data, battery_spec_mono, term_labels)
+```
+
+## 2.2 Percent / allocation variables
+
+```{r}
+render_grid("percent", cell_data, battery_spec_mono, term_labels)
+```

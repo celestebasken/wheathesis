@@ -20,11 +20,13 @@ what each plant had produced and separated it into roots, shoots, and grain.
 
 ## What I found
 
-**Wheat grown alone, with fungi, under severe drought produced far less grain.** Not a small
-difference — a collapse.
+<!-- Numbers are model estimates from Analyses/10_Rigor_Reversal/ (outputs/reversal_simple_effects.csv). -->
 
-**The plant itself did not grow less.** Total biomass was essentially unaffected. The plants grew just as much,
-but invested into stems and roots instead of seed.
+**Wheat grown alone, with fungi, under severe drought produced far less grain** — about 69% less.
+Not a small difference — a collapse.
+
+**The plant itself did not grow less — it grew more.** Total biomass was up about 38%. The
+inoculated plants grew as much or more, but put it into stems and roots instead of seed.
 
 **This wasn't because the plants were bigger.** Larger plants normally make more grain, and the
 inoculated plants under severe drought were the larger ones — yet they made less. So it's a real
@@ -32,15 +34,15 @@ change in how the plant divided its resources, not a side effect of size.
 
 **A fava neighbor prevented it.** In mixed pots, the collapse didn't happen. The two stand types
 were indistinguishable under normal and moderate watering, and diverged only under severe drought.
+Inoculation also did not reduce the fava's own growth (an exploratory check).
 
 ## What it means
 
 The fungal partnership seems to pay off for wheat when water is adequate: inoculated plants were
 larger and made more grain. Under severe drought the payoff disappears while the cost remains.
-<!-- TBD (Celeste): the earlier "the fungi also cost the fava" point was removed in Nov 2026 - it came
-from the fava-weight data error. With corrected weights there is no detectable effect of
-inoculation on fava (see Analyses/16_Fava_Neighbor/). --> Growing alone, wheat covers that cost out of its grain. With a legume neighbor, it
-doesn't have to.
+Growing alone, wheat covers that cost out of its grain. With a legume neighbor, it doesn't have
+to — although a mixed pot also had half as many wheat plants, so this could be the neighbor or the
+lower density (see "I can't separate 'fava' from 'fewer wheat plants'" below).
 
 The broader point is that the plant's biological neighborhood — not just the physical environment —
 determines whether this partnership is a benefit or a burden. For farming, it suggests that

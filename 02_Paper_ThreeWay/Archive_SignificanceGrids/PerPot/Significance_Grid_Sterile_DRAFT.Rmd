@@ -1,0 +1,89 @@
+---
+title: "Significance grid - Sterile pots only, per-pot variables - DRAFT (for review)"
+author: "CLAUDE + Celeste Basken"
+date: "2026-09-16"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# READ ME FIRST
+
+Same grid as `Significance_Grid_DRAFT.Rmd` (this folder's full-dataset, per-pot grid),
+restricted to **Sterile (uninoculated) pots only** - the opposite subset from
+`../PerPlant/Significance_Grid_Inter_DRAFT.Rmd`/`_Mono_DRAFT.Rmd`, which slice on
+Polyculture instead of Inoculation. Everything about how a cell is built - the
+`Yes`/`Kinda (<.1)`/`No` label off BH-adjusted `p_adj`, the direction text, the thumbnail
+with its p-value/stars baked in - is identical; only the underlying models change,
+because of what dropping down to one inoculation level does to the design:
+
+- **Inoculation is no longer a predictor.** Every pot here is Strl, so there's no
+  variation left for Inoculation to explain - the full dataset's 3-way
+  `Inoculation*Polyculture*Water` models become 2-way `Polyculture*Water` models. That
+  means there's no "AMF inoculation", "Poly:Inoc", "Inoc:Water", or 3-way row in this
+  grid at all - they're not blank/`NA`, they simply don't exist as term rows here
+  (`term_labels_for_scope("sterile")` only has 3 possible terms: `Polyculture`,
+  `Water (PPT)`, `Poly:Water`).
+- **AMF colonization (Hyphal / Arbuscular-vesicular) is dropped entirely**, not just
+  re-subsetted - both are a structural zero for every Strl pot by definition (no
+  inoculum to colonize with), and unlike the full/Inter/Mono grids there's no Inoc
+  subset left inside a Sterile-only scope to fit them on at all.
+- **Fava columns are still included** - every Inter pot has a fava plant regardless of
+  inoculation, so `Fava biomass` and `Fava % of pot biomass` are still meaningful here,
+  modeled on Sterile Inter pots as `~ Water` (both Polyculture and Inoculation are fixed
+  by this doc's scope + the Inter-only subsetting).
+- Mass-family variables are fit on the same **pot-total** biomass columns as
+  `Significance_Grid_DRAFT.Rmd` (`W_NPP`, `W_ANPP_g`, `W_BNPP_g`, `W_Berries_g`,
+  `Pot_NPP_g`), not the density-adjusted `_pp` columns.
+
+All of this comes from `build_battery_spec("sterile")` in this folder's `battery_core.R` -
+nothing here is hand-adjusted per variable.
+
+```{r, message=FALSE}
+source("battery_core.R")   # combined/inoc_only/sterile_only/inter_only/mono_only,
+                             # build_battery_spec(), run_battery()
+source("grid_helpers.R")    # plot_cell(), direction_label(), build_cell_data(), render_grid()
+```
+
+```{r}
+# This scope's own spec + fitted battery - NOT the top-level battery_spec/
+# term_summary that battery_core.R also builds (those are scope = "full").
+battery_spec_sterile <- build_battery_spec("sterile")
+batt_sterile          <- run_battery(battery_spec_sterile)
+```
+
+```{r}
+# Own plot directory, separate from the full-dataset grid's, so identically-
+# named cells (e.g. a "Water" main-effect thumbnail exists in both grids)
+# don't overwrite each other on disk.
+plot_dir <- "plots/significance_grid_plots_sterile"
+dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+# 1. Build the cell data (one row per response variable x ANOVA term)
+
+```{r}
+cell_data <- build_cell_data(batt_sterile$term_summary, batt_sterile$spec_by_label, batt_sterile$results_list, plot_dir)
+```
+
+# 2. Render the two grids (mass / percent)
+
+```{r}
+term_labels <- term_labels_for_scope("sterile")
+```
+
+## 2.1 Mass variables (grams, per pot)
+
+```{r}
+render_grid("mass", cell_data, battery_spec_sterile, term_labels)
+```
+
+## 2.2 Percent / allocation variables
+
+```{r}
+render_grid("percent", cell_data, battery_spec_sterile, term_labels)
+```

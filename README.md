@@ -44,10 +44,13 @@ Landing.Rmd                 original entry point
 
 The manuscript in progress. Uses **all 60 pots**. The finding is the three-way interaction:
 
-> Under severe drought in monoculture, AMF increased wheat productivity ~38% while cutting
-> grain ~64% (allocation 0.24 → 0.06). Under adequate water the same inoculation increased
-> grain ~51%. In mixed stands neither effect occurred at any water level — the
-> mutualism-to-parasitism transition is contingent on the plant's neighborhood.
+> Under severe drought in monoculture, AMF increased wheat productivity 38% (95% CI 11–73%) while
+> cutting grain mass 69% (49–80%; allocation 0.24 → 0.06). Under adequate water the same
+> inoculation increased grain mass 66% (3–167%), with no supported shift in allocation. In mixed
+> stands neither effect occurred at any water level — the mutualism-to-parasitism transition is
+> contingent on the plant's neighborhood.
+
+Effect sizes are model estimates from `Analyses/10_Rigor_Reversal/`; 0.24 and 0.06 are raw cell means.
 
 ```
 Analyses/                   the numbered pipeline, 01 -> 20 (the live analysis)
@@ -73,8 +76,8 @@ Manuscript/                 narrative, story arc, figure plan (what to write, no
 | `11_Figure1_Reversal/` | Figure 1: the reversal |
 | `12_Narrative_Update/` | abstract draft (markdown, nothing to knit) |
 | `13_Figure2_Allometry/` | Figure 2: allometry |
-| `15_Figure4_PathDiagram/` | Figure 4: conceptual path diagram |
-| `16_Fava_Neighbor/` | exploratory: fava biomass, competitive balance, fava as a covariate |
+| `15_Figure4_PathDiagram/` | conceptual path diagram — **Figure 3 in the paper** (folder name predates renumbering) |
+| `16_Fava_Neighbor/` | **supplementary** (Fig S-fava), exploratory: fava biomass, competitive balance, fava as a covariate |
 | `17_Fava_As_Treatment/` | stand type (fava present) as a treatment for wheat berry allocation |
 | `20_AMF_Gram_Scale/` | AMF effects on berry, vegetative and total mass in grams per pot |
 
@@ -87,17 +90,17 @@ the working directory, so knit from inside `Analyses/`.
 ### `Manuscript/` — read in this order
 
 1. `what_this_paper_says.md` — one page, plain language, no statistics
-2. `story_arc_and_figures.md` — outline, rigor checklist, the four key figures
+2. `story_arc_and_figures.md` — outline, rigor checklist, the three main figures + supplement
 3. `path_decomposition_and_diagram.md` — direct/indirect effect decomposition, conceptual diagram
 
 ---
 
 ## Open items
 
-- Test the **+51% at control in monoculture** — load-bearing for the reversal framing, currently
-  a raw cell mean at n = 5.
-- Test the reversal as a **linear trend** across water within monoculture (one contrast, not three
-  comparisons).
-- Build **Figure 1** (three-panel effect-size figure; spec in `Manuscript/story_arc_and_figures.md`).
+- ~~Test the +51% at control in monoculture~~ — done in `10_Rigor_Reversal/`: model estimate
+  +66% grain mass (95% CI 3–167%); the allocation shift at control is not supported.
+- ~~Test the reversal as a linear trend~~ — done in `10_Rigor_Reversal/` (trend tests in
+  `outputs/reversal_trend_tests.csv`).
+- ~~Build Figure 1~~ — done in `Analyses/11_Figure1_Reversal/`.
 - Senescence timing per pot was never recorded — blocks the leading mechanistic hypothesis
   (phenological delay).

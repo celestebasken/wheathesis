@@ -1,4 +1,4 @@
-# Story arc, rigor checklist, and the four figures
+# Story arc, rigor checklist, and the three main figures
 
 Decision taken: the paper is the **three-way interaction**, told from the finding and then
 dissected. Structure below, gaps to close before drafting, and the figure set.
@@ -7,13 +7,15 @@ dissected. Structure below, gaps to close before drafting, and the figure set.
 
 ## 1. The claim, in one paragraph
 
-> Under severe drought in monoculture, AMF inoculation increased wheat productivity by 38% while
-> reducing grain by 64%; reproductive allocation fell from 0.24 to 0.06. Under adequate water the
-> same inoculation increased grain by 51%. In mixed stands with a legume neighbor, neither effect
-> occurred at any water level. The mutualism-to-parasitism transition is therefore contingent on
+> Under severe drought in monoculture, AMF inoculation increased wheat productivity by 38% (95% CI
+> 11-73%) while reducing grain mass by 69% (49-80%); reproductive allocation fell from 0.24 to 0.06.
+> Under adequate water the same inoculation increased grain mass by 66% (3-167%), though the
+> allocation shift at control is not supported (its CI includes zero). In mixed stands with a legume
+> neighbor, neither effect occurred at any water level. The mutualism-to-parasitism transition is therefore contingent on
 > the plant's neighborhood, not on water alone.
 
-Every number above is an Inoc-vs-Sterile contrast computed **within** a stand type and **within** a
+Numbers are model estimates from `Analyses/10_Rigor_Reversal/` (`outputs/reversal_simple_effects.csv`);
+the allocation values 0.24 and 0.06 are raw cell means. Every number above is an Inoc-vs-Sterile contrast computed **within** a stand type and **within** a
 water level. Density is constant within stand type, so the density confound does not affect any of
 them — it only affects comparisons of mono's absolute level against inter's. This framing never
 makes that comparison. State this explicitly in the methods; it defuses the paper's oldest
@@ -40,11 +42,11 @@ already asking.
 | § | Question | Answer | Figure |
 |---|---|---|---|
 | R1 | What happened? | AMF reverses from benefit to cost across drought — in monoculture only | **Fig 1** |
-| R2 | Productivity or allocation? | Allocation. Productivity was *up* 38% where grain fell 64% | Fig 1C |
+| R2 | Productivity or allocation? | Allocation. Productivity was *up* 38% (11-73%) where grain mass fell 69% (49-80%) | Fig 1C |
 | R3 | Is it just plant size? | No — size-adjusted, the effect strengthens | **Fig 2** |
 | R4 | Is it fragile? | Robustness: LOO, permutation, distribution-free | text + appendix |
-| R5 | What did it do to the neighbor? | TBD (Celeste). Corrected data: no detectable effect on fava or competitive balance (exploratory) | Fig 3 or supplement, TBD |
-| R6 | Why? | Unresolved. Structural mechanism tested and null | **Fig 4** |
+| R5 | Neighbor response (supplement) | Inoculation did not reduce fava; competitive balance and total pot biomass unchanged. Exploratory: fava next to inoculated wheat was larger under severe drought (3.7 vs 2.3 g, p = 0.003; interaction borderline, p = 0.043 in grams / 0.069 on log scale; one n = 5 cell; the inoculum may have acted on fava directly) | Fig S-fava |
+| R6 | Why? | Unresolved. Structural mechanism tested and null | **Fig 3** |
 
 **Discussion** — states the finding, then: what it means for the continuum literature; the stress
 gradient framing; what the null mechanism rules out; the surviving hypotheses (phenological delay
@@ -56,7 +58,9 @@ leading); agronomic implications as hypotheses, not recommendations; limitations
 
 Ordered by how load-bearing they are.
 
-**(a) The +51% at control is now a headline number.** It makes the reversal a reversal rather than
+**(a) The control-water benefit is now a headline number.** *Resolved in `10_Rigor_Reversal/`:* the
+model estimate of grain mass in Mono × Control is +66% (95% CI 3-167%), so the benefit clears zero,
+but the allocation shift at control is not supported. The original note follows: the raw +51% makes the reversal a reversal rather than
 a one-sided penalty. It is currently a raw cell mean at n = 5. Test the simple effect of
 inoculation within Mono × Control from the full model, with a CI. If it does not clear zero, the
 claim softens to "no benefit under adequate water, large cost under drought" — still publishable,
@@ -92,7 +96,7 @@ advisor agrees it was implicit.
 
 ---
 
-## 4. The four figures
+## 4. The three main figures (plus supplement)
 
 Collapsing, not adding. The current allocation figure and productivity figure show one result in
 two currencies across two figures; they merge into Fig 1.
@@ -164,17 +168,18 @@ estimate shown.
 The existing log(berry) vs log(vegetative mass) panel grid. Keep as is. Carries R3.
 Keep the non-overlapping-support caveat in the caption.
 
-### Figure 3 — TBD (Celeste): the fava neighbor, or move to supplement
+### Figure 3 — Conceptual path diagram
 
-The old "fava suppression" figure is withdrawn: it came from a data-entry error in the sterile
-pots' fava weights (corrected Nov 2026). Candidate replacement: the exploratory three-panel figure
-from `Analyses/16_Fava_Neighbor/` (fava biomass, pot composition, wheat vs fava). Its results are
-mostly null, so it may belong in the supplement instead. Labeled exploratory either way.
-
-### Figure 4 — Conceptual path diagram
-
-See `path_decomposition_and_diagram.md`. Carries R6 and the limitations. Shows the supported
+See `path_decomposition_and_diagram.md`. Built in `Analyses/15_Figure4_PathDiagram/` (the folder and
+file names still say "Figure 4"; it is Figure 3 in the paper). Carries R6 and the limitations. Shows the supported
 paths, the tested-and-null arbuscule:vesicle path, and the untested phenology path.
+
+### Supplement — Fig S-fava (the neighbor, exploratory)
+
+Carries R5. From `Analyses/16_Fava_Neighbor/`: `Fig_FavaNeighbor_InocWater` (fava biomass by
+inoculation and water, with p-values) and `Fig_FavaNeighbor_PotComposition` (stacked wheat + fava per
+pot). The old "fava suppression" figure was withdrawn: it came from a data-entry error in the sterile
+pots' fava weights (corrected Nov 2026).
 
 ### To the appendix
 

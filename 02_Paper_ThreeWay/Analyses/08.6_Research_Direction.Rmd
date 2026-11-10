@@ -531,7 +531,8 @@ Reading R1 and R2 together gives a coherent account:
 > **In monoculture, AMF's effect on wheat changes sign across the drought gradient; with a legume
 > neighbor it does not.** Under adequate water inoculated monoculture wheat is larger and makes more
 > grain, with no change in how it allocates. Under severe drought inoculated monoculture wheat is
-> *still* larger, but allocation collapses and grain falls by roughly two-thirds. In mixed stands,
+> *still* larger (total NPP `r E("A", "Mono", "Severe")`), but allocation collapses and grain mass
+> falls (`r E("B", "Mono", "Severe")`; model estimates from `10_Rigor_Reversal/`). In mixed stands,
 > no effect on productivity, grain or allocation is detectable at any water level. The cost is borne in monoculture, where there is no legume neighbor to offset it.
 
 This is a statement about **the biotic neighborhood setting position on the mutualism–parasitism

@@ -147,8 +147,10 @@ digraph paths {
 ")
 ```
 
-Consider using this as **Figure 1** of the manuscript, before any data. A conceptual framework
-figure is conventional in ecology and would orient a reader far faster than prose.
+In the current figure plan this diagram is **Figure 3** of the paper (see `story_arc_and_figures.md`),
+built in `Analyses/15_Figure4_PathDiagram/` (folder name predates the renumbering). An earlier
+suggestion was to lead with it as Figure 1; that remains an option if your advisor prefers a
+conceptual figure up front.
 
 ---
 

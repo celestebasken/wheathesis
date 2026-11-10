@@ -11,7 +11,7 @@ context. We tested whether a plant's neighbors also matter. In a greenhouse fact
 wheat in monoculture or mixed with fava bean, inoculated or sterile, three water levels; n = 5),
 inoculation changed wheat's grain output depending on both drought and neighborhood (three-way
 interaction on grain allocation, p < 0.001). Under severe drought in monoculture, inoculation
-raised total productivity 38% (95% CI 11-73%) yet cut grain mass 69% (50-80%), reducing grain
+raised total productivity 38% (95% CI 11-73%) yet cut grain mass 69% (49-80%), reducing grain
 allocation from 0.24 to 0.06. Under adequate water it raised grain mass in monoculture (+66%, 3-167%)
 without shifting allocation. In mixed stands, no effect appeared at any water level. Colonization
 and arbuscule:vesicle ratios did not explain the collapse. The sign of the AMF effect on grain
