@@ -25,7 +25,6 @@ could not be tested. Spec: `Manuscript/path_decomposition_and_diagram.md`, secti
 | Vegetative mass -> grain mass (+) | **weak, imprecise** | Fig 2: the common allometric slope is small, 0.15 (95% CI -0.26 to 0.56); a positive size effect is not demonstrated |
 | Inoculation -> grain mass, direct (−−) | supported, large | Fig 2 and `02_Allometry_Gate.Rmd`: at equal size, less grain; size alone cannot explain the deficit; confirmatory size-adjusted three-way interaction |
 | Water and Neighborhood moderate the direct path | moderation | confirmatory three-way interaction (Fig 1) |
-| Inoculation -> fava biomass (−) | supported, **exploratory** | Fig 3; suppression vanishes under severe drought |
 | Inoculation -> colonization -> grain | tested, null | `05_Mechanism_Arb_Vesc.Rmd`: arbuscule:vesicle ratio does not shift; colonization intact; dose-response uninformative (range-restricted) |
 | Inoculation -> phenology -> grain | untested | senescence timing was not recorded |
 
@@ -49,7 +48,6 @@ nodes <- tribble(
   "grain",  89,  36, 17, 10, "Grain mass /\nallocation",                   "white",   ink,     "solid",
   "col",    61.5, 24, 25, 11, "Colonization intact\n(composition unchanged)", "white", grey,   "solid",
   "phen",   68,   6.5, 25, 12, "Phenology /\nsenescence timing\n(not recorded)", "white", grey, "22",
-  "fava",   11,  10, 17, 10, "Fava\nbiomass",                              "#e3edf7", blue,    "solid",
   "water",  43,  46, 14,  8, "Water\n(severe drought)",                    "white",   ink,     "solid",
   "neigh",  58,  46, 14,  8, "Neighborhood\n(fava present)",               "#e3edf7", blue,    "solid"
 )
@@ -73,8 +71,7 @@ edges <- tribble(
   "inoc", "col",   "nul",   "",                                                                   "",     0,   0,
   "col",  "grain", "nul",   "not supported",                                                      "x",   -4,   3.4,
   "inoc", "phen",  "unt",   "",                                                                   "?",    0,   0,
-  "phen", "grain", "unt",   "",                                                                   "?",    0,   0,
-  "inoc", "fava",  "sup",   "\u2212  (exploratory)",                                              "",     9,   0
+  "phen", "grain", "unt",   "",                                                                   "?",    0,   0
 )
 
 style <- tribble(
@@ -130,8 +127,6 @@ fig4 <- ggplot() +
              fill = "white", label.size = 0, label.padding = unit(0.1, "lines")) +
   annotate("text", x = 50, y = 51.6, label = "moderate the direct effect", size = 3, color = "grey30",
            fontface = "italic") +
-  annotate("text", x = 11, y = 2.2, label = "suppression absent\nunder severe drought", size = 2.9,
-           color = "grey30", lineheight = 0.95, fontface = "italic") +
   geom_segment(data = leg, aes(x = x, xend = xend, y = ly, yend = ly, color = col, linewidth = lw, linetype = lty),
                arrow = arrow(length = unit(2.6, "mm"), type = "closed")) +
   geom_text(data = leg, aes(x = tx, y = ly, label = text), hjust = 0, size = 3.4, color = ink) +
@@ -155,7 +150,7 @@ ggsave("figures/Fig4_PathDiagram.png", fig4, width = 10, height = 6.6, dpi = 300
 > weak and imprecise (thin gray arrow): the common allometric slope was small and its interval
 > included zero, so the size difference alone cannot account for the grain deficit. Water and
 > neighborhood (fava present, blue) modify the direct path, which is the three-way interaction in
-> Fig. 1. Inoculation also reduced fava biomass (exploratory; Fig. 3). The dashed gray path was
+> Fig. 1. The dashed gray path was
 > tested and not supported: the functional composition of colonization (arbuscule:vesicle ratio) did
 > not shift, and overall colonization stayed intact. The dotted path, a delay in phenology or
 > senescence that truncated grain filling, is the leading surviving hypothesis but could not be
@@ -173,5 +168,5 @@ ggsave("figures/Fig4_PathDiagram.png", fig4, width = 10, height = 6.6, dpi = 300
   allometric slope. The common slope is 0.15 (95% CI -0.26 to 0.56), so a positive effect of size on grain
   is not demonstrated. The arrow is now labeled weak and imprecise. The direct path still stands: across
   the whole slope interval, size alone would change grain by only -13% to +36%, against an observed -69%.
-* **Color.** Blue marks the intercrop (fava and the neighborhood moderator), the same blue as
+* **Color.** Blue marks the intercrop (the neighborhood moderator), the same blue as
   Figures 1-3. The ink and gray arrows use line style, not hue, to carry evidentiary status.

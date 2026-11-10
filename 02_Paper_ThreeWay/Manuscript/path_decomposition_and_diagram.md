@@ -105,7 +105,6 @@ including the honest gaps, and commits to no statistics.
                (UNTESTED - not recorded)
 
   Neighborhood (fava present) ──[moderates]──> the direct path
-  Inoculation ──[−]──> Fava biomass ──[moderated by Water]
 ```
 
 ### Annotation scheme
@@ -114,7 +113,7 @@ Use line style and a legend to mark each arrow's evidentiary status:
 
 | Status | Style | Paths |
 |---|---|---|
-| Supported | solid, bold | Inoc → veg mass; Inoc → grain (direct); Inoc → fava biomass |
+| Supported | solid, bold | Inoc → veg mass; Inoc → grain (direct) |
 | Tested, null | dashed, greyed, with ✕ | Colonization → functional shift (arbuscule:vesicle) |
 | Untested | dotted, question mark | Inoc → phenology → grain filling |
 | Moderation | arrow onto an arrow | Water and Neighborhood onto the direct path |

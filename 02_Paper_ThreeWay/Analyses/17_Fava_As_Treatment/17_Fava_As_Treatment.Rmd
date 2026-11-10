@@ -15,7 +15,7 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 
 **Status: EXPLORATORY.** This starts a set of figures that treat the fava neighbor as a treatment, on
 the same footing as AMF inoculation, and ask how fava suppresses the effect of AMF on wheat. This
-first figure is the central allocation result (originally Figure 1 in `08.5_Research_Direction.Rmd`)
+first figure is the central allocation result (originally Figure 1 in the retired 08.5 research-direction document)
 with the factors flipped: **panels = inoculation, lines = stand type (Inter vs Mono)**.
 
 **Model.** Identical to the primary model: beta regression on `berry_alloc` with

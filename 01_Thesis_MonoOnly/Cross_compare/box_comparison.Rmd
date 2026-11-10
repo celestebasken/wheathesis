@@ -23,10 +23,7 @@ library(dplyr)
 
 ```{r}
 # Combined data
-combined <- read.csv("NPP_AMF_combined.csv")
-
-# need to remove the fourth row bc I'm missing data (the bnpp)
-combined <- combined[-4,]
+combined <- read.csv("full_dataset.csv")
 
 combined <- combined %>%
   mutate(
@@ -48,19 +45,19 @@ inter_only <- combined[combined$Polyculture != "Mono", ]
 
 ```{r}
 # Berry stats
-an_berry1 <- aov(Berries_g_pp~Polyculture+Inoculation+Water, data= combined)
+an_berry1 <- aov(W_Berries_g~Polyculture+Inoculation+Water, data= combined)
 summary(an_berry1)
 
-an_berry2 <- aov(Berries_g_pp~Polyculture*Inoculation*Water, data= combined)
+an_berry2 <- aov(W_Berries_g_p~Polyculture*Inoculation*Water, data= combined)
 summary(an_berry2)
 
-an_berry2.1 <- aov(Berries_g_pp~Polyculture*hyphal_colonization*Water, data= combined)
+an_berry2.1 <- aov(W_Berries_g_p~Polyculture*hyphal_colonization*Water, data= combined)
 summary(an_berry2.1)
 
-lm_berry2 <- lm(Berries_g_pp~Polyculture*Inoculation*Water, data= combined)
+lm_berry2 <- lm(W_Berries_g_p~Polyculture*Inoculation*Water, data= combined)
 summary(lm_berry2)
 
-an_berry2 <- aov(BNPP_g_pp~Polyculture, data= combined)
+an_berry2 <- aov(W_BNPP_g~Polyculture, data= combined)
 summary(an_berry2)
 
 

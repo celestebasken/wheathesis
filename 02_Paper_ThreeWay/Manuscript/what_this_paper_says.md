@@ -33,14 +33,13 @@ change in how the plant divided its resources, not a side effect of size.
 **A fava neighbor prevented it.** In mixed pots, the collapse didn't happen. The two stand types
 were indistinguishable under normal and moderate watering, and diverged only under severe drought.
 
-**The fungi also cost the fava.** Where wheat was inoculated, its fava neighbor grew smaller — but
-that suppression disappeared under severe drought.
-
 ## What it means
 
-The fungal partnership seems to pay off for wheat when water is adequate: that's visible in how
-much it suppresses the neighboring fava. Under severe drought the payoff disappears while the cost
-remains. Growing alone, wheat covers that cost out of its grain. With a legume neighbor, it
+The fungal partnership seems to pay off for wheat when water is adequate: inoculated plants were
+larger and made more grain. Under severe drought the payoff disappears while the cost remains.
+<!-- TBD (Celeste): the earlier "the fungi also cost the fava" point was removed in Nov 2026 - it came
+from the fava-weight data error. With corrected weights there is no detectable effect of
+inoculation on fava (see Analyses/16_Fava_Neighbor/). --> Growing alone, wheat covers that cost out of its grain. With a legume neighbor, it
 doesn't have to.
 
 The broader point is that the plant's biological neighborhood — not just the physical environment —

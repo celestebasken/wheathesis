@@ -199,7 +199,7 @@ ggplot(col, aes(x = hyphal, y = berry_alloc, color = Water)) +
 three separate panel p-values (that comparison error is exactly what the plan flagged with
 the previous version of this figure).*
 
-## Figure 6. Fava suppression (exploratory)
+## Figure 6. Fava biomass (exploratory)
 
 ```{r fig6, fig.width=8, fig.height=8.5}
 fava_inoc <- wheat %>% filter(Poly == "Inter", Inoc == "Inoc")
@@ -225,16 +225,18 @@ p6b <- ggplot(inter, aes(x = Water, y = fava_npp, fill = Inoc)) +
   geom_point(position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.8), size = 1.3) +
   scale_fill_manual(values = c(Inoc = COL_INOC, Strl = COL_STRL)) +
   labs(x = NULL, y = "Fava biomass (g)",
-       title = "B. Fava suppression by Inoculation status (all 30 Inter pots)",
+       title = "B. Fava biomass by wheat inoculation (all 30 Inter pots)",
        subtitle = paste0("Inoc:Water: p ", ifelse(supp_iw_p < 0.0001, "< 0.0001", paste("=", round(supp_iw_p,4))),
-                          " - suppression vanishes under severe drought")) +
+                          " - exploratory, no suppression detected")) +
   theme_minimal(base_size = 11) + theme(legend.position = "bottom", legend.title = element_blank())
 
 p6a / p6b
 ```
 
-*Panel A is the plan's literally-requested figure (weak/null). Panel B is the stronger,
-better-powered exploratory finding from Step 6 Part C - both clearly labeled exploratory.*
+*Panel A is the plan's literally-requested figure. Panel B is the Inoc x Water contrast from
+Step 6 Part C (Inoc:Water p = `r signif(supp_iw_p, 2)`). With the corrected fava weights (Nov 2026)
+neither shows the fava suppression reported earlier; that result was a data-entry artifact. Both
+exploratory; see `16_Fava_Neighbor/` for effect sizes.*
 
 ---
 
@@ -353,7 +355,7 @@ rows$s6_f <- tidy_test(m_f) %>% mutate(step = "6", status = "Exploratory", model
 m_f2 <- lm(fava_pct_pot ~ hyphal * Water, data = fava_inoc)
 rows$s6_f2 <- tidy_test(m_f2) %>% mutate(step = "6", status = "Exploratory", model = "fava_pct_pot ~ hyphal*Water")
 
-rows$s6_supp <- tidy_test(m_supp) %>% mutate(step = "6", status = "Exploratory (standout finding)", model = "log(fava_npp) ~ Inoc*Water")
+rows$s6_supp <- tidy_test(m_supp) %>% mutate(step = "6", status = "Exploratory", model = "log(fava_npp) ~ Inoc*Water")
 
 m_mech <- glmmTMB(berry_alloc ~ fava_npp * Inoc * Water, family = beta_family(), data = inter_c)
 rows$s6_mech <- tidy_test(m_mech) %>% mutate(step = "6", status = "Exploratory", model = "berry_alloc ~ fava_npp*Inoc*Water")

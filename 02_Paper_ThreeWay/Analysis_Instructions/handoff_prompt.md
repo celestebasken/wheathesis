@@ -24,7 +24,7 @@ and `addendum_after_step2.md`.
 - Data: `Data/` at the repo root, shared
 - Knit from inside `Analyses/` — the `.Rmd` files read `wheat_audited.rds` from the working
   directory. Relative paths were updated for the new depth and verified.
-- `02_Paper_ThreeWay/Archive_SignificanceGrids/` is superseded; don't build on it.
+- The old `Archive_SignificanceGrids/` test batteries were removed (Nov 2026); don't rebuild on them.
 
 ## The paper has been reframed — this matters
 

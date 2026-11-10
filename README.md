@@ -27,6 +27,10 @@ under severe drought.
 
 Jan–Aug 2026. Kept for reference and for text that can be reused. Not under active revision.
 
+Note (Nov 2026): the original fava CSVs had the sterile intercrop pots' (31–45) fava weights wrong
+(they were copies of the wheat berry weights); corrected in `Data/` and in
+`Initial_biomass_analysis/Biomass/`. The thesis results (monoculture only) are unaffected.
+
 ```
 Initial_biomass_analysis/   early exploratory analysis, figures, per-variable stats
 Cross_compare/              subset comparisons, combined NPP/AMF data
@@ -46,10 +50,9 @@ The manuscript in progress. Uses **all 60 pots**. The finding is the three-way i
 > mutualism-to-parasitism transition is contingent on the plant's neighborhood.
 
 ```
-Analyses/                   the numbered pipeline, 01 -> 08.6 (the live analysis)
+Analyses/                   the numbered pipeline, 01 -> 20 (the live analysis)
 Analysis_Instructions/      specs handed to Claude Code for execution
 Manuscript/                 narrative, story arc, figure plan (what to write, not what to run)
-Archive_SignificanceGrids/  Aug-Sep 2026 exploratory test batteries; superseded by Analyses/
 ```
 
 ### `Analyses/` running order
@@ -63,9 +66,20 @@ Archive_SignificanceGrids/  Aug-Sep 2026 exploratory test batteries; superseded 
 | `04_Fragility_Gate.Rmd` | **gate** — leave-one-out, influence |
 | `04b_Addendum_Followups.Rmd` | common-support sensitivity, permutation, exact tests |
 | `05_Mechanism_Arb_Vesc.Rmd` | arbuscule:vesicle mechanism test (null) |
-| `06_Exploratory.Rmd` | colonization associations, fava suppression |
+| `06_Exploratory.Rmd` | colonization associations; fava biomass vs colonization and inoculation (null with corrected data) |
 | `08_Figures_and_Supplement.Rmd` | full figure set + supplementary test table |
 | `08.6_Research_Direction.Rmd` | current narrative document |
+| `10_Rigor_Reversal/` | rigor checks for the reversal framing (simple effects, trend tests) |
+| `11_Figure1_Reversal/` | Figure 1: the reversal |
+| `12_Narrative_Update/` | abstract draft (markdown, nothing to knit) |
+| `13_Figure2_Allometry/` | Figure 2: allometry |
+| `15_Figure4_PathDiagram/` | Figure 4: conceptual path diagram |
+| `16_Fava_Neighbor/` | exploratory: fava biomass, competitive balance, fava as a covariate |
+| `17_Fava_As_Treatment/` | stand type (fava present) as a treatment for wheat berry allocation |
+| `20_AMF_Gram_Scale/` | AMF effects on berry, vegetative and total mass in grams per pot |
+
+Numbers are not contiguous (07, 09, 14, 18, 19 were retired); files keep their original numbers.
+The numbered subfolders are knit from inside their own folder.
 
 `wheat_audited.rds` and `loo_perm_null_dist.rds` live here; most `.Rmd` files read them from
 the working directory, so knit from inside `Analyses/`.
@@ -87,8 +101,3 @@ the working directory, so knit from inside `Analyses/`.
 - Build **Figure 1** (three-panel effect-size figure; spec in `Manuscript/story_arc_and_figures.md`).
 - Senescence timing per pot was never recorded — blocks the leading mechanistic hypothesis
   (phenological delay).
-
-## Known broken path
-
-`Archive_SignificanceGrids/PerPot/scratch/testing.Rmd` points at a `Data/` path that did not
-resolve before the reorganization either. It is scratch; left as found.

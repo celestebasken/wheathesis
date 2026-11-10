@@ -43,7 +43,7 @@ already asking.
 | R2 | Productivity or allocation? | Allocation. Productivity was *up* 38% where grain fell 64% | Fig 1C |
 | R3 | Is it just plant size? | No — size-adjusted, the effect strengthens | **Fig 2** |
 | R4 | Is it fragile? | Robustness: LOO, permutation, distribution-free | text + appendix |
-| R5 | What did it cost the neighbor? | Fava suppressed, except under severe drought | **Fig 3** |
+| R5 | What did it do to the neighbor? | TBD (Celeste). Corrected data: no detectable effect on fava or competitive balance (exploratory) | Fig 3 or supplement, TBD |
 | R6 | Why? | Unresolved. Structural mechanism tested and null | **Fig 4** |
 
 **Discussion** — states the finding, then: what it means for the continuum literature; the stress
@@ -164,10 +164,12 @@ estimate shown.
 The existing log(berry) vs log(vegetative mass) panel grid. Keep as is. Carries R3.
 Keep the non-overlapping-support caveat in the caption.
 
-### Figure 3 — Fava suppression
+### Figure 3 — TBD (Celeste): the fava neighbor, or move to supplement
 
-The existing boxplot of fava biomass by inoculation across water, all 30 mixed pots. Carries R5.
-Labelled exploratory.
+The old "fava suppression" figure is withdrawn: it came from a data-entry error in the sterile
+pots' fava weights (corrected Nov 2026). Candidate replacement: the exploratory three-panel figure
+from `Analyses/16_Fava_Neighbor/` (fava biomass, pot composition, wheat vs fava). Its results are
+mostly null, so it may belong in the supplement instead. Labeled exploratory either way.
 
 ### Figure 4 — Conceptual path diagram
 

@@ -136,9 +136,9 @@ step,status,model,term,statistic,df,p.value
 6,Exploratory,fava_pct_pot ~ hyphal*Water,hyphal,0.032,1,0.86115
 6,Exploratory,fava_pct_pot ~ hyphal*Water,Water,5.858,2,0.02348
 6,Exploratory,fava_pct_pot ~ hyphal*Water,hyphal:Water,0.295,2,0.75152
-6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Inoc,3.41,1,0.07719
-6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Water,4.121,2,0.02894
-6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Inoc:Water,2.991,2,0.06921
+6,Exploratory,log(fava_npp) ~ Inoc*Water,Inoc,3.41,1,0.07719
+6,Exploratory,log(fava_npp) ~ Inoc*Water,Water,4.121,2,0.02894
+6,Exploratory,log(fava_npp) ~ Inoc*Water,Inoc:Water,2.991,2,0.06921
 6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp,0.445,1,0.50484
 6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Inoc,0.013,1,0.91089
 6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Water,8.384,2,0.01511

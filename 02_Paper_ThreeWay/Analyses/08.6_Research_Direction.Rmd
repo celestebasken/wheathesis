@@ -82,7 +82,7 @@ dd_ci <- as.data.frame(confint(dd))
 sev <- dd_ci %>% filter(Water == "Severe")
 sev_est <- sev$estimate[1]; sev_cl <- get_cl(sev)
 
-# Fava suppression
+# Fava biomass by inoculation (R5, exploratory)
 inter_c <- wheat %>% filter(Poly == "Inter")
 contrasts(inter_c$Water) <- cbind(severe = c(-0.5, -0.5, 1), mild = c(-1, 1, 0))
 m_supp <- lm(log(fava_npp) ~ Inoc * Water, data = inter_c)
@@ -248,7 +248,7 @@ panel mixed stands and right panel monoculture. Three of the four treatment traj
 unremarkable, as allocation drifts modestly downward while water declines. The fourth, inoculated
 monoculture, falls off a cliff at severe drought. The sub-questions below establish that this drop
 is not a size artifact (R3), is not fragile (R4), is not a loss of total productivity (R2), what it
-costs the neighbor when present (R5), and what mechanism might produce it (R6).
+does to the neighbor when present (R5, exploratory, essentially null), and what mechanism might produce it (R6).
 
 **The test.** Beta regression with a logit link on the proportion, dispersion allowed to vary by
 stand composition, water partitioned into two planned orthogonal contrasts (severe vs. the mean of
@@ -418,43 +418,15 @@ should report them, not only the parametric result, because the central contrast
 
 ### R5 — What did the symbiosis cost the neighbor?
 
-Inoculation suppressed fava biomass in mixed stands, and that suppression *vanished* under severe
-drought (Inoc × Water on fava biomass, *p* = `r fmt_p(p_supp_iw)`). **EXPLORATORY.**
-
-```{r fig4, fig.width=8, fig.height=4.8}
-inter <- wheat %>% filter(Poly == "Inter")
-
-ggplot(inter, aes(x = Water, y = fava_npp, fill = Inoc)) +
-  geom_boxplot(position = position_dodge(0.8), width = 0.6, outlier.shape = NA) +
-  geom_point(position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.8),
-             size = 1.4, alpha = 0.85) +
-  scale_fill_manual(values = c(Inoc = COL_INOC, Strl = COL_STRL)) +
-  labs(x = NULL, y = "Fava biomass (g)",
-       title = "Fava biomass by inoculation status, across water treatments",
-       subtitle = paste0("All 30 mixed-stand pots. Inoc x Water: p = ", fmt_p(p_supp_iw),
-                         " - suppression disappears \nunder severe drought. EXPLORATORY.")) +
-  theme_minimal(base_size = 12) +
-  theme(legend.position = "bottom", legend.title = element_blank())
-```
-
-**What it shows and why it belongs in the paper.** Where water is adequate, fava grown alongside
-inoculated wheat is markedly smaller than fava grown alongside sterile wheat; under severe drought
-that gap closes. This is the other side of the same coin, and it converts a one-directional study
-into a bidirectional one - R1 asks what the neighbor does to the symbiosis, this asks what the
-symbiosis does to the neighbor. The answer, that a shared mycorrhizal partner restructures the
-competitive hierarchy in favor of wheat and stops doing so under severe drought, is a recognizably
-ecological result that slots directly into the mutualist-mediated competition literature. It is
-also independent evidence for the synthesis below: the disappearance of fava suppression at severe
-drought is a second, separate signal that AMF stops delivering a competitive benefit to wheat at
-that water level, right where R1 shows wheat paying a grain cost for it.
-
-**Caveats.** Exploratory - not among the pre-specified confirmatory tests, and this analysis uses
-all 30 mixed-stand pots rather than a randomized fava manipulation. Fava roots were never stained,
-so fava's own colonization status is unmeasured and no claim is made about it; the analysis
-relates fava *performance* to wheat's inoculation treatment, which was randomized. Note also that
-an earlier version of this analysis - regressing fava biomass on continuous wheat hyphal
-colonization - was weak and has been dropped, because colonization is bimodal and not randomized.
-This version uses the randomized factor instead and is both better powered and better identified.
+**Corrected Nov 2026; EXPLORATORY.** An earlier version of this section reported that inoculation
+strongly suppressed fava except under severe drought, and framed it as mutualist-mediated
+competition. That result was a data-entry error: the sterile intercrop pots' fava weights were
+copies of the wheat berry weights. With the corrected weights there is no evidence of suppression
+(Inoc × Water on log fava biomass, *p* = `r fmt_p(p_supp_iw)`). The only contrast that stands out
+is severe drought, where fava was somewhat *larger* next to inoculated wheat: a single cell with
+n = 5 per group, unadjusted. The full analysis, including competitive balance and total pot
+biomass (both null), is in `16_Fava_Neighbor/`. Fava roots were never stained, so fava's own
+colonization is unmeasured.
 
 ### R6 — What is the mechanism?
 
@@ -554,15 +526,13 @@ not imply one.
 
 ## The synthesis
 
-Reading R1, R2 and R5 together gives a coherent account:
+Reading R1 and R2 together gives a coherent account:
 
 > **In monoculture, AMF's effect on wheat changes sign across the drought gradient; with a legume
 > neighbor it does not.** Under adequate water inoculated monoculture wheat is larger and makes more
-> grain, with no change in how it allocates, and it suppresses its fava neighbor where one is
-> present. Under severe drought inoculated monoculture wheat is *still* larger, but allocation
-> collapses and grain falls by roughly two-thirds, and the suppression of the fava neighbor
-> vanishes. In mixed stands, no effect on productivity, grain or allocation is detectable at any
-> water level. The cost is borne in monoculture, where there is no legume neighbor to offset it.
+> grain, with no change in how it allocates. Under severe drought inoculated monoculture wheat is
+> *still* larger, but allocation collapses and grain falls by roughly two-thirds. In mixed stands,
+> no effect on productivity, grain or allocation is detectable at any water level. The cost is borne in monoculture, where there is no legume neighbor to offset it.
 
 This is a statement about **the biotic neighborhood setting position on the mutualism–parasitism
 continuum**, which is the paper's contribution. The agronomic implication — that inoculation
@@ -579,7 +549,7 @@ interpretation: the data show the cost is absent in mixed stands, not why.
 | Under severe drought in monoculture, AMF reduces grain mass and allocation while total productivity is not reduced (larger plants) | That AMF benefits allocation under adequate water (the control-water allocation estimate includes zero) |
 | The effect is an allocation shift, not a size artifact | That the mechanism is known |
 | In mixed stands no AMF effect is detectable at any water level (n = 5 per cell) | That there is no effect in mixed stands |
-| AMF suppresses fava except under severe drought (exploratory) | That this predicts field yields, or that AMF alone, isolated from co-introduced microbiota, causes these effects |
+| No detectable AMF effect on fava biomass or on pot-level competitive balance (exploratory; corrected data) | That AMF affects the fava neighbor; that any effect here predicts field yields, or that AMF alone, isolated from co-introduced microbiota, causes these effects |
 
 ---
 
