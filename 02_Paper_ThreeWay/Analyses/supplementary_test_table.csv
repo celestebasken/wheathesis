@@ -71,13 +71,13 @@ step,status,model,term,statistic,df,p.value
 3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Poly:Water,0.035,2,0.96542
 3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Inoc:Water,4.219,2,0.02051
 3,Exploratory,BNPP % of wheat biomass ~ Poly*Inoc*Water,Poly:Inoc:Water,1.019,2,0.36853
-3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly,64.256,1,0
-3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Inoc,5.552,1,0.01846
-3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Water,34.495,2,0
-3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly:Inoc,3.754,1,0.05267
-3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly:Water,4.489,2,0.10596
-3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Inoc:Water,1.873,2,0.39192
-3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly:Inoc:Water,2.401,2,0.30109
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly,42.012,1,0
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Inoc,9.054,1,0.00262
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Water,31.87,2,0
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly:Inoc,0.142,1,0.70652
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly:Water,2.295,2,0.31737
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Inoc:Water,1.435,2,0.48802
+3,Exploratory,Pot-level total productivity ~ Poly*Inoc*Water,Poly:Inoc:Water,1.699,2,0.42769
 3,Exploratory (robustness),"Dirichlet regression, compositional joint test","Poly:Inoc:Water (joint, all 3 parts)",19.933,6,0.00285
 4b,Robustness (distribution-free),"Exact Wilcoxon, berry ~ Inoc, Mono x Severe cell",Inoc (Mono x Severe cell only),-2.402,NA,0.01587
 4b,Robustness (distribution-free),"10,000-draw permutation test, labels shuffled within Water",Poly:Inoc:Water (permutation),16.586,NA,0.0165
@@ -136,13 +136,13 @@ step,status,model,term,statistic,df,p.value
 6,Exploratory,fava_pct_pot ~ hyphal*Water,hyphal,0.032,1,0.86115
 6,Exploratory,fava_pct_pot ~ hyphal*Water,Water,5.858,2,0.02348
 6,Exploratory,fava_pct_pot ~ hyphal*Water,hyphal:Water,0.295,2,0.75152
-6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Inoc,68.743,1,0
-6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Water,1.194,2,0.32023
-6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Inoc:Water,15.975,2,4e-5
-6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp,13.513,1,2.4e-4
-6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Inoc,1.086,1,0.29738
-6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Water,0.685,2,0.70993
-6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp:Inoc,1.208,1,0.27167
-6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp:Water,6.262,2,0.04368
-6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Inoc:Water,2.52,2,0.2836
-6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp:Inoc:Water,2.476,2,0.28994
+6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Inoc,3.41,1,0.07719
+6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Water,4.121,2,0.02894
+6,Exploratory (standout finding),log(fava_npp) ~ Inoc*Water,Inoc:Water,2.991,2,0.06921
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp,0.445,1,0.50484
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Inoc,0.013,1,0.91089
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Water,8.384,2,0.01511
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp:Inoc,0.129,1,0.71897
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp:Water,4.022,2,0.13384
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,Inoc:Water,0.738,2,0.69135
+6,Exploratory,berry_alloc ~ fava_npp*Inoc*Water,fava_npp:Inoc:Water,4.818,2,0.0899
