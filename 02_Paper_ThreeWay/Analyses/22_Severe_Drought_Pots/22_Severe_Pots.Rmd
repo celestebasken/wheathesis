@@ -1,0 +1,93 @@
+---
+title: "22 - Severe drought: every pot, NPP against berry allocation"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status: EXPLORATORY.** Descriptive plots of the raw pots; no tests.
+
+**Why this file.** The inoculation reversal (Figure 1, `11_Figure1_Reversal`) lives in the severe
+drought (40% FC) cell. This file drops the cell means and shows all 20 severe-drought pots on one
+panel, so each pot's productivity can be read against its allocation to berries.
+
+**Encoding.** x = wheat berry allocation (berry mass / wheat NPP, `berry_alloc`). y = wheat NPP.
+Colour and fill = inoculation, as in `fig_style.R` (inoculated #CC5500 filled, sterile #6B90CC open).
+Shape = stand type (circle = monoculture, triangle = wheat/ fava intercrop).
+
+**Two y axes, because of density.** Monoculture pots hold 12 wheat plants and intercrop pots hold 6,
+so NPP *per pot* compares stand types at unequal density (as flagged in Figure 1). The first figure
+uses per pot (matches `Fig1_NPP_perPot`); the second uses per plant (`W_NPP_pp`), which puts the two
+stand types on the same footing.
+
+```{r libs}
+library(tidyverse)
+source("../fig_style.R")
+
+sev <- readRDS("../wheat_audited.rds") %>% filter(Water == "Severe") %>%
+  mutate(Poly = poly_factor(Poly),
+         grp = interaction(Poly, Inoc, sep = "_", lex.order = TRUE),
+         berry_pct = berry_alloc * 100,
+         npp_pot = W_NPP, npp_plant = W_NPP_pp)
+stopifnot(nrow(sev) == 20, all(table(sev$Poly, sev$Inoc) == 5),
+          isTRUE(all.equal(sev$npp_pot, sev$npp_plant * sev$Num_wheat_pot, tolerance = 1e-3)))
+```
+
+```{r scales}
+grp_lab   <- c(Mono_Inoc = "Monoculture, inoculated", Mono_Strl = "Monoculture, sterile",
+               Inter_Inoc = "Intercrop, inoculated",  Inter_Strl = "Intercrop, sterile")
+grp_col   <- c(Mono_Inoc = pal_inoc[["Inoc"]], Mono_Strl = pal_inoc[["Strl"]],
+               Inter_Inoc = pal_inoc[["Inoc"]], Inter_Strl = pal_inoc[["Strl"]])
+grp_fill  <- c(Mono_Inoc = pal_inoc[["Inoc"]], Mono_Strl = "white",
+               Inter_Inoc = pal_inoc[["Inoc"]], Inter_Strl = "white")
+grp_shape <- c(Mono_Inoc = 21, Mono_Strl = 21, Inter_Inoc = 24, Inter_Strl = 24)
+
+pot_scatter <- function(y, ylab) {
+  ggplot(sev, aes(berry_pct, {{ y }}, colour = grp, fill = grp, shape = grp)) +
+    geom_point(size = 3.2, stroke = 1.1) +
+    scale_colour_manual(values = grp_col, labels = grp_lab, name = NULL) +
+    scale_fill_manual(values = grp_fill, labels = grp_lab, name = NULL) +
+    scale_shape_manual(values = grp_shape, labels = grp_lab, name = NULL) +
+    guides(colour = guide_legend(nrow = 2), fill = guide_legend(nrow = 2), shape = guide_legend(nrow = 2)) +
+    labs(x = "Wheat berry allocation (% of wheat NPP)", y = ylab) +
+    theme_fig() +
+    theme(panel.grid.major.x = element_line(color = "grey90", linewidth = 0.3))
+}
+```
+
+# Cell means (severe drought, n = 5 per group)
+
+```{r means}
+sev %>% group_by(Poly, Inoc) %>%
+  summarise(n = n(), `berry alloc (%)` = mean(berry_pct), `min` = min(berry_pct), `max` = max(berry_pct),
+            `NPP per pot (g)` = mean(npp_pot), `NPP per plant (g)` = mean(npp_plant), .groups = "drop") %>%
+  mutate(across(where(is.numeric), ~ round(.x, 2))) %>%
+  knitr::kable()
+```
+
+# Figure: NPP per pot against berry allocation
+
+```{r fig-pot, fig.width = 6.5, fig.height = 5.5}
+fig_pot <- pot_scatter(npp_pot, "Wheat NPP per pot (g)")
+fig_pot
+dir.create("figures", showWarnings = FALSE)
+ggsave("figures/Fig22_Severe_NPPpot_vs_Berry.pdf", fig_pot, width = 6.5, height = 5.5)
+ggsave("figures/Fig22_Severe_NPPpot_vs_Berry.png", fig_pot, width = 6.5, height = 5.5, dpi = 300, bg = "white")
+```
+
+# Figure: NPP per plant against berry allocation
+
+```{r fig-plant, fig.width = 6.5, fig.height = 5.5}
+fig_plant <- pot_scatter(npp_plant, "Wheat NPP per plant (g)")
+fig_plant
+ggsave("figures/Fig22_Severe_NPPplant_vs_Berry.pdf", fig_plant, width = 6.5, height = 5.5)
+ggsave("figures/Fig22_Severe_NPPplant_vs_Berry.png", fig_plant, width = 6.5, height = 5.5, dpi = 300, bg = "white")
+```

@@ -1,0 +1,126 @@
+---
+title: "21 - Allocation to fava and to berries against wheat AMF colonization"
+subtitle: "AMF x Drought x Neighborhood in Hard Red Spring Wheat"
+author: "Celeste Basken"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+**Status: EXPLORATORY.** Not in the pre-specified confirmatory set; every p-value and CI is
+unadjusted.
+
+**Question.** With the corrected fava weights (see `16_Fava_Neighbor`), the one fava result is
+that fava is heavier next to inoculated wheat under severe drought (~3.7 g) than in any other
+intercrop cell (~2 g). Does the pot-level allocation to fava, or wheat's allocation to berries,
+track wheat's AMF colonization as a continuous variable?
+
+**Definitions (confirmed with Celeste, Nov 2026).**
+
+* Allocation to fava = fava share of pot NPP, `fava_pct_pot` = `Fava_g / Pot_NPP_g` (= `Pot_pcent_fava`).
+* Allocation to berries = wheat berry mass / wheat NPP, `berry_alloc`.
+* AMF colonization = wheat root total (hyphal) colonization, `hyphal`. Arbuscules (`arb_pct`) in the supplement.
+  Fava roots were not stained, so this is always *wheat's* colonization.
+* Data: the 30 intercrop pots only. Color/fill = wheat inoculation (inoculated #CC5500 filled, solid;
+  sterile slate blue open, dashed, from `fig_style.R`); panels = water level.
+
+**Caveat on the sterile pots.** Colonization in sterile pots is low (mostly near background), so
+a slope fitted within sterile pots is a weak test. Inoculated pots under moderate and severe drought
+also span a very narrow range (about 0.9 to 1.0), so a within-cell slope there is barely estimable.
+See the colonization-range table below before reading anything into the lines.
+
+```{r libs}
+library(tidyverse)
+library(emmeans)
+library(patchwork)
+source("../fig_style.R")
+
+inter <- readRDS("../wheat_audited.rds") %>% filter(Poly == "Inter") %>%
+  mutate(fava_share = fava_pct_pot * 100, berry_pct = berry_alloc * 100,
+         hyph_pct = hyphal * 100, arb = arb_pct * 100, fava = Fava_g, wheat = W_NPP)
+stopifnot(nrow(inter) == 30, all(table(inter$Inoc, inter$Water) == 5),
+          isTRUE(all.equal(inter$fava_pct_pot, inter$Fava_g / inter$Pot_NPP_g, tolerance = 1e-4)))
+```
+
+# Colonization range in each cell
+
+```{r range}
+inter %>% group_by(Water, Inoc) %>%
+  summarise(n = n(), `hyphal mean (%)` = mean(hyph_pct), `min` = min(hyph_pct), `max` = max(hyph_pct),
+            `arbuscules mean (%)` = mean(arb), `fava share (%)` = mean(fava_share),
+            `fava (g)` = mean(fava), `wheat NPP (g)` = mean(wheat),
+            `berry alloc (%)` = mean(berry_pct), .groups = "drop") %>%
+  mutate(across(where(is.numeric), ~ round(.x, 1))) %>%
+  knitr::kable(caption = "Cell means, intercrop pots (n = 5 per cell)")
+```
+
+# Figure: allocation against colonization
+
+```{r fig-main, fig.width = 9, fig.height = 6.5}
+alloc_panel <- function(dat, x, y, ylab, xlab, strips = TRUE) {
+  ggplot(dat, aes({{ x }}, {{ y }}, colour = Inoc, fill = Inoc, shape = Inoc, linetype = Inoc)) +
+    geom_smooth(method = "lm", se = FALSE, linewidth = 0.7, show.legend = FALSE) +
+    geom_point(size = 2.4, stroke = 0.9) +
+    facet_wrap(~ Water, nrow = 1, labeller = labeller(Water = water_lab)) +
+    inoc_scales() +
+    labs(x = xlab, y = ylab) +
+    theme_fig() +
+    if (!strips) theme(strip.text = element_blank()) else NULL
+}
+
+p_fava  <- alloc_panel(inter, hyph_pct, fava_share, "Fava share of pot NPP (%)", NULL)
+p_berry <- alloc_panel(inter, hyph_pct, berry_pct, "Wheat berry allocation (%)",
+                       "Wheat root AMF colonization (%)", strips = FALSE)
+fig <- (p_fava / p_berry) + plot_layout(guides = "collect") & theme(legend.position = "bottom")
+fig
+ggsave("figures/Fig21_Alloc_vs_Colonization.pdf", fig, width = 9, height = 6.5)
+```
+
+# Slopes against colonization (EXPLORATORY)
+
+One model per response, fitted once on all 30 pots: `y ~ hyphal * Water * Inoc`, with slopes
+per Inoc x Water cell from `emtrends`. Slopes are per 10 percentage points of colonization.
+Read the cells with a narrow x range (see table above) as uninformative regardless of p.
+
+```{r slopes}
+slope_tab <- function(resp) {
+  m <- lm(reformulate("hyph_pct * Water * Inoc", resp), data = inter)
+  emtrends(m, ~ Inoc | Water, var = "hyph_pct") %>% summary(infer = TRUE) %>% as_tibble() %>%
+    transmute(response = resp, Water, Inoc,
+              slope_per10 = hyph_pct.trend * 10, lo = lower.CL * 10, hi = upper.CL * 10, p = p.value)
+}
+slopes <- bind_rows(slope_tab("fava_share"), slope_tab("berry_pct"))
+knitr::kable(slopes %>% mutate(across(c(slope_per10, lo, hi), ~ round(.x, 2)), p = signif(p, 2)),
+             col.names = c("Response", "Water", "Inoc", "Slope per 10 pts", "95% lo", "95% hi", "p"))
+```
+
+# What the fava share is made of
+
+The fava share can rise because fava gets heavier or because wheat gets lighter. This splits the
+severe-drought cell into its two pieces.
+
+```{r fava-parts, fig.width = 9, fig.height = 6.5}
+p_fg <- alloc_panel(inter, hyph_pct, fava, "Fava biomass (g per pot)", NULL)
+p_wg <- alloc_panel(inter, hyph_pct, wheat, "Wheat NPP (g per pot, 6 plants)",
+                    "Wheat root AMF colonization (%)", strips = FALSE)
+fig_parts <- (p_fg / p_wg) + plot_layout(guides = "collect") & theme(legend.position = "bottom")
+fig_parts
+ggsave("figures/Fig21S_FavaWheat_vs_Colonization.pdf", fig_parts, width = 9, height = 6.5)
+```
+
+# Supplement: arbuscules on the x axis
+
+```{r fig-arb, fig.width = 9, fig.height = 6.5}
+p_fava_a  <- alloc_panel(inter, arb, fava_share, "Fava share of pot NPP (%)", NULL)
+p_berry_a <- alloc_panel(inter, arb, berry_pct, "Wheat berry allocation (%)",
+                         "Wheat root arbuscule colonization (%)", strips = FALSE)
+fig_arb <- (p_fava_a / p_berry_a) + plot_layout(guides = "collect") & theme(legend.position = "bottom")
+fig_arb
+ggsave("figures/Fig21S_Alloc_vs_Arbuscules.pdf", fig_arb, width = 9, height = 6.5)
+```

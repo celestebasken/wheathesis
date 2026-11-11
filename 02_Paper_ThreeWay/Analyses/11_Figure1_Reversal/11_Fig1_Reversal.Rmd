@@ -170,8 +170,13 @@ to the response scale).
 **Letters.** Within each stand-type panel there are six cells (inoculation x water). Letters are a
 Tukey-adjusted compact letter display across those six cells (15 comparisons per panel, tested on the
 model's link scale): cells that share a letter are not distinguishable at alpha = 0.05. Letters are
-**not** comparable between the two panels. The unadjusted inoculated vs sterile p-values that used to be
-drawn are kept in a table under each figure.
+**not** comparable between the two panels.
+
+**p-values.** The p above each water level is a single inoculated vs sterile test within that stand
+type x water cell, from the same model, **unadjusted for multiplicity** (bold when p < 0.05). It is a
+different test from the letters: the letters adjust across all 15 pairs in the panel, so a cell can
+have p < 0.05 and still share a letter with its partner (e.g. monoculture severe BNPP). Both are also
+listed in the table under each figure.
 
 ```{r companion-helper}
 library(multcomp)
@@ -201,9 +206,13 @@ inoc_panel_stats <- function(model, back = identity) {
 }
 
 inoc_panel_fig <- function(st, ylab) {
-  y_top <- max(st$hi) * 1.12
+  y_top <- max(st$hi) * 1.22
   pd <- position_dodge(width = 0.3)
+  # one unadjusted Inoc vs Strl p per stand type x water, placed above both letters
+  p_df <- st %>% group_by(Poly, Water) %>% summarise(top = max(hi), p = first(p_inoc), .groups = "drop")
   ggplot(st, aes(Water, y, group = Inoc)) +
+    geom_text(data = p_df, aes(x = Water, y = top + y_top * 0.075, label = p_label(p)), inherit.aes = FALSE,
+              colour = p_text_colour(p_df$p), fontface = p_text_face(p_df$p), size = 3.3, vjust = 0) +
     geom_line(aes(colour = Inoc, linetype = Inoc), linewidth = 0.8, position = pd) +
     geom_errorbar(aes(ymin = lo, ymax = hi, colour = Inoc), width = 0.1, linewidth = 0.6, position = pd) +
     geom_point(aes(colour = Inoc, fill = Inoc, shape = Inoc), size = 3.4, stroke = 1.1, position = pd) +
@@ -298,6 +307,27 @@ inoc_panel_table(st_alloc, 3, "Grain allocation: model mean, 95% CI, Tukey lette
 water and separate sharply at severe drought; in the intercrop they do not separate at any water level.
 Comparing the two panels at severe drought is the fava-suppresses-AMF-cost pattern.
 
+## Root allocation (BNPP %)
+
+Share of wheat biomass belowground (`W_pcent_BNPP` = wheat BNPP / total wheat NPP, a proportion,
+plotted as %). Like grain allocation it does not depend on plant number, so the two panels are
+comparable. Model: beta regression `W_pcent_BNPP ~ Poly * Inoc * Water`, `dispformula = ~ Poly`,
+the same structure as the grain allocation model (03_Primary_Model treats BNPP % as a descriptive
+secondary response with a linear model; the beta model is used here so the two allocation figures
+match). Letters and p-values are tested on the logit scale; means and CIs are back-transformed.
+
+```{r bnpp-pct, fig.width=9.5, fig.height=6, dpi=150}
+m_bnpp_pct <- glmmTMB(W_pcent_BNPP ~ Poly * Inoc * Water, dispformula = ~ Poly,
+                      family = beta_family(), data = wheat)
+car::Anova(m_bnpp_pct, type = 2)
+st_bnpp_pct <- inoc_panel_stats(m_bnpp_pct, back = function(x) x * 100)
+fig_bnpp_pct <- inoc_panel_fig(st_bnpp_pct, "Root allocation (BNPP, % of wheat NPP)")
+print(fig_bnpp_pct)
+ggsave("figures/Fig1_BNPP_pct.pdf", fig_bnpp_pct, width = 9.5, height = 6)
+ggsave("figures/Fig1_BNPP_pct.png", fig_bnpp_pct, width = 9.5, height = 6, dpi = 300, bg = "white")
+inoc_panel_table(st_bnpp_pct, 1, "Root allocation (BNPP % of wheat NPP): model mean, 95% CI, Tukey letter (within stand type), unadjusted Inoc vs Strl p (logit scale)")
+```
+
 ## Inter vs Mono within each inoculation treatment
 
 The fava-as-treatment view (moved from `17_Fava_As_Treatment`): at each water level, does the intercrop
@@ -308,6 +338,7 @@ density** (12 vs 6 wheat plants), so only the allocation table is a fair Inter v
 
 ```{r inter-vs-mono}
 inter_vs_mono(m_alloc)  %>% knitr::kable(caption = "Grain allocation (logit scale): Inter vs Mono")
+inter_vs_mono(m_bnpp_pct) %>% knitr::kable(caption = "Root allocation, BNPP % (logit scale): Inter vs Mono")
 inter_vs_mono(m_wnpp)   %>% knitr::kable(caption = "Wheat NPP per pot (log scale): Inter vs Mono; density-confounded")
 inter_vs_mono(m_wbnpp)  %>% knitr::kable(caption = "Wheat BNPP per pot (log scale): Inter vs Mono; density-confounded")
 ```
